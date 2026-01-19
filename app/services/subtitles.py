@@ -53,6 +53,8 @@ def default_style() -> Dict[str, Any]:
         "text_color": "#FFFFFF",
         "highlight_color": "#FFFF00",
         "outline_color": "#000000",
+        "outline_enabled": True,
+        "outline_size": 2,
         "background_color": "#000000",
         "background_enabled": False,
         "background_opacity": 0.6,
@@ -249,13 +251,15 @@ def _ass_header(style: Dict[str, Any]) -> str:
     back_alpha = int(round((1.0 - background_opacity) * 255))
     alignment = {"bottom": 2, "center": 5, "top": 8}.get(style.get("position"), 2)
     margin_v = int(style.get("margin_v", 50))
-    outline_value = int(style.get("background_padding", 8)) if background_enabled else 2
+    outline_value = int(style.get("outline_size", 2))
     primary = _ass_color(str(style.get("text_color", "#FFFFFF")), 0)
     secondary = _ass_color(str(style.get("text_color", "#FFFFFF")), 0)
     back_color = _ass_color(str(style.get("background_color", "#000000")), back_alpha)
-    outline = back_color if background_enabled else _ass_color(str(style.get("outline_color", "#000000")), 0)
+    outline = _ass_color(str(style.get("outline_color", "#000000")), 0)
     back = back_color
     default_back = _ass_color(str(style.get("background_color", "#000000")), 255) if background_enabled else back
+    outline_enabled = bool(style.get("outline_enabled", True))
+    outline_value = outline_value if outline_enabled else 0
     transparent_text = _ass_color(str(style.get("text_color", "#FFFFFF")), 255)
 
     wrap_style = "2" if style.get("single_line", True) else "0"
@@ -273,20 +277,21 @@ def _ass_header(style: Dict[str, Any]) -> str:
         (
             "Style: Default,"
             f"{style.get('font_family', 'Arial')},{int(style.get('font_size', 48))},"
-            f"{primary},{secondary},{_ass_color(str(style.get('outline_color', '#000000')), 0)},{default_back},"
+            f"{primary},{secondary},{outline},{default_back},"
             "1,0,0,0,100,100,0,0,"
-            f"1,2,0,{alignment},80,80,{margin_v},1"
+            f"1,{outline_value},0,{alignment},80,80,{margin_v},1"
         ),
     ]
 
     if background_enabled:
+        box_outline = int(style.get("background_padding", 8))
         header_lines.append(
             (
                 "Style: Box,"
                 f"{style.get('font_family', 'Arial')},{int(style.get('font_size', 48))},"
                 f"{transparent_text},{transparent_text},{back},{back},"
                 "1,0,0,0,100,100,0,0,"
-                f"3,{outline_value},0,{alignment},80,80,{margin_v},1"
+                f"3,{box_outline},0,{alignment},80,80,{margin_v},1"
             )
         )
 

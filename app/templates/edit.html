@@ -66,6 +66,14 @@
                 Outline color
                 <input type="color" name="style_outline_color" value="{{ job.style.outline_color }}" />
               </label>
+              <label>
+                Outline
+                <input type="checkbox" name="style_outline_enabled" {% if job.style.outline_enabled %}checked{% endif %} />
+              </label>
+              <label>
+                Outline size
+                <input type="number" name="style_outline_size" min="0" max="10" value="{{ job.style.outline_size }}" />
+              </label>
             </div>
             <div class="subtitle-row">
               <label>
