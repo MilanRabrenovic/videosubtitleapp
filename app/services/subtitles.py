@@ -137,6 +137,67 @@ def generate_karaoke_ass(words: List[Dict[str, Any]], output_path: Path) -> None
     output_path.write_text("\n".join(lines).strip() + "\n", encoding="utf-8")
 
 
+def build_karaoke_words(words: List[Dict[str, Any]], subtitles: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Align word timings to subtitle text, falling back to even timing when counts mismatch."""
+    if not subtitles:
+        return words
+
+    def parse_timestamp(value: str) -> float:
+        try:
+            time_part, ms_part = value.split(",")
+            hours, minutes, seconds = time_part.split(":")
+            return int(hours) * 3600 + int(minutes) * 60 + int(seconds) + int(ms_part) / 1000.0
+        except ValueError:
+            return 0.0
+
+    aligned_words: List[Dict[str, Any]] = []
+    index = 0
+    total_words = len(words)
+    for block in subtitles:
+        block_text = str(block.get("text", "")).strip()
+        if not block_text:
+            continue
+        block_start = parse_timestamp(str(block.get("start", "00:00:00,000")))
+        block_end = parse_timestamp(str(block.get("end", "00:00:00,000")))
+        if block_end <= block_start:
+            continue
+
+        block_words: List[Dict[str, Any]] = []
+        while index < total_words:
+            word = words[index]
+            word_start = float(word.get("start", 0.0))
+            word_end = float(word.get("end", word_start))
+            if word_end < block_start:
+                index += 1
+                continue
+            if word_start > block_end:
+                break
+            block_words.append(word)
+            index += 1
+
+        tokens = block_text.split()
+        if not tokens:
+            continue
+        if block_words and len(block_words) == len(tokens):
+            for token, word in zip(tokens, block_words):
+                aligned_words.append(
+                    {
+                        "word": token,
+                        "start": float(word.get("start", block_start)),
+                        "end": float(word.get("end", block_start)),
+                    }
+                )
+        else:
+            block_duration = max(0.1, block_end - block_start)
+            per_word = block_duration / len(tokens)
+            for offset, token in enumerate(tokens):
+                start = block_start + offset * per_word
+                end = start + per_word
+                aligned_words.append({"word": token, "start": start, "end": end})
+
+    return aligned_words
+
+
 def _build_ass_dialogue(
     words: List[Dict[str, Any]],
     format_ass_time,

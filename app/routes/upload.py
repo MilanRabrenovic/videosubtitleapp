@@ -11,6 +11,7 @@ from fastapi.templating import Jinja2Templates
 
 from app.config import OUTPUTS_DIR, TEMPLATES_DIR, UPLOADS_DIR
 from app.services.subtitles import (
+    build_karaoke_words,
     generate_karaoke_ass,
     save_subtitle_job,
     save_transcript_words,
@@ -62,7 +63,8 @@ def handle_upload(request: Request, video: UploadFile = File(...), title: str = 
     preview_path = OUTPUTS_DIR / f"{job_id}_preview.mp4"
     preview_ass_path = OUTPUTS_DIR / f"{job_id}_preview.ass"
     try:
-        generate_karaoke_ass(words, preview_ass_path)
+        karaoke_words = build_karaoke_words(words, subtitles)
+        generate_karaoke_ass(karaoke_words, preview_ass_path)
         burn_in_ass(upload_path, preview_ass_path, preview_path)
     except RuntimeError as exc:
         logger.exception("Preview burn-in failed for %s", preview_path)

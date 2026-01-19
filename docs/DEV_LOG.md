@@ -63,3 +63,8 @@
 - Implemented: Preview burn-in now uses ASS karaoke highlighting when word timings exist.
 - Why: Preview matches the karaoke export output instead of plain subtitles.
 - Next action: Add a lightweight undo for the last edit block to speed minor fixes.
+
+## 2026-01-16
+- Implemented: Karaoke preview/export now aligns word text to edited subtitles, with fallback timings when counts differ.
+- Why: Ensures edited text appears in burned previews and karaoke exports.
+- Next action: Add a lightweight undo for the last edit block to speed minor fixes.

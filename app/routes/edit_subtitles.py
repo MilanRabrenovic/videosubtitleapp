@@ -9,6 +9,7 @@ from fastapi.templating import Jinja2Templates
 
 from app.config import OUTPUTS_DIR, TEMPLATES_DIR, UPLOADS_DIR
 from app.services.subtitles import (
+    build_karaoke_words,
     generate_karaoke_ass,
     load_subtitle_job,
     load_transcript_words,
@@ -63,7 +64,8 @@ def save_edits(request: Request, job_id: str, subtitles_json: str = Form(...)) -
     if video_path.exists():
         try:
             if words:
-                generate_karaoke_ass(words, preview_ass_path)
+                karaoke_words = build_karaoke_words(words, subtitles)
+                generate_karaoke_ass(karaoke_words, preview_ass_path)
                 burn_in_ass(video_path, preview_ass_path, preview_path)
             else:
                 burn_in_subtitles(video_path, srt_path, preview_path)

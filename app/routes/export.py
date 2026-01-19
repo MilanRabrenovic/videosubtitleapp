@@ -9,6 +9,7 @@ from fastapi.responses import FileResponse
 
 from app.config import OUTPUTS_DIR, UPLOADS_DIR
 from app.services.subtitles import (
+    build_karaoke_words,
     generate_karaoke_ass,
     load_subtitle_job,
     load_transcript_words,
@@ -99,7 +100,9 @@ def export_video_karaoke(request: Request, job_id: str) -> Any:
         raise HTTPException(status_code=404, detail="Transcript words not found")
 
     ass_path = OUTPUTS_DIR / f"{job_id}_karaoke.ass"
-    generate_karaoke_ass(words, ass_path)
+    subtitles = job_data.get("subtitles", [])
+    karaoke_words = build_karaoke_words(words, subtitles)
+    generate_karaoke_ass(karaoke_words, ass_path)
 
     output_path = OUTPUTS_DIR / f"{job_id}_karaoke.mp4"
     try:
