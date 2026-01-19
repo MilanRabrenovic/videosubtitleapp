@@ -9,13 +9,17 @@ from fastapi.templating import Jinja2Templates
 
 from app.config import OUTPUTS_DIR, TEMPLATES_DIR, UPLOADS_DIR
 from app.services.subtitles import (
-    build_karaoke_words,
+    build_karaoke_lines,
     default_style,
     generate_karaoke_ass,
     generate_ass_from_subtitles,
     load_subtitle_job,
     load_transcript_words,
+    merge_subtitles_by_group,
+    normalize_style,
     save_subtitle_job,
+    split_subtitles_by_word_timings,
+    split_subtitles_by_words,
     subtitles_to_srt,
 )
 from app.services.video import burn_in_ass
@@ -32,8 +36,9 @@ def edit_page(request: Request, job_id: str) -> Any:
     if not job_data:
         raise HTTPException(status_code=404, detail="Subtitle job not found")
 
-    if "style" not in job_data:
-        job_data["style"] = default_style()
+    job_data["style"] = normalize_style(job_data.get("style"))
+    for index, block in enumerate(job_data["subtitles"]):
+        block.setdefault("group_id", index)
 
     preview_path = OUTPUTS_DIR / f"{job_id}_preview.mp4"
     return templates.TemplateResponse(
@@ -60,6 +65,7 @@ def save_edits(
     style_background_opacity: float = Form(None),
     style_position: str = Form(None),
     style_margin_v: int = Form(None),
+    style_max_words_per_line: int = Form(None),
 ) -> Any:
     """Persist edited subtitles without reprocessing the video."""
     job_data = load_subtitle_job(job_id)
@@ -86,7 +92,19 @@ def save_edits(
         else style_defaults["background_opacity"],
         "position": style_position or style_defaults["position"],
         "margin_v": style_margin_v if style_margin_v is not None else style_defaults["margin_v"],
+        "single_line": False,
+        "max_words_per_line": style_max_words_per_line
+        if style_max_words_per_line is not None
+        else style_defaults["max_words_per_line"],
     }
+    words = load_transcript_words(job_id)
+    merged_subtitles = merge_subtitles_by_group(subtitles)
+    karaoke_lines = build_karaoke_lines(words, merged_subtitles) if words else []
+    group_ids = [block["group_id"] for block in merged_subtitles]
+    subtitles_split = split_subtitles_by_word_timings(
+        karaoke_lines, style["max_words_per_line"], group_ids
+    )
+    subtitles = subtitles_split or split_subtitles_by_words(merged_subtitles, style["max_words_per_line"])
     job_data["subtitles"] = subtitles
     job_data["style"] = style
     save_subtitle_job(job_id, job_data)
@@ -95,12 +113,11 @@ def save_edits(
     preview_path = OUTPUTS_DIR / f"{job_id}_preview.mp4"
     preview_ass_path = OUTPUTS_DIR / f"{job_id}_preview.ass"
     video_path = UPLOADS_DIR / job_data.get("video_filename", "")
-    words = load_transcript_words(job_id)
     if video_path.exists():
         try:
             if words:
-                karaoke_words = build_karaoke_words(words, subtitles)
-                generate_karaoke_ass(karaoke_words, preview_ass_path, style)
+                karaoke_lines = build_karaoke_lines(words, subtitles)
+                generate_karaoke_ass(karaoke_lines, preview_ass_path, style)
                 burn_in_ass(video_path, preview_ass_path, preview_path)
             else:
                 generate_ass_from_subtitles(subtitles, preview_ass_path, style)

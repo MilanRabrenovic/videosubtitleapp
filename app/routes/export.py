@@ -9,7 +9,7 @@ from fastapi.responses import FileResponse
 
 from app.config import OUTPUTS_DIR, UPLOADS_DIR
 from app.services.subtitles import (
-    build_karaoke_words,
+    build_karaoke_lines,
     generate_ass_from_subtitles,
     generate_karaoke_ass,
     normalize_style,
@@ -107,8 +107,8 @@ def export_video_karaoke(request: Request, job_id: str) -> Any:
     ass_path = OUTPUTS_DIR / f"{job_id}_karaoke.ass"
     subtitles = job_data.get("subtitles", [])
     style = normalize_style(job_data.get("style"))
-    karaoke_words = build_karaoke_words(words, subtitles)
-    generate_karaoke_ass(karaoke_words, ass_path, style)
+    karaoke_lines = build_karaoke_lines(words, subtitles)
+    generate_karaoke_ass(karaoke_lines, ass_path, style)
 
     output_path = OUTPUTS_DIR / f"{job_id}_karaoke.mp4"
     try:

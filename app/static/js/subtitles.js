@@ -29,10 +29,12 @@
   const collectSubtitles = () => {
     const blocks = subtitleList.querySelectorAll(".subtitle-block");
     return Array.from(blocks).map((block) => {
+      const groupValue = Number(block.dataset.group);
       return {
         start: block.querySelector(".start").value.trim(),
         end: block.querySelector(".end").value.trim(),
         text: block.querySelector(".text").value.trim(),
+        group_id: Number.isNaN(groupValue) ? null : groupValue,
       };
     });
   };
@@ -69,11 +71,18 @@
       if (!response.ok) {
         throw new Error("Save failed");
       }
+      const html = await response.text();
       if (saveStatus) {
         saveStatus.style.display = "inline";
         setTimeout(() => {
           saveStatus.style.display = "none";
         }, 1800);
+      }
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(html, "text/html");
+      const updatedList = doc.getElementById("subtitle-list");
+      if (updatedList) {
+        subtitleList.innerHTML = updatedList.innerHTML;
       }
       if (previewVideo) {
         const source = previewVideo.querySelector("source");

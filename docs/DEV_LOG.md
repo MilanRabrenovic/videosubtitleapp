@@ -73,3 +73,23 @@
 - Implemented: Styling controls in the editor (font, colors, position, background) applied to preview and exports.
 - Why: Lets users match brand/style needs while keeping export output consistent.
 - Next action: Add a lightweight undo for the last edit block to speed minor fixes.
+
+## 2026-01-16
+- Implemented: Single-line toggle that collapses subtitle text to one line for burned previews and exports.
+- Why: Keeps on-screen captions consistent and avoids multi-line blocks when desired.
+- Next action: Add a lightweight undo for the last edit block to speed minor fixes.
+
+## 2026-01-16
+- Implemented: Word-count based line wrapping for burned subtitles with configurable max words per line.
+- Why: Prevents off-screen overflow while keeping layout predictable.
+- Next action: Add a lightweight undo for the last edit block to speed minor fixes.
+
+## 2026-01-16
+- Implemented: Subtitle blocks now split into multiple timed blocks based on max words per line.
+- Why: Ensures long lines are broken into readable chunks and burned preview reflects the split.
+- Next action: Add a lightweight undo for the last edit block to speed minor fixes.
+
+## 2026-01-16
+- Implemented: Word-timing-based splitting to improve subtitle timing precision.
+- Why: Uses actual word timestamps for more accurate block start/end times.
+- Next action: Add a lightweight undo for the last edit block to speed minor fixes.

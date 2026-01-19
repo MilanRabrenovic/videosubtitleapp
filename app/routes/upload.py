@@ -11,11 +11,13 @@ from fastapi.templating import Jinja2Templates
 
 from app.config import OUTPUTS_DIR, TEMPLATES_DIR, UPLOADS_DIR
 from app.services.subtitles import (
-    build_karaoke_words,
+    build_karaoke_lines,
     default_style,
     generate_karaoke_ass,
     save_subtitle_job,
     save_transcript_words,
+    split_subtitles_by_word_timings,
+    split_subtitles_by_words,
     subtitles_to_srt,
     whisper_segments_to_subtitles,
 )
@@ -58,15 +60,21 @@ def handle_upload(request: Request, video: UploadFile = File(...), title: str = 
         "style": default_style(),
     }
 
+    karaoke_lines = build_karaoke_lines(words, job_data["subtitles"])
+    group_ids = list(range(len(job_data["subtitles"])))
+    job_data["subtitles"] = split_subtitles_by_word_timings(
+        karaoke_lines, job_data["style"]["max_words_per_line"], group_ids
+    ) or split_subtitles_by_words(job_data["subtitles"], job_data["style"]["max_words_per_line"])
+
     save_subtitle_job(job_id, job_data)
     save_transcript_words(job_id, words)
     srt_path = OUTPUTS_DIR / f"{job_id}.srt"
-    srt_path.write_text(subtitles_to_srt(subtitles), encoding="utf-8")
+    srt_path.write_text(subtitles_to_srt(job_data["subtitles"]), encoding="utf-8")
     preview_path = OUTPUTS_DIR / f"{job_id}_preview.mp4"
     preview_ass_path = OUTPUTS_DIR / f"{job_id}_preview.ass"
     try:
-        karaoke_words = build_karaoke_words(words, subtitles)
-        generate_karaoke_ass(karaoke_words, preview_ass_path, job_data["style"])
+        karaoke_lines = build_karaoke_lines(words, job_data["subtitles"])
+        generate_karaoke_ass(karaoke_lines, preview_ass_path, job_data["style"])
         burn_in_ass(upload_path, preview_ass_path, preview_path)
     except RuntimeError as exc:
         logger.exception("Preview burn-in failed for %s", preview_path)

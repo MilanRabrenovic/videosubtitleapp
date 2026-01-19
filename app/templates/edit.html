@@ -91,11 +91,17 @@
                 <input type="number" name="style_margin_v" min="0" max="200" value="{{ job.style.margin_v }}" />
               </label>
             </div>
+            <div class="subtitle-row">
+              <label>
+                Max words per line
+                <input type="number" name="style_max_words_per_line" min="1" max="12" value="{{ job.style.max_words_per_line }}" />
+              </label>
+            </div>
           </fieldset>
 
           <div id="subtitle-list">
             {% for block in job.subtitles %}
-              <div class="subtitle-block" data-index="{{ loop.index0 }}">
+              <div class="subtitle-block" data-index="{{ loop.index0 }}" data-group="{{ block.group_id }}">
                 <div class="subtitle-row">
                   <label>
                     Start time
