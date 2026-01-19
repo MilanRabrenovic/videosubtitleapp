@@ -36,3 +36,15 @@
 - Known limitations: Hard subtitles are permanent; export is synchronous and may be slow on large videos.
 - Assumptions: Uses the latest saved SRT from the editor as the export source.
 - Next action: Add a lightweight undo for the last edit block to speed minor fixes.
+
+## 2026-01-16
+- Implemented: Experimental playback view with word-level transcript highlighting synced to video playback.
+- Why: This is a UX exploration separate from subtitles and exports; timing is advisory and may drift.
+- Known limitations: Word timings can be imprecise with punctuation and fast speech.
+- Next action: Add a link from the editor to the playback view for quick access.
+
+## 2026-01-16
+- Implemented: ASS karaoke export using word timings with FFmpeg `ass` filter for burned word highlighting.
+- Why: ASS is required for per-word highlight timing; SRT cannot express karaoke effects.
+- Known limitations: Highlight timing is approximate; punctuation grouping is basic; output is hard subtitles.
+- Next action: Add a minimal UI button to trigger karaoke export alongside the existing export.

@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Playback Transcript</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 24px; }
+    .transcript { line-height: 1.8; }
+    .transcript span { padding: 2px 4px; border-radius: 4px; }
+    .transcript .active { background: #f6e58d; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Playback Transcript</h1>
+    <p><strong>Job:</strong> {{ job.title }}</p>
+
+    <video id="playback-video" controls width="480">
+      <source src="/uploads/{{ job.video_filename }}" type="video/mp4" />
+      Your browser does not support the video tag.
+    </video>
+
+    <p class="transcript" id="transcript-line">
+      {% for word in words %}
+        <span data-start="{{ word.start }}" data-end="{{ word.end }}">{{ word.word }}</span>
+      {% endfor %}
+    </p>
+  </main>
+  <script>
+    const video = document.getElementById("playback-video");
+    const words = Array.from(document.querySelectorAll("#transcript-line span"));
+    let activeIndex = -1;
+
+    const updateHighlight = () => {
+      const time = video.currentTime;
+      let nextIndex = -1;
+      for (let i = 0; i < words.length; i += 1) {
+        const start = Number(words[i].dataset.start);
+        const end = Number(words[i].dataset.end);
+        if (time >= start && time <= end) {
+          nextIndex = i;
+          break;
+        }
+      }
+      if (nextIndex !== activeIndex) {
+        if (activeIndex >= 0) {
+          words[activeIndex].classList.remove("active");
+        }
+        if (nextIndex >= 0) {
+          words[nextIndex].classList.add("active");
+        }
+        activeIndex = nextIndex;
+      }
+    };
+
+    if (video) {
+      video.addEventListener("timeupdate", updateHighlight);
+      video.addEventListener("seeked", updateHighlight);
+    }
+  </script>
+</body>
+</html>

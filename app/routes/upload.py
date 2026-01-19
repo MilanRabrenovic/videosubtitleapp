@@ -10,7 +10,12 @@ from fastapi.responses import RedirectResponse
 from fastapi.templating import Jinja2Templates
 
 from app.config import OUTPUTS_DIR, TEMPLATES_DIR, UPLOADS_DIR
-from app.services.subtitles import save_subtitle_job, subtitles_to_srt, whisper_segments_to_subtitles
+from app.services.subtitles import (
+    save_subtitle_job,
+    save_transcript_words,
+    subtitles_to_srt,
+    whisper_segments_to_subtitles,
+)
 from app.services.transcription import transcribe_video
 
 router = APIRouter()
@@ -35,7 +40,7 @@ def handle_upload(request: Request, video: UploadFile = File(...), title: str = 
         handle.write(video.file.read())
 
     try:
-        segments = transcribe_video(upload_path)
+        segments, words = transcribe_video(upload_path)
         subtitles = whisper_segments_to_subtitles(segments)
     except Exception as exc:  # noqa: BLE001 - keep errors simple for now
         logger.exception("Transcription failed for %s", upload_path)
@@ -49,6 +54,7 @@ def handle_upload(request: Request, video: UploadFile = File(...), title: str = 
     }
 
     save_subtitle_job(job_id, job_data)
+    save_transcript_words(job_id, words)
     srt_path = OUTPUTS_DIR / f"{job_id}.srt"
     srt_path.write_text(subtitles_to_srt(subtitles), encoding="utf-8")
 

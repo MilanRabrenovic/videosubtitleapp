@@ -71,9 +71,13 @@
       <form action="/export/{{ job.job_id }}/video" method="post">
         <button type="submit" data-export="video">Export video with subtitles</button>
       </form>
+      <form action="/export/{{ job.job_id }}/video-karaoke" method="post">
+        <button type="submit" data-export="video-karaoke">Export video with word highlight</button>
+      </form>
     </div>
     <p id="export-status" class="status" style="display: none;"></p>
     <p id="video-export-status" class="status" style="display: none;"></p>
+    <p id="karaoke-export-status" class="status" style="display: none;"></p>
     <p><em>Tip:</em> Save edits before exporting.</p>
   </main>
 </body>

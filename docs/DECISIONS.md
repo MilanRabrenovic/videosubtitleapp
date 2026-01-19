@@ -21,6 +21,15 @@ Hard subtitles are the simplest, most predictable way to ensure the exported vid
 ## Why export is synchronous
 Synchronous export keeps the system simple and avoids background job infrastructure for the MVP.
 
+## Why word-level transcript is separate from subtitles
+Word-level timing is experimental and for playback context only; keeping it separate avoids polluting the subtitle edit/export flow.
+
+## Why ASS is required for word highlighting
+ASS karaoke tags allow per-word timing and color transitions that SRT and VTT cannot represent.
+
+## Why karaoke export is separate from web playback captions
+Burned karaoke subtitles are for finalized video delivery; playback highlights remain a lightweight editor aid.
+
 ## Tradeoffs accepted for simplicity
 - No authentication or multi-user support.
 - Local filesystem storage only.

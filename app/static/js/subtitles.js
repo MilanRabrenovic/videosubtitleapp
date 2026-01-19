@@ -9,6 +9,8 @@
   const exportSrtButton = document.querySelector("[data-export='srt']");
   const exportVideoButton = document.querySelector("[data-export='video']");
   const exportVideoStatus = document.getElementById("video-export-status");
+  const exportKaraokeButton = document.querySelector("[data-export='video-karaoke']");
+  const exportKaraokeStatus = document.getElementById("karaoke-export-status");
   const timestampPattern = /^\d{2}:\d{2}:\d{2},\d{3}$/;
   let isDirty = false;
 
@@ -45,6 +47,9 @@
     }
     if (exportVideoStatus) {
       exportVideoStatus.style.display = "none";
+    }
+    if (exportKaraokeStatus) {
+      exportKaraokeStatus.style.display = "none";
     }
     isDirty = true;
   };
@@ -90,39 +95,53 @@
     });
   }
 
+  const handleVideoExport = async (button, statusEl, fallbackName, startText) => {
+    if (!button || !statusEl) {
+      return;
+    }
+    const form = button.closest("form");
+    if (!form) {
+      return;
+    }
+    button.disabled = true;
+    statusEl.textContent = startText;
+    statusEl.style.display = "block";
+    try {
+      const response = await fetch(form.action, { method: "POST", body: new FormData(form) });
+      if (!response.ok) {
+        throw new Error("Video export failed");
+      }
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      const disposition = response.headers.get("content-disposition") || "";
+      const filenameMatch = disposition.match(/filename=\"?([^\";]+)\"?/);
+      link.href = url;
+      link.download = filenameMatch ? filenameMatch[1] : fallbackName;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+      statusEl.textContent = "Video exported.";
+    } catch (error) {
+      console.error(error);
+      statusEl.textContent = "Video export failed.";
+    } finally {
+      button.disabled = false;
+    }
+  };
+
   if (exportVideoButton && exportVideoStatus) {
-    exportVideoButton.addEventListener("click", async (event) => {
+    exportVideoButton.addEventListener("click", (event) => {
       event.preventDefault();
-      const form = exportVideoButton.closest("form");
-      if (!form) {
-        return;
-      }
-      exportVideoButton.disabled = true;
-      exportVideoStatus.textContent = "Exporting video...";
-      exportVideoStatus.style.display = "block";
-      try {
-        const response = await fetch(form.action, { method: "POST", body: new FormData(form) });
-        if (!response.ok) {
-          throw new Error("Video export failed");
-        }
-        const blob = await response.blob();
-        const url = window.URL.createObjectURL(blob);
-        const link = document.createElement("a");
-        const disposition = response.headers.get("content-disposition") || "";
-        const filenameMatch = disposition.match(/filename=\"?([^\";]+)\"?/);
-        link.href = url;
-        link.download = filenameMatch ? filenameMatch[1] : "subtitled.mp4";
-        document.body.appendChild(link);
-        link.click();
-        link.remove();
-        window.URL.revokeObjectURL(url);
-        exportVideoStatus.textContent = "Video exported.";
-      } catch (error) {
-        console.error(error);
-        exportVideoStatus.textContent = "Video export failed.";
-      } finally {
-        exportVideoButton.disabled = false;
-      }
+      handleVideoExport(exportVideoButton, exportVideoStatus, "subtitled.mp4", "Exporting video...");
+    });
+  }
+
+  if (exportKaraokeButton && exportKaraokeStatus) {
+    exportKaraokeButton.addEventListener("click", (event) => {
+      event.preventDefault();
+      handleVideoExport(exportKaraokeButton, exportKaraokeStatus, "karaoke.mp4", "Exporting karaoke video...");
     });
   }
 })();
