@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Upload Video</title>
+</head>
+<body>
+  <main>
+    <h1>Upload a Video</h1>
+    <p>This app generates subtitles and lets you edit them in the browser.</p>
+
+    <form id="upload-form" action="/upload" method="post" enctype="multipart/form-data">
+      <label>
+        Video title (optional)
+        <input type="text" name="title" placeholder="Project name" />
+      </label>
+      <br />
+      <label>
+        Video file
+        <input type="file" name="video" accept="video/*" required />
+      </label>
+      <br />
+      <button id="upload-submit" type="submit">Upload &amp; Generate Subtitles</button>
+    </form>
+    <p id="upload-status" aria-live="polite"></p>
+  </main>
+  <script>
+    const form = document.getElementById("upload-form");
+    const submit = document.getElementById("upload-submit");
+    const status = document.getElementById("upload-status");
+    if (form && submit && status) {
+      form.addEventListener("submit", () => {
+        submit.disabled = true;
+        status.textContent = "Transcribing video. This may take a minute...";
+      });
+    }
+  </script>
+</body>
+</html>
