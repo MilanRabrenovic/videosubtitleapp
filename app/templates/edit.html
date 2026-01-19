@@ -37,6 +37,62 @@
         <form id="subtitle-form" action="/edit/{{ job.job_id }}" method="post">
           <input type="hidden" id="subtitles-json" name="subtitles_json" value="" />
 
+          <fieldset>
+            <legend>Subtitle styling</legend>
+            <div class="subtitle-row">
+              <label>
+                Font
+                <select name="style_font_family">
+                  <option value="Arial" {% if job.style.font_family == "Arial" %}selected{% endif %}>Arial</option>
+                  <option value="Helvetica" {% if job.style.font_family == "Helvetica" %}selected{% endif %}>Helvetica</option>
+                  <option value="Verdana" {% if job.style.font_family == "Verdana" %}selected{% endif %}>Verdana</option>
+                </select>
+              </label>
+              <label>
+                Font size
+                <input type="number" name="style_font_size" min="12" max="96" value="{{ job.style.font_size }}" />
+              </label>
+            </div>
+            <div class="subtitle-row">
+              <label>
+                Text color
+                <input type="color" name="style_text_color" value="{{ job.style.text_color }}" />
+              </label>
+              <label>
+                Highlight color
+                <input type="color" name="style_highlight_color" value="{{ job.style.highlight_color }}" />
+              </label>
+              <label>
+                Outline color
+                <input type="color" name="style_outline_color" value="{{ job.style.outline_color }}" />
+              </label>
+            </div>
+            <div class="subtitle-row">
+              <label>
+                Background box
+                <input type="checkbox" name="style_background_enabled" {% if job.style.background_enabled %}checked{% endif %} />
+              </label>
+              <label>
+                Background opacity
+                <input type="number" name="style_background_opacity" min="0" max="1" step="0.1" value="{{ job.style.background_opacity }}" />
+              </label>
+            </div>
+            <div class="subtitle-row">
+              <label>
+                Position
+                <select name="style_position">
+                  <option value="bottom" {% if job.style.position == "bottom" %}selected{% endif %}>Bottom</option>
+                  <option value="center" {% if job.style.position == "center" %}selected{% endif %}>Center</option>
+                  <option value="top" {% if job.style.position == "top" %}selected{% endif %}>Top</option>
+                </select>
+              </label>
+              <label>
+                Vertical margin
+                <input type="number" name="style_margin_v" min="0" max="200" value="{{ job.style.margin_v }}" />
+              </label>
+            </div>
+          </fieldset>
+
           <div id="subtitle-list">
             {% for block in job.subtitles %}
               <div class="subtitle-block" data-index="{{ loop.index0 }}">

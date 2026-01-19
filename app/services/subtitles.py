@@ -45,6 +45,31 @@ def load_transcript_words(job_id: str) -> Optional[List[Dict[str, Any]]]:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
+def default_style() -> Dict[str, Any]:
+    """Return default subtitle styling values."""
+    return {
+        "font_family": "Arial",
+        "font_size": 48,
+        "text_color": "#FFFFFF",
+        "highlight_color": "#FFFF00",
+        "outline_color": "#000000",
+        "background_enabled": False,
+        "background_opacity": 0.6,
+        "position": "bottom",
+        "margin_v": 50,
+    }
+
+
+def normalize_style(style: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+    """Merge user style with defaults."""
+    defaults = default_style()
+    if not style:
+        return defaults
+    merged = defaults.copy()
+    merged.update({key: value for key, value in style.items() if value is not None})
+    return merged
+
+
 def format_timestamp(seconds: float) -> str:
     """Format seconds as HH:MM:SS,mmm."""
     total_ms = max(0, int(round(seconds * 1000)))
@@ -90,9 +115,43 @@ def subtitles_to_vtt(subtitles: List[Dict[str, str]]) -> str:
     return "\n".join(lines).strip() + "\n"
 
 
-def generate_karaoke_ass(words: List[Dict[str, Any]], output_path: Path) -> None:
-    """Generate an ASS file with karaoke word highlighting."""
-    header = "\n".join(
+def srt_timestamp_to_seconds(value: str) -> float:
+    """Convert SRT timestamp (HH:MM:SS,mmm) to seconds."""
+    try:
+        time_part, ms_part = value.split(",")
+        hours, minutes, seconds = time_part.split(":")
+        return int(hours) * 3600 + int(minutes) * 60 + int(seconds) + int(ms_part) / 1000.0
+    except ValueError:
+        return 0.0
+
+
+def _ass_color(hex_color: str, alpha: int = 0) -> str:
+    """Convert #RRGGBB to ASS &HAABBGGRR format."""
+    color = hex_color.lstrip("#")
+    if len(color) != 6:
+        color = "FFFFFF"
+    rr = color[0:2]
+    gg = color[2:4]
+    bb = color[4:6]
+    return f"&H{alpha:02X}{bb}{gg}{rr}"
+
+
+def _ass_header(style: Dict[str, Any]) -> str:
+    """Build the ASS header with a single default style."""
+    style = normalize_style(style)
+    background_enabled = bool(style.get("background_enabled"))
+    background_opacity = float(style.get("background_opacity", 0.6))
+    background_opacity = min(max(background_opacity, 0.0), 1.0)
+    back_alpha = int(round((1.0 - background_opacity) * 255))
+    border_style = 3 if background_enabled else 1
+    alignment = {"bottom": 2, "center": 5, "top": 8}.get(style.get("position"), 2)
+    margin_v = int(style.get("margin_v", 50))
+    primary = _ass_color(str(style.get("text_color", "#FFFFFF")), 0)
+    secondary = _ass_color(str(style.get("text_color", "#FFFFFF")), 0)
+    outline = _ass_color(str(style.get("outline_color", "#000000")), 0)
+    back = _ass_color("#000000", back_alpha)
+
+    return "\n".join(
         [
             "[Script Info]",
             "ScriptType: v4.00+",
@@ -103,12 +162,26 @@ def generate_karaoke_ass(words: List[Dict[str, Any]], output_path: Path) -> None
             "Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, "
             "Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, "
             "MarginR, MarginV, Encoding",
-            "Style: Default,Arial,48,&H00FFFFFF,&H00FFFFFF,&H00000000,&H00000000,1,0,0,0,100,100,0,0,1,2,0,2,80,80,50,1",
+            (
+                "Style: Default,"
+                f"{style.get('font_family', 'Arial')},{int(style.get('font_size', 48))},"
+                f"{primary},{secondary},{outline},{back},"
+                "1,0,0,0,100,100,0,0,"
+                f"{border_style},2,0,{alignment},80,80,{margin_v},1"
+            ),
             "",
             "[Events]",
             "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text",
         ]
     )
+
+
+def generate_karaoke_ass(words: List[Dict[str, Any]], output_path: Path, style: Optional[Dict[str, Any]] = None) -> None:
+    """Generate an ASS file with karaoke word highlighting."""
+    style_data = normalize_style(style)
+    header = _ass_header(style_data)
+    highlight_color = _ass_color(str(style_data.get("highlight_color", "#FFFF00")), 0)
+    base_color = _ass_color(str(style_data.get("text_color", "#FFFFFF")), 0)
 
     def format_ass_time(seconds: float) -> str:
         total_cs = max(0, int(round(seconds * 100)))
@@ -128,14 +201,49 @@ def generate_karaoke_ass(words: List[Dict[str, Any]], output_path: Path) -> None
             continue
         line_words.append(word)
         if word_text.endswith((".", "?", "!")):
-            lines.append(_build_ass_dialogue(line_words, format_ass_time, escape_ass_text))
+            lines.append(
+                _build_ass_dialogue(
+                    line_words, format_ass_time, escape_ass_text, base_color, highlight_color
+                )
+            )
             line_words = []
 
     if line_words:
-        lines.append(_build_ass_dialogue(line_words, format_ass_time, escape_ass_text))
+        lines.append(
+            _build_ass_dialogue(line_words, format_ass_time, escape_ass_text, base_color, highlight_color)
+        )
 
     output_path.write_text("\n".join(lines).strip() + "\n", encoding="utf-8")
 
+
+def generate_ass_from_subtitles(
+    subtitles: List[Dict[str, Any]], output_path: Path, style: Optional[Dict[str, Any]] = None
+) -> None:
+    """Generate a styled ASS file from subtitle blocks."""
+    header = _ass_header(normalize_style(style))
+    lines: List[str] = [header]
+
+    def format_ass_time(seconds: float) -> str:
+        total_cs = max(0, int(round(seconds * 100)))
+        hours, remainder = divmod(total_cs, 3600 * 100)
+        minutes, remainder = divmod(remainder, 60 * 100)
+        secs, cs = divmod(remainder, 100)
+        return f"{hours}:{minutes:02}:{secs:02}.{cs:02}"
+
+    def escape_ass_text(text: str) -> str:
+        return text.replace("\\", "\\\\").replace("{", "\\{").replace("}", "\\}")
+
+    for block in subtitles:
+        start = srt_timestamp_to_seconds(str(block.get("start", "00:00:00,000")))
+        end = srt_timestamp_to_seconds(str(block.get("end", "00:00:00,000")))
+        if end <= start:
+            continue
+        text = escape_ass_text(str(block.get("text", "")).strip())
+        if not text:
+            continue
+        lines.append(f"Dialogue: 0,{format_ass_time(start)},{format_ass_time(end)},Default,,0,0,0,,{text}")
+
+    output_path.write_text("\n".join(lines).strip() + "\n", encoding="utf-8")
 
 def build_karaoke_words(words: List[Dict[str, Any]], subtitles: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """Align word timings to subtitle text, falling back to even timing when counts mismatch."""
@@ -202,10 +310,11 @@ def _build_ass_dialogue(
     words: List[Dict[str, Any]],
     format_ass_time,
     escape_ass_text,
+    base_color: str,
+    highlight_color: str,
 ) -> str:
     start = float(words[0].get("start", 0.0))
     end = float(words[-1].get("end", start))
-    line_start_ms = start * 1000.0
     chunks: List[str] = []
     for word in words:
         word_text = escape_ass_text(str(word.get("word", "")).strip())
@@ -216,12 +325,13 @@ def _build_ass_dialogue(
         rel_end = max(rel_start + 1, int(round((word_end - start) * 1000)))
         if rel_start == 0:
             chunks.append(
-                f"{{\\k{duration}\\c&H0000FFFF&\\t({rel_end},{rel_end},\\c&H00FFFFFF&)}}{word_text} "
+                f"{{\\k{duration}\\1c{highlight_color}&\\t({rel_end},{rel_end},\\1c{base_color}&)}}{word_text} "
             )
         else:
             chunks.append(
-                f"{{\\k{duration}\\c&H00FFFFFF&\\t({rel_start},{rel_start},\\c&H0000FFFF&)\\t({rel_end},{rel_end},\\c&H00FFFFFF&)}}"
-                f"{word_text} "
+                f"{{\\k{duration}\\1c{base_color}&"
+                f"\\t({rel_start},{rel_start},\\1c{highlight_color}&)"
+                f"\\t({rel_end},{rel_end},\\1c{base_color}&)}}{word_text} "
             )
     text = "".join(chunks).strip()
     return f"Dialogue: 0,{format_ass_time(start)},{format_ass_time(end)},Default,,0,0,0,,{text}"

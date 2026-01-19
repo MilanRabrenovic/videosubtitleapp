@@ -10,13 +10,15 @@ from fastapi.responses import FileResponse
 from app.config import OUTPUTS_DIR, UPLOADS_DIR
 from app.services.subtitles import (
     build_karaoke_words,
+    generate_ass_from_subtitles,
     generate_karaoke_ass,
+    normalize_style,
     load_subtitle_job,
     load_transcript_words,
     subtitles_to_srt,
     subtitles_to_vtt,
 )
-from app.services.video import burn_in_ass, burn_in_subtitles
+from app.services.video import burn_in_ass
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -63,12 +65,15 @@ def export_video(request: Request, job_id: str) -> Any:
         raise HTTPException(status_code=404, detail="Source video not found")
 
     subtitles = job_data.get("subtitles", [])
+    style = normalize_style(job_data.get("style"))
     srt_path = OUTPUTS_DIR / f"{job_id}.srt"
     srt_path.write_text(subtitles_to_srt(subtitles), encoding="utf-8")
+    ass_path = OUTPUTS_DIR / f"{job_id}.ass"
+    generate_ass_from_subtitles(subtitles, ass_path, style)
 
     output_path = OUTPUTS_DIR / f"{job_id}_subtitled.mp4"
     try:
-        burn_in_subtitles(video_path, srt_path, output_path)
+        burn_in_ass(video_path, ass_path, output_path)
     except RuntimeError as exc:
         logger.exception("FFmpeg export failed for %s", output_path)
         raise HTTPException(status_code=500, detail="FFmpeg failed to export video") from exc
@@ -101,8 +106,9 @@ def export_video_karaoke(request: Request, job_id: str) -> Any:
 
     ass_path = OUTPUTS_DIR / f"{job_id}_karaoke.ass"
     subtitles = job_data.get("subtitles", [])
+    style = normalize_style(job_data.get("style"))
     karaoke_words = build_karaoke_words(words, subtitles)
-    generate_karaoke_ass(karaoke_words, ass_path)
+    generate_karaoke_ass(karaoke_words, ass_path, style)
 
     output_path = OUTPUTS_DIR / f"{job_id}_karaoke.mp4"
     try:

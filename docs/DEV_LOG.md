@@ -68,3 +68,8 @@
 - Implemented: Karaoke preview/export now aligns word text to edited subtitles, with fallback timings when counts differ.
 - Why: Ensures edited text appears in burned previews and karaoke exports.
 - Next action: Add a lightweight undo for the last edit block to speed minor fixes.
+
+## 2026-01-16
+- Implemented: Styling controls in the editor (font, colors, position, background) applied to preview and exports.
+- Why: Lets users match brand/style needs while keeping export output consistent.
+- Next action: Add a lightweight undo for the last edit block to speed minor fixes.

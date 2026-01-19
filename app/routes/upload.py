@@ -12,6 +12,7 @@ from fastapi.templating import Jinja2Templates
 from app.config import OUTPUTS_DIR, TEMPLATES_DIR, UPLOADS_DIR
 from app.services.subtitles import (
     build_karaoke_words,
+    default_style,
     generate_karaoke_ass,
     save_subtitle_job,
     save_transcript_words,
@@ -54,6 +55,7 @@ def handle_upload(request: Request, video: UploadFile = File(...), title: str = 
         "title": title.strip() or video.filename,
         "video_filename": safe_name,
         "subtitles": subtitles,
+        "style": default_style(),
     }
 
     save_subtitle_job(job_id, job_data)
@@ -64,7 +66,7 @@ def handle_upload(request: Request, video: UploadFile = File(...), title: str = 
     preview_ass_path = OUTPUTS_DIR / f"{job_id}_preview.ass"
     try:
         karaoke_words = build_karaoke_words(words, subtitles)
-        generate_karaoke_ass(karaoke_words, preview_ass_path)
+        generate_karaoke_ass(karaoke_words, preview_ass_path, job_data["style"])
         burn_in_ass(upload_path, preview_ass_path, preview_path)
     except RuntimeError as exc:
         logger.exception("Preview burn-in failed for %s", preview_path)
