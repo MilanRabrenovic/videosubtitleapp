@@ -438,6 +438,97 @@ def build_karaoke_lines(words: List[Dict[str, Any]], subtitles: List[Dict[str, A
     return aligned_lines
 
 
+def _split_text_segments(text: str) -> List[str]:
+    """Split text into manual line segments using newlines or | markers."""
+    normalized = text.replace("|", "\n")
+    segments = [segment.strip() for segment in normalized.splitlines() if segment.strip()]
+    return segments or [text.strip()]
+
+
+def apply_manual_breaks(
+    subtitles: List[Dict[str, Any]], words: Optional[List[Dict[str, Any]]]
+) -> tuple[List[Dict[str, Any]], List[List[Dict[str, Any]]]]:
+    """Apply manual line breaks and return updated subtitles and karaoke lines."""
+    base_lines = build_karaoke_lines(words, subtitles) if words else [[] for _ in subtitles]
+    new_subtitles: List[Dict[str, Any]] = []
+    new_lines: List[List[Dict[str, Any]]] = []
+    group_counter = 0
+
+    for index, block in enumerate(subtitles):
+        text = str(block.get("text", "")).strip()
+        if not text:
+            continue
+        segments = _split_text_segments(text)
+        line_words = base_lines[index] if index < len(base_lines) else []
+
+        if len(segments) == 1:
+            new_subtitles.append(
+                {
+                    "start": block.get("start"),
+                    "end": block.get("end"),
+                    "text": segments[0],
+                    "group_id": group_counter,
+                }
+            )
+            if line_words:
+                new_lines.append(line_words)
+            group_counter += 1
+            continue
+
+        tokens_per_segment = [segment.split() for segment in segments]
+        total_tokens = sum(len(tokens) for tokens in tokens_per_segment)
+        block_start = srt_timestamp_to_seconds(str(block.get("start", "00:00:00,000")))
+        block_end = srt_timestamp_to_seconds(str(block.get("end", "00:00:00,000")))
+        if block_end <= block_start:
+            continue
+
+        if line_words and total_tokens == len(line_words):
+            cursor = 0
+            for tokens in tokens_per_segment:
+                if not tokens:
+                    continue
+                segment_words = line_words[cursor : cursor + len(tokens)]
+                cursor += len(tokens)
+                start = float(segment_words[0].get("start", block_start))
+                end = float(segment_words[-1].get("end", start))
+                new_subtitles.append(
+                    {
+                        "start": format_timestamp(start),
+                        "end": format_timestamp(end),
+                        "text": " ".join(tokens),
+                        "group_id": group_counter,
+                    }
+                )
+                new_lines.append(segment_words)
+                group_counter += 1
+        else:
+            segment_count = len(tokens_per_segment)
+            segment_duration = max(0.1, (block_end - block_start) / max(1, segment_count))
+            for seg_index, tokens in enumerate(tokens_per_segment):
+                if not tokens:
+                    continue
+                start = block_start + seg_index * segment_duration
+                end = start + segment_duration
+                per_word = max(0.05, (end - start) / len(tokens))
+                segment_words = []
+                for token_index, token in enumerate(tokens):
+                    w_start = start + token_index * per_word
+                    w_end = w_start + per_word
+                    segment_words.append({"word": token, "start": w_start, "end": w_end})
+                new_subtitles.append(
+                    {
+                        "start": format_timestamp(start),
+                        "end": format_timestamp(end),
+                        "text": " ".join(tokens),
+                        "group_id": group_counter,
+                    }
+                )
+                new_lines.append(segment_words)
+                group_counter += 1
+
+    return new_subtitles, new_lines
+
+
 def _build_ass_dialogue(
     words: List[Dict[str, Any]],
     format_ass_time,

@@ -9,6 +9,7 @@ from fastapi.templating import Jinja2Templates
 
 from app.config import OUTPUTS_DIR, TEMPLATES_DIR, UPLOADS_DIR
 from app.services.subtitles import (
+    apply_manual_breaks,
     build_karaoke_lines,
     default_style,
     generate_karaoke_ass,
@@ -99,12 +100,12 @@ def save_edits(
     }
     words = load_transcript_words(job_id)
     merged_subtitles = merge_subtitles_by_group(subtitles)
-    karaoke_lines = build_karaoke_lines(words, merged_subtitles) if words else []
-    group_ids = [block["group_id"] for block in merged_subtitles]
+    manual_subtitles, manual_lines = apply_manual_breaks(merged_subtitles, words)
+    group_ids = [block.get("group_id") for block in manual_subtitles]
     subtitles_split = split_subtitles_by_word_timings(
-        karaoke_lines, style["max_words_per_line"], group_ids
+        manual_lines, style["max_words_per_line"], group_ids
     )
-    subtitles = subtitles_split or split_subtitles_by_words(merged_subtitles, style["max_words_per_line"])
+    subtitles = subtitles_split or split_subtitles_by_words(manual_subtitles, style["max_words_per_line"])
     job_data["subtitles"] = subtitles
     job_data["style"] = style
     save_subtitle_job(job_id, job_data)
