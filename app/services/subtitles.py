@@ -483,11 +483,42 @@ def build_karaoke_lines(words: List[Dict[str, Any]], subtitles: List[Dict[str, A
                 end = start + per_word
                 line_words.append({"word": token, "start": start, "end": end})
         if line_words:
+            line_words = _smooth_word_timings(line_words, block_start, block_end)
             line_words[0]["_line_start"] = block_start
             line_words[-1]["_line_end"] = block_end
             aligned_lines.append(line_words)
 
     return aligned_lines
+
+
+def _smooth_word_timings(
+    line_words: List[Dict[str, Any]],
+    line_start: float,
+    line_end: float,
+    min_duration: float = 0.04,
+    max_duration: float = 0.6,
+    min_gap: float = 0.01,
+) -> List[Dict[str, Any]]:
+    """Clamp word durations and prevent overlaps for smoother karaoke timing."""
+    if line_end <= line_start:
+        return line_words
+    prev_end = line_start
+    for word in line_words:
+        start = max(float(word.get("start", line_start)), prev_end)
+        end = float(word.get("end", start))
+        duration = end - start
+        if duration < min_duration:
+            end = start + min_duration
+        if duration > max_duration:
+            end = start + max_duration
+        if end > line_end:
+            end = line_end
+        if end < start + min_gap:
+            end = min(line_end, start + min_gap)
+        word["start"] = start
+        word["end"] = end
+        prev_end = end
+    return line_words
 
 
 def _split_text_segments(text: str) -> List[str]:

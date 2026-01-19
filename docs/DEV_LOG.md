@@ -93,3 +93,8 @@
 - Implemented: Word-timing-based splitting to improve subtitle timing precision.
 - Why: Uses actual word timestamps for more accurate block start/end times.
 - Next action: Add a lightweight undo for the last edit block to speed minor fixes.
+
+## 2026-01-16
+- Implemented: Word timing smoothing with min/max duration clamps and overlap prevention.
+- Why: Makes karaoke highlights feel more natural for short/long words.
+- Next action: Add a lightweight undo for the last edit block to speed minor fixes.
