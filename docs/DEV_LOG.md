@@ -48,3 +48,18 @@
 - Why: ASS is required for per-word highlight timing; SRT cannot express karaoke effects.
 - Known limitations: Highlight timing is approximate; punctuation grouping is basic; output is hard subtitles.
 - Next action: Add a minimal UI button to trigger karaoke export alongside the existing export.
+
+## 2026-01-16
+- Implemented: Editor preview panel with an inline video player to validate edits before exporting.
+- Why: Quick in-browser playback reduces context switching and improves confidence in timing.
+- Next action: Add a lightweight undo for the last edit block to speed minor fixes.
+
+## 2026-01-16
+- Implemented: Burned-in preview video generation on upload/save and preview refresh in the editor.
+- Why: Matches the final burned export more closely during review.
+- Next action: Add a lightweight undo for the last edit block to speed minor fixes.
+
+## 2026-01-16
+- Implemented: Preview burn-in now uses ASS karaoke highlighting when word timings exist.
+- Why: Preview matches the karaoke export output instead of plain subtitles.
+- Next action: Add a lightweight undo for the last edit block to speed minor fixes.

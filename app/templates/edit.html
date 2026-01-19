@@ -7,12 +7,19 @@
   <script src="/static/js/subtitles.js" defer></script>
   <style>
     body { font-family: Arial, sans-serif; margin: 24px; }
+    .layout { display: grid; grid-template-columns: 1.6fr 1fr; gap: 24px; align-items: start; }
     .subtitle-block { border: 1px solid #ddd; padding: 12px; margin-bottom: 12px; }
     .subtitle-row { display: flex; gap: 12px; margin-bottom: 8px; }
     .subtitle-row label { flex: 1; }
     textarea { width: 100%; min-height: 64px; }
     .actions { margin-top: 16px; display: flex; gap: 12px; flex-wrap: wrap; }
     .status { margin-top: 8px; color: #2b6cb0; }
+    .video-panel { position: sticky; top: 16px; }
+    video { width: 100%; max-width: 480px; }
+    @media (max-width: 960px) {
+      .layout { grid-template-columns: 1fr; }
+      .video-panel { position: static; }
+    }
   </style>
 </head>
 <body>
@@ -25,39 +32,54 @@
       <p class="status">Changes saved.</p>
     {% endif %}
 
-    <form id="subtitle-form" action="/edit/{{ job.job_id }}" method="post">
-      <input type="hidden" id="subtitles-json" name="subtitles_json" value="" />
+    <div class="layout">
+      <section>
+        <form id="subtitle-form" action="/edit/{{ job.job_id }}" method="post">
+          <input type="hidden" id="subtitles-json" name="subtitles_json" value="" />
 
-      <div id="subtitle-list">
-        {% for block in job.subtitles %}
-          <div class="subtitle-block" data-index="{{ loop.index0 }}">
-            <div class="subtitle-row">
-              <label>
-                Start time
-                <input type="text" class="start" value="{{ block.start }}" />
-              </label>
-              <label>
-                End time
-                <input type="text" class="end" value="{{ block.end }}" />
-              </label>
-            </div>
-            <label>
-              Text
-              <textarea class="text">{{ block.text }}</textarea>
-            </label>
+          <div id="subtitle-list">
+            {% for block in job.subtitles %}
+              <div class="subtitle-block" data-index="{{ loop.index0 }}">
+                <div class="subtitle-row">
+                  <label>
+                    Start time
+                    <input type="text" class="start" value="{{ block.start }}" />
+                  </label>
+                  <label>
+                    End time
+                    <input type="text" class="end" value="{{ block.end }}" />
+                  </label>
+                </div>
+                <label>
+                  Text
+                  <textarea class="text">{{ block.text }}</textarea>
+                </label>
+              </div>
+            {% endfor %}
           </div>
-        {% endfor %}
-      </div>
 
-      <div class="actions">
-        <button type="submit">Save edits</button>
-        <span id="save-status" class="status" style="display: none;">Subtitles saved</span>
-      </div>
-      <p id="timestamp-hint" class="status" style="display: none;">
-        One or more timestamps look invalid (expected HH:MM:SS,mmm)
-      </p>
-      <p id="edit-status" class="status"></p>
-    </form>
+          <div class="actions">
+            <button type="submit">Save edits</button>
+            <span id="save-status" class="status" style="display: none;">Subtitles saved</span>
+          </div>
+          <p id="timestamp-hint" class="status" style="display: none;">
+            One or more timestamps look invalid (expected HH:MM:SS,mmm)
+          </p>
+          <p id="edit-status" class="status"></p>
+        </form>
+      </section>
+      <aside class="video-panel">
+        <h2>Preview</h2>
+        <video id="preview-video" controls>
+          {% if preview_available %}
+            <source src="/outputs/{{ job.job_id }}_preview.mp4" type="video/mp4" />
+          {% else %}
+            <source src="/uploads/{{ job.video_filename }}" type="video/mp4" />
+          {% endif %}
+          Your browser does not support the video tag.
+        </video>
+      </aside>
+    </div>
 
     <div class="actions">
       <form action="/export/{{ job.job_id }}/subtitles" method="post">
@@ -67,9 +89,6 @@
       <form action="/export/{{ job.job_id }}/subtitles" method="post">
         <input type="hidden" name="format" value="vtt" />
         <button type="submit">Download subtitles (VTT)</button>
-      </form>
-      <form action="/export/{{ job.job_id }}/video" method="post">
-        <button type="submit" data-export="video">Export video with subtitles</button>
       </form>
       <form action="/export/{{ job.job_id }}/video-karaoke" method="post">
         <button type="submit" data-export="video-karaoke">Export video with word highlight</button>

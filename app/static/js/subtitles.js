@@ -7,10 +7,9 @@
   const timestampHint = document.getElementById("timestamp-hint");
   const exportStatus = document.getElementById("export-status");
   const exportSrtButton = document.querySelector("[data-export='srt']");
-  const exportVideoButton = document.querySelector("[data-export='video']");
+  const exportKaraokeButtons = document.querySelectorAll("[data-export='video-karaoke']");
   const exportVideoStatus = document.getElementById("video-export-status");
-  const exportKaraokeButton = document.querySelector("[data-export='video-karaoke']");
-  const exportKaraokeStatus = document.getElementById("karaoke-export-status");
+  const previewVideo = document.getElementById("preview-video");
   const timestampPattern = /^\d{2}:\d{2}:\d{2},\d{3}$/;
   let isDirty = false;
 
@@ -48,8 +47,8 @@
     if (exportVideoStatus) {
       exportVideoStatus.style.display = "none";
     }
-    if (exportKaraokeStatus) {
-      exportKaraokeStatus.style.display = "none";
+    if (exportVideoStatus) {
+      exportVideoStatus.style.display = "none";
     }
     isDirty = true;
   };
@@ -75,6 +74,14 @@
         setTimeout(() => {
           saveStatus.style.display = "none";
         }, 1800);
+      }
+      if (previewVideo) {
+        const source = previewVideo.querySelector("source");
+        if (source && source.src.includes("/outputs/")) {
+          const cacheBuster = `v=${Date.now()}`;
+          source.src = source.src.split("?")[0] + "?" + cacheBuster;
+          previewVideo.load();
+        }
       }
       isDirty = false;
     } catch (error) {
@@ -131,17 +138,22 @@
     }
   };
 
-  if (exportVideoButton && exportVideoStatus) {
-    exportVideoButton.addEventListener("click", (event) => {
-      event.preventDefault();
-      handleVideoExport(exportVideoButton, exportVideoStatus, "subtitled.mp4", "Exporting video...");
+  const bindExportButtons = (buttons, statusEl, fallbackName, startText) => {
+    if (!buttons.length || !statusEl) {
+      return;
+    }
+    buttons.forEach((button) => {
+      button.addEventListener("click", (event) => {
+        event.preventDefault();
+        handleVideoExport(button, statusEl, fallbackName, startText);
+      });
     });
-  }
+  };
 
-  if (exportKaraokeButton && exportKaraokeStatus) {
-    exportKaraokeButton.addEventListener("click", (event) => {
-      event.preventDefault();
-      handleVideoExport(exportKaraokeButton, exportKaraokeStatus, "karaoke.mp4", "Exporting karaoke video...");
-    });
-  }
+  bindExportButtons(
+    exportKaraokeButtons,
+    exportVideoStatus,
+    "karaoke.mp4",
+    "Exporting karaoke video..."
+  );
 })();
