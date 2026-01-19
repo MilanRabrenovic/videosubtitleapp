@@ -62,8 +62,11 @@ def save_edits(
     style_text_color: str = Form(None),
     style_highlight_color: str = Form(None),
     style_outline_color: str = Form(None),
+    style_background_color: str = Form(None),
     style_background_enabled: str = Form(None),
     style_background_opacity: float = Form(None),
+    style_background_padding: int = Form(None),
+    style_background_blur: float = Form(None),
     style_position: str = Form(None),
     style_margin_v: int = Form(None),
     style_max_words_per_line: int = Form(None),
@@ -85,12 +88,19 @@ def save_edits(
         "text_color": style_text_color or style_defaults["text_color"],
         "highlight_color": style_highlight_color or style_defaults["highlight_color"],
         "outline_color": style_outline_color or style_defaults["outline_color"],
+        "background_color": style_background_color or style_defaults["background_color"],
         "background_enabled": style_background_enabled == "on"
         if style_background_enabled is not None
         else style_defaults["background_enabled"],
         "background_opacity": style_background_opacity
         if style_background_opacity is not None
         else style_defaults["background_opacity"],
+        "background_padding": style_background_padding
+        if style_background_padding is not None
+        else style_defaults["background_padding"],
+        "background_blur": style_background_blur
+        if style_background_blur is not None
+        else style_defaults["background_blur"],
         "position": style_position or style_defaults["position"],
         "margin_v": style_margin_v if style_margin_v is not None else style_defaults["margin_v"],
         "single_line": False,

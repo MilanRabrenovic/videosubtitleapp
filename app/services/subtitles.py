@@ -53,8 +53,11 @@ def default_style() -> Dict[str, Any]:
         "text_color": "#FFFFFF",
         "highlight_color": "#FFFF00",
         "outline_color": "#000000",
+        "background_color": "#000000",
         "background_enabled": False,
         "background_opacity": 0.6,
+        "background_padding": 8,
+        "background_blur": 0.0,
         "position": "bottom",
         "margin_v": 50,
         "single_line": False,
@@ -238,45 +241,63 @@ def _ass_color(hex_color: str, alpha: int = 0) -> str:
 
 
 def _ass_header(style: Dict[str, Any]) -> str:
-    """Build the ASS header with a single default style."""
+    """Build the ASS header with default and optional background styles."""
     style = normalize_style(style)
     background_enabled = bool(style.get("background_enabled"))
     background_opacity = float(style.get("background_opacity", 0.6))
     background_opacity = min(max(background_opacity, 0.0), 1.0)
     back_alpha = int(round((1.0 - background_opacity) * 255))
-    border_style = 3 if background_enabled else 1
     alignment = {"bottom": 2, "center": 5, "top": 8}.get(style.get("position"), 2)
     margin_v = int(style.get("margin_v", 50))
+    outline_value = int(style.get("background_padding", 8)) if background_enabled else 2
     primary = _ass_color(str(style.get("text_color", "#FFFFFF")), 0)
     secondary = _ass_color(str(style.get("text_color", "#FFFFFF")), 0)
-    outline = _ass_color(str(style.get("outline_color", "#000000")), 0)
-    back = _ass_color("#000000", back_alpha)
+    back_color = _ass_color(str(style.get("background_color", "#000000")), back_alpha)
+    outline = back_color if background_enabled else _ass_color(str(style.get("outline_color", "#000000")), 0)
+    back = back_color
+    default_back = _ass_color(str(style.get("background_color", "#000000")), 255) if background_enabled else back
+    transparent_text = _ass_color(str(style.get("text_color", "#FFFFFF")), 255)
 
     wrap_style = "2" if style.get("single_line", True) else "0"
-    return "\n".join(
-        [
-            "[Script Info]",
-            "ScriptType: v4.00+",
-            f"WrapStyle: {wrap_style}",
-            "PlayResX: 1920",
-            "PlayResY: 1080",
-            "",
-            "[V4+ Styles]",
-            "Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, "
-            "Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, "
-            "MarginR, MarginV, Encoding",
+    header_lines = [
+        "[Script Info]",
+        "ScriptType: v4.00+",
+        f"WrapStyle: {wrap_style}",
+        "PlayResX: 1920",
+        "PlayResY: 1080",
+        "",
+        "[V4+ Styles]",
+        "Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, "
+        "Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, "
+        "MarginR, MarginV, Encoding",
+        (
+            "Style: Default,"
+            f"{style.get('font_family', 'Arial')},{int(style.get('font_size', 48))},"
+            f"{primary},{secondary},{_ass_color(str(style.get('outline_color', '#000000')), 0)},{default_back},"
+            "1,0,0,0,100,100,0,0,"
+            f"1,2,0,{alignment},80,80,{margin_v},1"
+        ),
+    ]
+
+    if background_enabled:
+        header_lines.append(
             (
-                "Style: Default,"
+                "Style: Box,"
                 f"{style.get('font_family', 'Arial')},{int(style.get('font_size', 48))},"
-                f"{primary},{secondary},{outline},{back},"
+                f"{transparent_text},{transparent_text},{back},{back},"
                 "1,0,0,0,100,100,0,0,"
-                f"{border_style},2,0,{alignment},80,80,{margin_v},1"
-            ),
+                f"3,{outline_value},0,{alignment},80,80,{margin_v},1"
+            )
+        )
+
+    header_lines.extend(
+        [
             "",
             "[Events]",
             "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text",
         ]
     )
+    return "\n".join(header_lines)
 
 
 def _single_line_text(text: str, style: Dict[str, Any]) -> str:
@@ -291,6 +312,14 @@ def _apply_single_line_override(text: str, style: Dict[str, Any]) -> str:
     if not style.get("single_line", True):
         return text
     return "{\\q2}" + text
+
+
+def _background_blur_tag(style: Dict[str, Any]) -> str:
+    """Return a blur tag to soften the background box edges."""
+    blur_value = float(style.get("background_blur", 0.0))
+    if blur_value <= 0:
+        return ""
+    return f"{{\\blur{blur_value}}}"
 
 
 def _wrap_text(text: str, style: Dict[str, Any]) -> str:
@@ -327,12 +356,23 @@ def generate_karaoke_ass(
         return text.replace("\\", "\\\\").replace("{", "\\{").replace("}", "\\}")
 
     lines: List[str] = [header]
+    blur_tag = _background_blur_tag(style_data)
     for line_words in word_lines:
         if not line_words:
             continue
-        lines.append(
-            _build_ass_dialogue(line_words, format_ass_time, escape_ass_text, base_color, highlight_color, style_data)
+        if style_data.get("background_enabled"):
+            plain_text = " ".join(str(word.get("word", "")).strip() for word in line_words).strip()
+            plain_text = escape_ass_text(plain_text)
+            plain_text = _wrap_text(plain_text, style_data)
+            lines.append(
+                f"Dialogue: 0,{format_ass_time(float(line_words[0].get('_line_start', line_words[0].get('start', 0.0))))},"
+                f"{format_ass_time(float(line_words[-1].get('_line_end', line_words[-1].get('end', 0.0))))},"
+                f"Box,,0,0,0,,{blur_tag}{plain_text}"
+            )
+        dialogue = _build_ass_dialogue(
+            line_words, format_ass_time, escape_ass_text, base_color, highlight_color, style_data, "Default"
         )
+        lines.append(dialogue)
 
     output_path.write_text("\n".join(lines).strip() + "\n", encoding="utf-8")
 
@@ -368,7 +408,14 @@ def generate_ass_from_subtitles(
             text = _wrap_text(text, style_data)
         if not text:
             continue
-        lines.append(f"Dialogue: 0,{format_ass_time(start)},{format_ass_time(end)},Default,,0,0,0,,{text}")
+        blur_tag = _background_blur_tag(style_data)
+        if style_data.get("background_enabled"):
+            lines.append(
+                f"Dialogue: 0,{format_ass_time(start)},{format_ass_time(end)},Box,,0,0,0,,{blur_tag}{text}"
+            )
+        lines.append(
+            f"Dialogue: 0,{format_ass_time(start)},{format_ass_time(end)},Default,,0,0,0,,{text}"
+        )
 
     output_path.write_text("\n".join(lines).strip() + "\n", encoding="utf-8")
 
@@ -536,6 +583,7 @@ def _build_ass_dialogue(
     base_color: str,
     highlight_color: str,
     style_data: Dict[str, Any],
+    style_name: str,
 ) -> str:
     start = float(words[0].get("_line_start", words[0].get("start", 0.0)))
     end = float(words[-1].get("_line_end", words[-1].get("end", start)))
@@ -567,4 +615,4 @@ def _build_ass_dialogue(
         text = _apply_single_line_override(text, style_data)
     else:
         text = _wrap_text(text, style_data)
-    return f"Dialogue: 0,{format_ass_time(start)},{format_ass_time(end)},Default,,0,0,0,,{text}"
+    return f"Dialogue: 0,{format_ass_time(start)},{format_ass_time(end)},{style_name},,0,0,0,,{text}"
