@@ -8,6 +8,7 @@ from fastapi import APIRouter, Form, HTTPException, Request
 from fastapi.responses import FileResponse
 
 from app.config import OUTPUTS_DIR, UPLOADS_DIR
+from app.services.fonts import ensure_font_downloaded, font_dir_for_name
 from app.services.subtitles import (
     build_karaoke_lines,
     generate_ass_from_subtitles,
@@ -72,8 +73,11 @@ def export_video(request: Request, job_id: str) -> Any:
     generate_ass_from_subtitles(subtitles, ass_path, style)
 
     output_path = OUTPUTS_DIR / f"{job_id}_subtitled.mp4"
+    fonts_dir = ensure_font_downloaded(style.get("font_family")) or font_dir_for_name(
+        style.get("font_family")
+    )
     try:
-        burn_in_ass(video_path, ass_path, output_path)
+        burn_in_ass(video_path, ass_path, output_path, fonts_dir)
     except RuntimeError as exc:
         logger.exception("FFmpeg export failed for %s", output_path)
         raise HTTPException(status_code=500, detail="FFmpeg failed to export video") from exc
@@ -111,8 +115,11 @@ def export_video_karaoke(request: Request, job_id: str) -> Any:
     generate_karaoke_ass(karaoke_lines, ass_path, style)
 
     output_path = OUTPUTS_DIR / f"{job_id}_karaoke.mp4"
+    fonts_dir = ensure_font_downloaded(style.get("font_family")) or font_dir_for_name(
+        style.get("font_family")
+    )
     try:
-        burn_in_ass(video_path, ass_path, output_path)
+        burn_in_ass(video_path, ass_path, output_path, fonts_dir)
     except RuntimeError as exc:
         logger.exception("FFmpeg karaoke export failed for %s", output_path)
         raise HTTPException(status_code=500, detail="FFmpeg failed to export karaoke video") from exc

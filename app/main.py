@@ -4,8 +4,9 @@ from fastapi import FastAPI
 from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
-from app.config import OUTPUTS_DIR, STATIC_DIR, UPLOADS_DIR, ensure_directories
+from app.config import MAX_STORAGE_BYTES, OUTPUTS_DIR, STATIC_DIR, UPLOADS_DIR, ensure_directories
 from app.routes import edit_subtitles, export, playback, upload
+from app.services.cleanup import cleanup_storage
 
 app = FastAPI(title="Subtitle App", version="0.1.0")
 
@@ -25,6 +26,7 @@ app.include_router(playback.router)
 def startup() -> None:
     """Ensure filesystem layout is ready at boot."""
     ensure_directories()
+    cleanup_storage(MAX_STORAGE_BYTES)
 
 
 @app.get("/")

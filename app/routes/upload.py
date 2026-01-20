@@ -9,7 +9,9 @@ from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import RedirectResponse
 from fastapi.templating import Jinja2Templates
 
-from app.config import OUTPUTS_DIR, TEMPLATES_DIR, UPLOADS_DIR
+from app.config import MAX_STORAGE_BYTES, OUTPUTS_DIR, TEMPLATES_DIR, UPLOADS_DIR
+from app.services.cleanup import cleanup_storage
+from app.services.fonts import ensure_font_downloaded, font_dir_for_name
 from app.services.subtitles import (
     build_karaoke_lines,
     default_style,
@@ -49,6 +51,7 @@ def handle_upload(
 
     with upload_path.open("wb") as handle:
         handle.write(video.file.read())
+    cleanup_storage(MAX_STORAGE_BYTES)
 
     language = language.strip().lower() or None
     try:
@@ -85,7 +88,10 @@ def handle_upload(
     try:
         karaoke_lines = build_karaoke_lines(words, job_data["subtitles"])
         generate_karaoke_ass(karaoke_lines, preview_ass_path, job_data["style"])
-        burn_in_ass(upload_path, preview_ass_path, preview_path)
+        fonts_dir = ensure_font_downloaded(job_data["style"].get("font_family")) or font_dir_for_name(
+            job_data["style"].get("font_family")
+        )
+        burn_in_ass(upload_path, preview_ass_path, preview_path, fonts_dir)
     except RuntimeError as exc:
         logger.exception("Preview burn-in failed for %s", preview_path)
         raise HTTPException(status_code=500, detail="Preview generation failed") from exc

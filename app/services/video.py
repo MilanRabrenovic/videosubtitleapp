@@ -56,9 +56,11 @@ def burn_in_subtitles(video_path: Path, subtitles_path: Path, output_path: Path)
         raise RuntimeError(f"FFmpeg failed: {result.stderr.strip()}")
 
 
-def burn_in_ass(video_path: Path, ass_path: Path, output_path: Path) -> None:
+def burn_in_ass(video_path: Path, ass_path: Path, output_path: Path, fonts_dir: Path | None = None) -> None:
     """Burn ASS subtitles into a video using FFmpeg."""
     filter_arg = f"ass=filename={_escape_filter_path(ass_path)}"
+    if fonts_dir:
+        filter_arg = f"{filter_arg}:fontsdir={_escape_filter_path(fonts_dir)}"
     command = [
         "ffmpeg",
         "-y",

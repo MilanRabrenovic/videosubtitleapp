@@ -51,6 +51,8 @@ def default_style() -> Dict[str, Any]:
     return {
         "font_family": "Arial",
         "font_size": 48,
+        "font_bold": True,
+        "font_italic": False,
         "text_color": "#FFFFFF",
         "highlight_color": "#FFFF00",
         "outline_color": "#000000",
@@ -301,6 +303,8 @@ def _ass_header(style: Dict[str, Any]) -> str:
     alignment = {"bottom": 2, "center": 5, "top": 8}.get(style.get("position"), 2)
     margin_v = int(style.get("margin_v", 50))
     outline_value = int(style.get("outline_size", 2))
+    bold_flag = -1 if style.get("font_bold", True) else 0
+    italic_flag = -1 if style.get("font_italic", False) else 0
     primary = _ass_color(str(style.get("text_color", "#FFFFFF")), 0)
     secondary = _ass_color(str(style.get("text_color", "#FFFFFF")), 0)
     back_color = _ass_color(str(style.get("background_color", "#000000")), back_alpha)
@@ -329,7 +333,7 @@ def _ass_header(style: Dict[str, Any]) -> str:
             "Style: Default,"
             f"{style.get('font_family', 'Arial')},{int(style.get('font_size', 48))},"
             f"{primary},{secondary},{outline},{default_back},"
-            "1,0,0,0,100,100,"
+            f"{bold_flag},{italic_flag},0,0,100,100,"
             "0,0,"
             f"1,{outline_value},0,{alignment},80,80,{margin_v},1"
         ),
@@ -342,7 +346,7 @@ def _ass_header(style: Dict[str, Any]) -> str:
                 "Style: Box,"
                 f"{style.get('font_family', 'Arial')},{int(style.get('font_size', 48))},"
                 f"{transparent_text},{transparent_text},{back},{back},"
-                "1,0,0,0,100,100,"
+                f"{bold_flag},{italic_flag},0,0,100,100,"
                 "0,0,"
                 f"3,{box_outline},0,{alignment},80,80,{margin_v},1"
             )

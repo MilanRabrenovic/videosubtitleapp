@@ -4,6 +4,9 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Edit Subtitles</title>
+  {% if font_css_url %}
+    <link rel="stylesheet" href="{{ font_css_url }}" />
+  {% endif %}
   <script src="/static/js/subtitles.js" defer></script>
   <style>
     body { font-family: Arial, sans-serif; margin: 24px; }
@@ -31,6 +34,17 @@
     {% if saved %}
       <p class="status">Changes saved.</p>
     {% endif %}
+    {% if font_warning %}
+      <p class="status">{{ font_warning }}</p>
+    {% endif %}
+    <form action="/edit/{{ job.job_id }}/font-upload" method="post" enctype="multipart/form-data" class="actions">
+      <label>
+        Upload font (TTF/OTF)
+        <input type="hidden" name="font_family" value="{{ job.style.font_family }}" />
+        <input type="file" name="font_file" accept=".ttf,.otf" />
+      </label>
+      <button type="submit">Upload font</button>
+    </form>
 
     <div class="layout">
       <section>
@@ -42,11 +56,12 @@
             <div class="subtitle-row">
               <label>
                 Font
-                <select name="style_font_family">
-                  <option value="Arial" {% if job.style.font_family == "Arial" %}selected{% endif %}>Arial</option>
-                  <option value="Helvetica" {% if job.style.font_family == "Helvetica" %}selected{% endif %}>Helvetica</option>
-                  <option value="Verdana" {% if job.style.font_family == "Verdana" %}selected{% endif %}>Verdana</option>
-                </select>
+                <input type="text" name="style_font_family" list="google-fonts" value="{{ job.style.font_family }}" />
+                <datalist id="google-fonts">
+                  {% for font_name in google_fonts %}
+                    <option value="{{ font_name }}"></option>
+                  {% endfor %}
+                </datalist>
               </label>
               <label>
                 Font size
@@ -158,7 +173,7 @@
         <h2>Preview</h2>
         <video id="preview-video" controls>
           {% if preview_available %}
-            <source src="/outputs/{{ job.job_id }}_preview.mp4" type="video/mp4" />
+            <source src="/outputs/{{ job.job_id }}_preview.mp4{% if preview_token %}?v={{ preview_token }}{% endif %}" type="video/mp4" />
           {% else %}
             <source src="/uploads/{{ job.video_filename }}" type="video/mp4" />
           {% endif %}

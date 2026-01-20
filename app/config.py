@@ -7,11 +7,14 @@ BASE_DIR = Path(__file__).resolve().parents[1]
 
 UPLOADS_DIR = BASE_DIR / "uploads"
 OUTPUTS_DIR = BASE_DIR / "outputs"
+FONTS_DIR = OUTPUTS_DIR / "fonts"
 TEMPLATES_DIR = BASE_DIR / "app" / "templates"
 STATIC_DIR = BASE_DIR / "app" / "static"
+MAX_STORAGE_BYTES = 20 * 1024 * 1024 * 1024
 
 
 def ensure_directories() -> None:
     """Create required directories if they do not exist."""
     UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
     OUTPUTS_DIR.mkdir(parents=True, exist_ok=True)
+    FONTS_DIR.mkdir(parents=True, exist_ok=True)
