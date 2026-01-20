@@ -1,6 +1,7 @@
 """Subtitle storage and format conversion helpers."""
 
 import json
+import re
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -76,6 +77,53 @@ def normalize_style(style: Optional[Dict[str, Any]]) -> Dict[str, Any]:
     merged = defaults.copy()
     merged.update({key: value for key, value in style.items() if value is not None})
     return merged
+
+
+def _escape_ass_text(text: str) -> str:
+    """Escape ASS control characters in plain text."""
+    return text.replace("\\", "\\\\").replace("{", "\\{").replace("}", "\\}")
+
+
+def _strip_sup_sub_tags(text: str) -> str:
+    """Remove sup/sub markup for measurement."""
+    return re.sub(r"(?is)</?(sup|sub)>", "", text)
+
+
+def _sup_sub_layout(text: str, style: Dict[str, Any]) -> Dict[str, Any]:
+    """Return base text, render text (with hidden sup/sub), and overlay metadata."""
+    pattern = re.compile(r"(?is)<(sup|sub)>(.*?)</\1>")
+    base_parts: List[str] = []
+    render_parts: List[str] = []
+    overlays: List[Dict[str, Any]] = []
+    last_index = 0
+    for match in pattern.finditer(text):
+        start, end = match.span()
+        if start > last_index:
+            chunk = text[last_index:start]
+            base_parts.append(chunk)
+            render_parts.append(_escape_ass_text(chunk))
+        content = match.group(2)
+        kind = match.group(1).lower()
+        start_index = len("".join(base_parts))
+        base_parts.append(content)
+        render_parts.append(f"{{\\alpha&HFF&}}{_escape_ass_text(content)}{{\\alpha&H00&}}")
+        overlays.append({"text": content, "kind": kind, "start": start_index, "length": len(content)})
+        last_index = end
+    if last_index < len(text):
+        tail = text[last_index:]
+        base_parts.append(tail)
+        render_parts.append(_escape_ass_text(tail))
+    return {
+        "base_text": "".join(base_parts),
+        "render_text": "".join(render_parts),
+        "overlays": overlays,
+    }
+
+
+def _format_word_with_alpha(text: str, style: Dict[str, Any]) -> str:
+    """Return ASS-safe text with sup/sub content hidden (for overlay rendering)."""
+    layout = _sup_sub_layout(text, style)
+    return layout["render_text"]
 
 
 def format_timestamp(seconds: float) -> str:
@@ -341,7 +389,7 @@ def _max_chars_per_line(style: Dict[str, Any]) -> int:
     outline = int(style.get("outline_size", 0)) if style.get("outline_enabled") else 0
     background_padding = int(style.get("background_padding", 0)) if style.get("background_enabled") else 0
     safe_width = play_res_x - (side_padding * 2) - (background_padding * 2) - (outline * 2)
-    char_width = max(1.0, font_size * 0.6)
+    char_width = max(1.0, font_size * 0.72)
     return max(10, int(safe_width / char_width))
 
 
@@ -360,13 +408,14 @@ def _split_text_lines(text: str, style: Dict[str, Any]) -> List[str]:
         current: List[str] = []
         current_len = 0
         for word in words:
-            extra = len(word) + (1 if current else 0)
+            display_word = _strip_sup_sub_tags(word)
+            extra = len(display_word) + (1 if current else 0)
             too_many_words = max_words > 0 and len(current) >= max_words
             too_many_chars = max_chars > 0 and (current_len + extra) > max_chars
             if current and (too_many_words or too_many_chars):
                 lines.append(" ".join(current))
                 current = [word]
-                current_len = len(word)
+                current_len = len(display_word)
                 continue
             current.append(word)
             current_len += extra
@@ -386,13 +435,14 @@ def _split_word_lines(words: List[Dict[str, Any]], style: Dict[str, Any]) -> Lis
         token = str(word.get("word", "")).strip()
         if not token:
             continue
-        extra = len(token) + (1 if current else 0)
+        display_token = _strip_sup_sub_tags(token)
+        extra = len(display_token) + (1 if current else 0)
         too_many_words = max_words > 0 and len(current) >= max_words
         too_many_chars = max_chars > 0 and (current_len + extra) > max_chars
         if current and (too_many_words or too_many_chars):
             lines.append(current)
             current = [word]
-            current_len = len(token)
+            current_len = len(display_token)
             continue
         current.append(word)
         current_len += extra
@@ -436,6 +486,57 @@ def _line_positions(line_count: int, style: Dict[str, Any]) -> List[Dict[str, in
     return positions
 
 
+def _overlay_dialogues(
+    overlays: List[Dict[str, Any]],
+    base_text: str,
+    pos: Dict[str, int],
+    style: Dict[str, Any],
+    start: float,
+    end: float,
+    format_ass_time,
+) -> List[str]:
+    """Create extra dialogue lines for sup/sub overlays."""
+    if not overlays or not base_text:
+        return []
+    font_size = int(style.get("font_size", 48))
+    small_size = max(8, int(round(font_size * 0.6)))
+    alignment = pos["alignment"]
+    if alignment == 2:
+        top_y = pos["y"] - font_size
+        bottom_y = pos["y"]
+    elif alignment == 8:
+        top_y = pos["y"]
+        bottom_y = pos["y"] + font_size
+    else:
+        top_y = pos["y"] - (font_size / 2.0)
+        bottom_y = pos["y"] + (font_size / 2.0)
+    sup_y = top_y - (font_size * 0.02)
+    sub_y = bottom_y + (font_size * 0.010)
+    dialogues: List[str] = []
+    for overlay in overlays:
+        text = str(overlay.get("text", "")).strip()
+        if not text:
+            continue
+        start_index = int(overlay.get("start", 0))
+        length = int(overlay.get("length", 0))
+        prefix = base_text[:start_index]
+        suffix = base_text[start_index + length :]
+        overlay_y = sup_y if overlay.get("kind") == "sup" else sub_y
+        ass_text = _escape_ass_text(text)
+        prefix_text = _escape_ass_text(prefix)
+        suffix_text = _escape_ass_text(suffix)
+        tag = f"{{\\an{alignment}\\pos({pos['x']},{int(round(overlay_y))})}}"
+        overlay_line = (
+            f"{{\\alpha&HFF&}}{prefix_text}"
+            f"{{\\alpha&H00&}}{{\\fs{small_size}}}{ass_text}{{\\fs{font_size}}}"
+            f"{{\\alpha&HFF&}}{suffix_text}{{\\alpha&H00&}}"
+        )
+        dialogues.append(
+            f"Dialogue: 0,{format_ass_time(start)},{format_ass_time(end)},Default,,0,0,0,,{tag}{overlay_line}"
+        )
+    return dialogues
+
+
 def generate_karaoke_ass(
     word_lines: List[List[Dict[str, Any]]], output_path: Path, style: Optional[Dict[str, Any]] = None
 ) -> None:
@@ -451,9 +552,6 @@ def generate_karaoke_ass(
         minutes, remainder = divmod(remainder, 60 * 100)
         secs, cs = divmod(remainder, 100)
         return f"{hours}:{minutes:02}:{secs:02}.{cs:02}"
-
-    def escape_ass_text(text: str) -> str:
-        return text.replace("\\", "\\\\").replace("{", "\\{").replace("}", "\\}")
 
     lines: List[str] = [header]
     blur_tag = _background_blur_tag(style_data)
@@ -478,20 +576,33 @@ def generate_karaoke_ass(
                 pos_tag = f"{{\\an{pos['alignment']}\\pos({pos['x']},{pos['y']})\\q2}}"
             else:
                 pos_tag = ""
+            plain_text = " ".join(str(word.get("word", "")).strip() for word in chunk_words).strip()
+            layout = _sup_sub_layout(plain_text, style_data)
+            base_text = layout["base_text"]
+            render_text = layout["render_text"]
+            overlay_lines = []
+            if positions:
+                overlay_lines = _overlay_dialogues(
+                    layout["overlays"],
+                    base_text,
+                    pos,
+                    style_data,
+                    block_start,
+                    block_end,
+                    format_ass_time,
+                )
             if style_data.get("background_enabled"):
-                plain_text = " ".join(str(word.get("word", "")).strip() for word in chunk_words).strip()
-                plain_text = escape_ass_text(plain_text)
                 lines.append(
                     f"Dialogue: 0,{format_ass_time(block_start)},"
                     f"{format_ass_time(block_end)},"
-                    f"Box,,0,0,0,,{blur_tag}{pos_tag}{plain_text}"
+                    f"Box,,0,0,0,,{blur_tag}{pos_tag}{_escape_ass_text(base_text)}"
                 )
             karaoke_style = style_data.copy()
             karaoke_style["single_line"] = True
             dialogue = _build_ass_dialogue(
                 chunk_words,
                 format_ass_time,
-                escape_ass_text,
+                _format_word_with_alpha,
                 base_color,
                 highlight_color,
                 karaoke_style,
@@ -499,6 +610,7 @@ def generate_karaoke_ass(
                 pos_tag,
             )
             lines.append(dialogue)
+            lines.extend(overlay_lines)
 
     output_path.write_text("\n".join(lines).strip() + "\n", encoding="utf-8")
 
@@ -518,30 +630,34 @@ def generate_ass_from_subtitles(
         secs, cs = divmod(remainder, 100)
         return f"{hours}:{minutes:02}:{secs:02}.{cs:02}"
 
-    def escape_ass_text(text: str) -> str:
-        return text.replace("\\", "\\\\").replace("{", "\\{").replace("}", "\\}")
-
     for block in subtitles:
         start = srt_timestamp_to_seconds(str(block.get("start", "00:00:00,000")))
         end = srt_timestamp_to_seconds(str(block.get("end", "00:00:00,000")))
         if end <= start:
             continue
-        text = escape_ass_text(str(block.get("text", "")).strip())
+        raw_text = str(block.get("text", "")).strip()
         if style_data.get("single_line", True):
-            text = _single_line_text(text, style_data)
+            text = _single_line_text(raw_text, style_data)
+            layout = _sup_sub_layout(text, style_data)
+            base_text = layout["base_text"]
+            text = layout["render_text"]
             text = _apply_single_line_override(text, style_data)
             if not text:
                 continue
             blur_tag = _background_blur_tag(style_data)
             if style_data.get("background_enabled"):
                 lines.append(
-                    f"Dialogue: 0,{format_ass_time(start)},{format_ass_time(end)},Box,,0,0,0,,{blur_tag}{text}"
+                    f"Dialogue: 0,{format_ass_time(start)},{format_ass_time(end)},Box,,0,0,0,,{blur_tag}{_escape_ass_text(base_text)}"
                 )
             lines.append(
                 f"Dialogue: 0,{format_ass_time(start)},{format_ass_time(end)},Default,,0,0,0,,{text}"
             )
+            positions = _line_positions(1, style_data)
+            pos = positions[0] if positions else {"x": 0, "y": 0, "alignment": 2}
+            overlay_lines = _overlay_dialogues(layout["overlays"], base_text, pos, style_data, start, end, format_ass_time)
+            lines.extend(overlay_lines)
             continue
-        line_texts = _split_text_lines(text, style_data)
+        line_texts = _split_text_lines(raw_text, style_data)
         if not line_texts:
             continue
         positions = _line_positions(len(line_texts), style_data)
@@ -554,12 +670,18 @@ def generate_ass_from_subtitles(
                 pos_tag = f"{{\\an{pos['alignment']}\\pos({pos['x']},{pos['y']})\\q2}}"
             else:
                 pos_tag = "{\\q2}"
+            layout = _sup_sub_layout(line_text, style_data)
+            base_text = layout["base_text"]
+            ass_text = f"{pos_tag}{layout['render_text']}"
             if style_data.get("background_enabled"):
                 lines.append(
-                    f"Dialogue: 0,{format_ass_time(start)},{format_ass_time(end)},Box,,0,0,0,,{blur_tag}{pos_tag}{line_text}"
+                    f"Dialogue: 0,{format_ass_time(start)},{format_ass_time(end)},Box,,0,0,0,,{blur_tag}{pos_tag}{_escape_ass_text(base_text)}"
                 )
             lines.append(
-                f"Dialogue: 0,{format_ass_time(start)},{format_ass_time(end)},Default,,0,0,0,,{pos_tag}{line_text}"
+                f"Dialogue: 0,{format_ass_time(start)},{format_ass_time(end)},Default,,0,0,0,,{ass_text}"
+            )
+            lines.extend(
+                _overlay_dialogues(layout["overlays"], base_text, pos, style_data, start, end, format_ass_time)
             )
 
     output_path.write_text("\n".join(lines).strip() + "\n", encoding="utf-8")
@@ -755,7 +877,7 @@ def apply_manual_breaks(
 def _build_ass_dialogue(
     words: List[Dict[str, Any]],
     format_ass_time,
-    escape_ass_text,
+    format_ass_text,
     base_color: str,
     highlight_color: str,
     style_data: Dict[str, Any],
@@ -766,7 +888,7 @@ def _build_ass_dialogue(
     end = float(words[-1].get("_line_end", words[-1].get("end", start)))
     chunks: List[str] = []
     for word in words:
-        word_text = escape_ass_text(str(word.get("word", "")).strip())
+        word_text = format_ass_text(str(word.get("word", "")).strip(), style_data)
         word_start = float(word.get("start", start))
         word_end = float(word.get("end", word_start))
         if word_start < start:
