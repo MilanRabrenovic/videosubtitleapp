@@ -847,13 +847,19 @@ def apply_manual_breaks(
                 new_lines.append(segment_words)
                 group_counter += 1
         else:
-            segment_count = len(tokens_per_segment)
-            segment_duration = max(0.1, (block_end - block_start) / max(1, segment_count))
+            total_tokens = sum(len(tokens) for tokens in tokens_per_segment)
+            if total_tokens <= 0:
+                continue
+            block_duration = max(0.1, block_end - block_start)
+            current_time = block_start
             for seg_index, tokens in enumerate(tokens_per_segment):
                 if not tokens:
                     continue
-                start = block_start + seg_index * segment_duration
-                end = start + segment_duration
+                weight = len(tokens) / total_tokens
+                segment_duration = block_duration * weight
+                start = current_time
+                end = block_end if seg_index == len(tokens_per_segment) - 1 else start + segment_duration
+                current_time = end
                 per_word = max(0.05, (end - start) / len(tokens))
                 segment_words = []
                 for token_index, token in enumerate(tokens):
