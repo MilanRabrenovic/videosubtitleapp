@@ -70,3 +70,21 @@ def cleanup_storage(max_bytes: int) -> None:
         total_size -= totals.get(job_id, 0)
         if total_size <= max_bytes:
             break
+
+
+def touch_job(job_id: str) -> None:
+    """Update mtime for all files belonging to a job."""
+    if not job_id:
+        return
+    for root in (UPLOADS_DIR, OUTPUTS_DIR):
+        for item in root.iterdir():
+            if item.is_dir():
+                if item.name == "fonts":
+                    continue
+                continue
+            if not item.name.startswith(job_id):
+                continue
+            try:
+                item.touch()
+            except OSError:
+                continue

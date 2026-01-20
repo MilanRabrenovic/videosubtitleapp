@@ -10,7 +10,7 @@ from fastapi.responses import RedirectResponse
 from fastapi.templating import Jinja2Templates
 
 from app.config import MAX_STORAGE_BYTES, OUTPUTS_DIR, TEMPLATES_DIR, UPLOADS_DIR
-from app.services.cleanup import cleanup_storage
+from app.services.cleanup import cleanup_storage, touch_job
 from app.services.fonts import ensure_font_downloaded, font_dir_for_name
 from app.services.subtitles import (
     build_karaoke_lines,
@@ -81,6 +81,7 @@ def handle_upload(
 
     save_subtitle_job(job_id, job_data)
     save_transcript_words(job_id, words)
+    touch_job(job_id)
     srt_path = OUTPUTS_DIR / f"{job_id}.srt"
     srt_path.write_text(subtitles_to_srt(job_data["subtitles"]), encoding="utf-8")
     preview_path = OUTPUTS_DIR / f"{job_id}_preview.mp4"

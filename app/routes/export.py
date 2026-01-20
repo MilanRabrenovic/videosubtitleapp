@@ -8,6 +8,7 @@ from fastapi import APIRouter, Form, HTTPException, Request
 from fastapi.responses import FileResponse
 
 from app.config import OUTPUTS_DIR, UPLOADS_DIR
+from app.services.cleanup import touch_job
 from app.services.fonts import ensure_font_downloaded, font_dir_for_name
 from app.services.subtitles import (
     build_karaoke_lines,
@@ -38,6 +39,7 @@ def export_subtitles(request: Request, job_id: str, format: str = Form("srt")) -
 
     subtitles = job_data.get("subtitles", [])
     output_path = OUTPUTS_DIR / f"{job_id}.{format}"
+    touch_job(job_id)
 
     if format == "srt":
         output_path.write_text(subtitles_to_srt(subtitles), encoding="utf-8")
@@ -68,6 +70,7 @@ def export_video(request: Request, job_id: str) -> Any:
     subtitles = job_data.get("subtitles", [])
     style = normalize_style(job_data.get("style"))
     srt_path = OUTPUTS_DIR / f"{job_id}.srt"
+    touch_job(job_id)
     srt_path.write_text(subtitles_to_srt(subtitles), encoding="utf-8")
     ass_path = OUTPUTS_DIR / f"{job_id}.ass"
     generate_ass_from_subtitles(subtitles, ass_path, style)
@@ -109,6 +112,7 @@ def export_video_karaoke(request: Request, job_id: str) -> Any:
         raise HTTPException(status_code=404, detail="Transcript words not found")
 
     ass_path = OUTPUTS_DIR / f"{job_id}_karaoke.ass"
+    touch_job(job_id)
     subtitles = job_data.get("subtitles", [])
     style = normalize_style(job_data.get("style"))
     karaoke_lines = build_karaoke_lines(words, subtitles)

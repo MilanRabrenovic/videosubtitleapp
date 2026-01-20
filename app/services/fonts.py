@@ -155,6 +155,19 @@ def available_fonts() -> Iterable[str]:
     return GOOGLE_FONTS
 
 
+def available_local_fonts() -> list[str]:
+    """Return font family names from uploaded font directories."""
+    fonts: list[str] = []
+    if not FONTS_DIR.exists():
+        return fonts
+    for path in FONTS_DIR.iterdir():
+        if not path.is_dir():
+            continue
+        if any(path.glob("*.ttf")) or any(path.glob("*.otf")):
+            fonts.append(path.name.replace("-", " ").strip())
+    return sorted(set(fonts))
+
+
 def font_files_available(font_name: Optional[str]) -> bool:
     """Return True if font files exist locally for the given font."""
     canonical = normalize_font_name(font_name)

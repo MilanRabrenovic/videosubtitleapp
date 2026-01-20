@@ -8,8 +8,10 @@ from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
 from fastapi.templating import Jinja2Templates
 
 from app.config import OUTPUTS_DIR, TEMPLATES_DIR, UPLOADS_DIR
+from app.services.cleanup import touch_job
 from app.services.fonts import (
     available_fonts,
+    available_local_fonts,
     ensure_font_downloaded,
     font_dir_for_name,
     font_files_available,
@@ -47,6 +49,7 @@ def edit_page(request: Request, job_id: str) -> Any:
     job_data = load_subtitle_job(job_id)
     if not job_data:
         raise HTTPException(status_code=404, detail="Subtitle job not found")
+    touch_job(job_id)
 
     job_data["style"] = normalize_style(job_data.get("style"))
     for index, block in enumerate(job_data["subtitles"]):
@@ -65,6 +68,7 @@ def edit_page(request: Request, job_id: str) -> Any:
                 "Install it on the system or place the TTF/OTF files in outputs/fonts/"
                 f"{font_family.replace(' ', '-')}/."
             )
+    font_choices = sorted(set(list(available_fonts()) + list(available_local_fonts())))
     return templates.TemplateResponse(
         "edit.html",
         {
@@ -72,7 +76,7 @@ def edit_page(request: Request, job_id: str) -> Any:
             "job": job_data,
             "preview_available": preview_path.exists(),
             "preview_token": preview_token,
-            "google_fonts": list(available_fonts()),
+            "google_fonts": font_choices,
             "font_css_url": font_css,
             "font_warning": font_warning,
         },
@@ -164,6 +168,7 @@ def save_edits(
     save_subtitle_job(job_id, job_data)
     srt_path = OUTPUTS_DIR / f"{job_id}.srt"
     srt_path.write_text(subtitles_to_srt(subtitles), encoding="utf-8")
+    touch_job(job_id)
     preview_path = OUTPUTS_DIR / f"{job_id}_preview.mp4"
     preview_ass_path = OUTPUTS_DIR / f"{job_id}_preview.ass"
     video_path = UPLOADS_DIR / job_data.get("video_filename", "")
@@ -194,6 +199,7 @@ def save_edits(
                 f"{font_family.replace(' ', '-')}/."
             )
     preview_token = int(preview_path.stat().st_mtime) if preview_path.exists() else None
+    font_choices = sorted(set(list(available_fonts()) + list(available_local_fonts())))
     return templates.TemplateResponse(
         "edit.html",
         {
@@ -202,7 +208,7 @@ def save_edits(
             "saved": True,
             "preview_available": preview_path.exists(),
             "preview_token": preview_token,
-            "google_fonts": list(available_fonts()),
+            "google_fonts": font_choices,
             "font_css_url": font_css,
             "font_warning": font_warning,
         },
@@ -232,6 +238,7 @@ def upload_font(
     job_data["style"]["font_bold"] = False
     job_data["style"]["font_italic"] = italic
     save_subtitle_job(job_id, job_data)
+    touch_job(job_id)
 
     subtitles = job_data.get("subtitles", [])
     words = load_transcript_words(job_id)
@@ -254,6 +261,7 @@ def upload_font(
     if is_google_font(detected_family):
         font_css = google_fonts_css_url(detected_family)
     preview_token = int(preview_path.stat().st_mtime) if preview_path.exists() else None
+    font_choices = sorted(set(list(available_fonts()) + list(available_local_fonts())))
     return templates.TemplateResponse(
         "edit.html",
         {
@@ -262,7 +270,7 @@ def upload_font(
             "saved": True,
             "preview_available": preview_path.exists(),
             "preview_token": preview_token,
-            "google_fonts": list(available_fonts()),
+            "google_fonts": font_choices,
             "font_css_url": font_css,
             "font_warning": None,
         },

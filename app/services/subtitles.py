@@ -388,12 +388,10 @@ def _background_blur_tag(style: Dict[str, Any]) -> str:
 def _max_chars_per_line(style: Dict[str, Any]) -> int:
     """Estimate a safe max character count based on PlayRes and font size."""
     play_res_x = int(style.get("play_res_x", 1920) or 1920)
-    side_padding = 15
+    side_padding = 20
     font_size = int(style.get("font_size", 48))
-    outline = int(style.get("outline_size", 0)) if style.get("outline_enabled") else 0
-    background_padding = int(style.get("background_padding", 0)) if style.get("background_enabled") else 0
-    safe_width = play_res_x - (side_padding * 2) - (background_padding * 2) - (outline * 2)
-    char_width = max(1.0, font_size * 0.72)
+    safe_width = play_res_x - (side_padding * 2)
+    char_width = max(1.0, font_size * 0.5)
     return max(10, int(safe_width / char_width))
 
 
