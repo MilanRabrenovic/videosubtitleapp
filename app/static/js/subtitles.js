@@ -163,6 +163,6 @@
     exportKaraokeButtons,
     exportVideoStatus,
     "karaoke.mp4",
-    "Exporting karaoke video..."
+    "Exporting video..."
   );
 })();

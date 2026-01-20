@@ -329,7 +329,8 @@ def _background_blur_tag(style: Dict[str, Any]) -> str:
     blur_value = float(style.get("background_blur", 0.0))
     if blur_value <= 0:
         return ""
-    return f"{{\\blur{blur_value}}}"
+    be_value = min(10, max(0, int(round(blur_value))))
+    return f"{{\\blur{blur_value}\\be{be_value}}}"
 
 
 def _max_chars_per_line(style: Dict[str, Any]) -> int:
