@@ -26,7 +26,10 @@ def get_video_dimensions(video_path: Path) -> tuple[int, int]:
         "csv=p=0:s=x",
         str(video_path),
     ]
-    result = subprocess.run(command, capture_output=True, text=True)
+    try:
+        result = subprocess.run(command, capture_output=True, text=True, timeout=10)
+    except subprocess.TimeoutExpired:
+        return 1920, 1080
     if result.returncode != 0:
         return 1920, 1080
     output = result.stdout.strip()
@@ -35,6 +38,45 @@ def get_video_dimensions(video_path: Path) -> tuple[int, int]:
         return int(width_str), int(height_str)
     except ValueError:
         return 1920, 1080
+
+
+def get_video_duration(video_path: Path) -> float | None:
+    """Return video duration in seconds using ffprobe."""
+    command = [
+        "ffprobe",
+        "-v",
+        "error",
+        "-show_entries",
+        "format=duration",
+        "-of",
+        "default=nokey=1:noprint_wrappers=1",
+        str(video_path),
+    ]
+    try:
+        result = subprocess.run(command, capture_output=True, text=True, timeout=10)
+    except subprocess.TimeoutExpired:
+        return None
+    if result.returncode != 0:
+        return None
+    try:
+        return float(result.stdout.strip())
+    except ValueError:
+        return None
+
+
+def validate_video_file(video_path: Path, max_bytes: int, max_seconds: int) -> None:
+    """Validate video file size and duration."""
+    try:
+        size = video_path.stat().st_size
+    except OSError as exc:
+        raise ValueError("Uploaded file is not accessible") from exc
+    if size > max_bytes:
+        raise ValueError("Video file is too large")
+    duration = get_video_duration(video_path)
+    if duration is None:
+        raise ValueError("Unable to read video duration")
+    if duration > max_seconds:
+        raise ValueError("Video is too long")
 
 
 def burn_in_subtitles(video_path: Path, subtitles_path: Path, output_path: Path) -> None:
@@ -51,7 +93,10 @@ def burn_in_subtitles(video_path: Path, subtitles_path: Path, output_path: Path)
         "copy",
         str(output_path),
     ]
-    result = subprocess.run(command, capture_output=True, text=True)
+    try:
+        result = subprocess.run(command, capture_output=True, text=True, timeout=300)
+    except subprocess.TimeoutExpired as exc:
+        raise RuntimeError("FFmpeg timed out while burning subtitles") from exc
     if result.returncode != 0:
         raise RuntimeError(f"FFmpeg failed: {result.stderr.strip()}")
 
@@ -72,6 +117,9 @@ def burn_in_ass(video_path: Path, ass_path: Path, output_path: Path, fonts_dir: 
         "copy",
         str(output_path),
     ]
-    result = subprocess.run(command, capture_output=True, text=True)
+    try:
+        result = subprocess.run(command, capture_output=True, text=True, timeout=300)
+    except subprocess.TimeoutExpired as exc:
+        raise RuntimeError("FFmpeg timed out while burning subtitles") from exc
     if result.returncode != 0:
         raise RuntimeError(f"FFmpeg failed: {result.stderr.strip()}")

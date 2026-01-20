@@ -11,6 +11,9 @@ FONTS_DIR = OUTPUTS_DIR / "fonts"
 TEMPLATES_DIR = BASE_DIR / "app" / "templates"
 STATIC_DIR = BASE_DIR / "app" / "static"
 MAX_STORAGE_BYTES = 20 * 1024 * 1024 * 1024
+MAX_UPLOAD_BYTES = 500 * 1024 * 1024
+MAX_VIDEO_SECONDS = 15 * 60
+ALLOWED_VIDEO_EXTENSIONS = {".mp4", ".mov", ".mkv", ".webm", ".m4v"}
 
 
 def ensure_directories() -> None:

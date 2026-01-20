@@ -9,7 +9,15 @@ from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import RedirectResponse
 from fastapi.templating import Jinja2Templates
 
-from app.config import MAX_STORAGE_BYTES, OUTPUTS_DIR, TEMPLATES_DIR, UPLOADS_DIR
+from app.config import (
+    ALLOWED_VIDEO_EXTENSIONS,
+    MAX_STORAGE_BYTES,
+    MAX_UPLOAD_BYTES,
+    MAX_VIDEO_SECONDS,
+    OUTPUTS_DIR,
+    TEMPLATES_DIR,
+    UPLOADS_DIR,
+)
 from app.services.cleanup import cleanup_storage, touch_job
 from app.services.fonts import ensure_font_downloaded, font_dir_for_name
 from app.services.subtitles import (
@@ -24,7 +32,7 @@ from app.services.subtitles import (
     whisper_segments_to_subtitles,
 )
 from app.services.transcription import transcribe_video
-from app.services.video import burn_in_ass, get_video_dimensions
+from app.services.video import burn_in_ass, get_video_dimensions, validate_video_file
 
 router = APIRouter()
 templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
@@ -46,12 +54,25 @@ def handle_upload(
 ) -> Any:
     """Accept an uploaded video and create a subtitle job."""
     job_id = uuid.uuid4().hex
+    extension = Path(video.filename).suffix.lower()
+    if extension not in ALLOWED_VIDEO_EXTENSIONS:
+        raise HTTPException(status_code=400, detail="Unsupported video format")
     safe_name = f"{job_id}_{Path(video.filename).name}"
     upload_path = UPLOADS_DIR / safe_name
 
     with upload_path.open("wb") as handle:
-        handle.write(video.file.read())
+        while True:
+            chunk = video.file.read(1024 * 1024)
+            if not chunk:
+                break
+            handle.write(chunk)
     cleanup_storage(MAX_STORAGE_BYTES)
+
+    try:
+        validate_video_file(upload_path, MAX_UPLOAD_BYTES, MAX_VIDEO_SECONDS)
+    except ValueError as exc:
+        upload_path.unlink(missing_ok=True)
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     language = language.strip().lower() or None
     try:
