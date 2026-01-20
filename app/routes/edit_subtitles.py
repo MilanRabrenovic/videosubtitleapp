@@ -69,6 +69,7 @@ def save_edits(
     style_background_opacity: float = Form(None),
     style_background_padding: int = Form(None),
     style_background_blur: float = Form(None),
+    style_line_height: int = Form(None),
     style_position: str = Form(None),
     style_margin_v: int = Form(None),
     style_max_words_per_line: int = Form(None),
@@ -84,6 +85,7 @@ def save_edits(
         raise HTTPException(status_code=400, detail="Invalid subtitle payload") from exc
 
     style_defaults = default_style()
+    existing_style = job_data.get("style") or {}
     style = {
         "font_family": style_font_family or style_defaults["font_family"],
         "font_size": style_font_size or style_defaults["font_size"],
@@ -107,12 +109,15 @@ def save_edits(
         "background_blur": style_background_blur
         if style_background_blur is not None
         else style_defaults["background_blur"],
+        "line_height": style_line_height if style_line_height is not None else style_defaults["line_height"],
         "position": style_position or style_defaults["position"],
         "margin_v": style_margin_v if style_margin_v is not None else style_defaults["margin_v"],
         "single_line": False,
         "max_words_per_line": style_max_words_per_line
         if style_max_words_per_line is not None
         else style_defaults["max_words_per_line"],
+        "play_res_x": existing_style.get("play_res_x"),
+        "play_res_y": existing_style.get("play_res_y"),
     }
     words = load_transcript_words(job_id)
     merged_subtitles = merge_subtitles_by_group(subtitles)

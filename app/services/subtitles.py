@@ -60,6 +60,7 @@ def default_style() -> Dict[str, Any]:
         "background_opacity": 0.6,
         "background_padding": 8,
         "background_blur": 0.0,
+        "line_height": 6,
         "position": "bottom",
         "margin_v": 50,
         "single_line": False,
@@ -176,7 +177,7 @@ def split_subtitles_by_word_timings(
         return []
     split_blocks: List[Dict[str, Any]] = []
     last_end = 0.0
-    min_gap = 0.02
+    min_gap = 0.2
     for index, line_words in enumerate(word_lines):
         if not line_words:
             continue
@@ -263,12 +264,14 @@ def _ass_header(style: Dict[str, Any]) -> str:
     transparent_text = _ass_color(str(style.get("text_color", "#FFFFFF")), 255)
 
     wrap_style = "2" if style.get("single_line", True) else "0"
+    play_res_x = int(style.get("play_res_x", 1920) or 1920)
+    play_res_y = int(style.get("play_res_y", 1080) or 1080)
     header_lines = [
         "[Script Info]",
         "ScriptType: v4.00+",
         f"WrapStyle: {wrap_style}",
-        "PlayResX: 1920",
-        "PlayResY: 1080",
+        f"PlayResX: {play_res_x}",
+        f"PlayResY: {play_res_y}",
         "",
         "[V4+ Styles]",
         "Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, "
@@ -278,7 +281,8 @@ def _ass_header(style: Dict[str, Any]) -> str:
             "Style: Default,"
             f"{style.get('font_family', 'Arial')},{int(style.get('font_size', 48))},"
             f"{primary},{secondary},{outline},{default_back},"
-            "1,0,0,0,100,100,0,0,"
+            "1,0,0,0,100,100,"
+            "0,0,"
             f"1,{outline_value},0,{alignment},80,80,{margin_v},1"
         ),
     ]
@@ -290,7 +294,8 @@ def _ass_header(style: Dict[str, Any]) -> str:
                 "Style: Box,"
                 f"{style.get('font_family', 'Arial')},{int(style.get('font_size', 48))},"
                 f"{transparent_text},{transparent_text},{back},{back},"
-                "1,0,0,0,100,100,0,0,"
+                "1,0,0,0,100,100,"
+                "0,0,"
                 f"3,{box_outline},0,{alignment},80,80,{margin_v},1"
             )
         )
@@ -327,18 +332,107 @@ def _background_blur_tag(style: Dict[str, Any]) -> str:
     return f"{{\\blur{blur_value}}}"
 
 
-def _wrap_text(text: str, style: Dict[str, Any]) -> str:
-    """Wrap text by max words per line when single-line is disabled."""
+def _max_chars_per_line(style: Dict[str, Any]) -> int:
+    """Estimate a safe max character count based on PlayRes and font size."""
+    play_res_x = int(style.get("play_res_x", 1920) or 1920)
+    side_padding = 15
+    font_size = int(style.get("font_size", 48))
+    outline = int(style.get("outline_size", 0)) if style.get("outline_enabled") else 0
+    background_padding = int(style.get("background_padding", 0)) if style.get("background_enabled") else 0
+    safe_width = play_res_x - (side_padding * 2) - (background_padding * 2) - (outline * 2)
+    char_width = max(1.0, font_size * 0.6)
+    return max(10, int(safe_width / char_width))
+
+
+def _split_text_lines(text: str, style: Dict[str, Any]) -> List[str]:
+    """Split text into lines by max words and estimated max characters."""
     if style.get("single_line", True):
-        return text
+        return [text]
     max_words = int(style.get("max_words_per_line", 7))
-    if max_words <= 0:
-        return text
-    words = text.split()
+    max_chars = _max_chars_per_line(style)
+    segments = [segment for segment in text.replace("\r", "").split("\n") if segment.strip()]
+    if not segments:
+        return []
     lines: List[str] = []
-    for index in range(0, len(words), max_words):
-        lines.append(" ".join(words[index : index + max_words]))
-    return "\\N".join(lines)
+    for segment in segments:
+        words = segment.split()
+        current: List[str] = []
+        current_len = 0
+        for word in words:
+            extra = len(word) + (1 if current else 0)
+            too_many_words = max_words > 0 and len(current) >= max_words
+            too_many_chars = max_chars > 0 and (current_len + extra) > max_chars
+            if current and (too_many_words or too_many_chars):
+                lines.append(" ".join(current))
+                current = [word]
+                current_len = len(word)
+                continue
+            current.append(word)
+            current_len += extra
+        if current:
+            lines.append(" ".join(current))
+    return lines
+
+
+def _split_word_lines(words: List[Dict[str, Any]], style: Dict[str, Any]) -> List[List[Dict[str, Any]]]:
+    """Split timed words into lines using max words and estimated max characters."""
+    max_words = int(style.get("max_words_per_line", 7))
+    max_chars = _max_chars_per_line(style)
+    lines: List[List[Dict[str, Any]]] = []
+    current: List[Dict[str, Any]] = []
+    current_len = 0
+    for word in words:
+        token = str(word.get("word", "")).strip()
+        if not token:
+            continue
+        extra = len(token) + (1 if current else 0)
+        too_many_words = max_words > 0 and len(current) >= max_words
+        too_many_chars = max_chars > 0 and (current_len + extra) > max_chars
+        if current and (too_many_words or too_many_chars):
+            lines.append(current)
+            current = [word]
+            current_len = len(token)
+            continue
+        current.append(word)
+        current_len += extra
+    if current:
+        lines.append(current)
+    return lines
+
+
+def _line_positions(line_count: int, style: Dict[str, Any]) -> List[Dict[str, int]]:
+    """Return positions for each line based on line height and alignment."""
+    if line_count <= 0:
+        return []
+    play_res_x = int(style.get("play_res_x", 1920) or 1920)
+    play_res_y = int(style.get("play_res_y", 1080) or 1080)
+    margin_v = int(style.get("margin_v", 50))
+    font_size = int(style.get("font_size", 48))
+    line_height = float(style.get("line_height", 0))
+    padding = int(style.get("background_padding", 0)) if style.get("background_enabled") else 0
+    line_step = font_size + (padding * 2) + line_height
+    if line_step <= 0:
+        line_step = font_size
+    position = style.get("position", "bottom")
+    if position == "top":
+        alignment = 8
+        base_y = margin_v
+        offset = 0
+    elif position == "center":
+        alignment = 5
+        base_y = play_res_y / 2.0
+        offset = (line_count - 1) / 2.0
+    else:
+        alignment = 2
+        base_y = play_res_y - margin_v
+        offset = line_count - 1
+    positions: List[Dict[str, int]] = []
+    for index in range(line_count):
+        y = base_y + (index - offset) * line_step
+        positions.append(
+            {"x": int(round(play_res_x / 2)), "y": int(round(y)), "alignment": alignment}
+        )
+    return positions
 
 
 def generate_karaoke_ass(
@@ -365,19 +459,45 @@ def generate_karaoke_ass(
     for line_words in word_lines:
         if not line_words:
             continue
-        if style_data.get("background_enabled"):
-            plain_text = " ".join(str(word.get("word", "")).strip() for word in line_words).strip()
-            plain_text = escape_ass_text(plain_text)
-            plain_text = _wrap_text(plain_text, style_data)
-            lines.append(
-                f"Dialogue: 0,{format_ass_time(float(line_words[0].get('_line_start', line_words[0].get('start', 0.0))))},"
-                f"{format_ass_time(float(line_words[-1].get('_line_end', line_words[-1].get('end', 0.0))))},"
-                f"Box,,0,0,0,,{blur_tag}{plain_text}"
+        block_start = float(line_words[0].get("_line_start", line_words[0].get("start", 0.0)))
+        block_end = float(line_words[-1].get("_line_end", line_words[-1].get("end", block_start)))
+        if style_data.get("single_line", True):
+            line_chunks = [line_words]
+        else:
+            line_chunks = _split_word_lines(line_words, style_data)
+        positions = _line_positions(len(line_chunks), style_data)
+        for chunk_index, chunk in enumerate(line_chunks):
+            if not chunk:
+                continue
+            chunk_words = [dict(word) for word in chunk]
+            chunk_words[0]["_line_start"] = block_start
+            chunk_words[-1]["_line_end"] = block_end
+            if positions:
+                pos = positions[min(chunk_index, len(positions) - 1)]
+                pos_tag = f"{{\\an{pos['alignment']}\\pos({pos['x']},{pos['y']})\\q2}}"
+            else:
+                pos_tag = ""
+            if style_data.get("background_enabled"):
+                plain_text = " ".join(str(word.get("word", "")).strip() for word in chunk_words).strip()
+                plain_text = escape_ass_text(plain_text)
+                lines.append(
+                    f"Dialogue: 0,{format_ass_time(block_start)},"
+                    f"{format_ass_time(block_end)},"
+                    f"Box,,0,0,0,,{blur_tag}{pos_tag}{plain_text}"
+                )
+            karaoke_style = style_data.copy()
+            karaoke_style["single_line"] = True
+            dialogue = _build_ass_dialogue(
+                chunk_words,
+                format_ass_time,
+                escape_ass_text,
+                base_color,
+                highlight_color,
+                karaoke_style,
+                "Default",
+                pos_tag,
             )
-        dialogue = _build_ass_dialogue(
-            line_words, format_ass_time, escape_ass_text, base_color, highlight_color, style_data, "Default"
-        )
-        lines.append(dialogue)
+            lines.append(dialogue)
 
     output_path.write_text("\n".join(lines).strip() + "\n", encoding="utf-8")
 
@@ -409,18 +529,37 @@ def generate_ass_from_subtitles(
         if style_data.get("single_line", True):
             text = _single_line_text(text, style_data)
             text = _apply_single_line_override(text, style_data)
-        else:
-            text = _wrap_text(text, style_data)
-        if not text:
-            continue
-        blur_tag = _background_blur_tag(style_data)
-        if style_data.get("background_enabled"):
+            if not text:
+                continue
+            blur_tag = _background_blur_tag(style_data)
+            if style_data.get("background_enabled"):
+                lines.append(
+                    f"Dialogue: 0,{format_ass_time(start)},{format_ass_time(end)},Box,,0,0,0,,{blur_tag}{text}"
+                )
             lines.append(
-                f"Dialogue: 0,{format_ass_time(start)},{format_ass_time(end)},Box,,0,0,0,,{blur_tag}{text}"
+                f"Dialogue: 0,{format_ass_time(start)},{format_ass_time(end)},Default,,0,0,0,,{text}"
             )
-        lines.append(
-            f"Dialogue: 0,{format_ass_time(start)},{format_ass_time(end)},Default,,0,0,0,,{text}"
-        )
+            continue
+        line_texts = _split_text_lines(text, style_data)
+        if not line_texts:
+            continue
+        positions = _line_positions(len(line_texts), style_data)
+        blur_tag = _background_blur_tag(style_data)
+        for line_index, line_text in enumerate(line_texts):
+            if not line_text:
+                continue
+            if positions:
+                pos = positions[min(line_index, len(positions) - 1)]
+                pos_tag = f"{{\\an{pos['alignment']}\\pos({pos['x']},{pos['y']})\\q2}}"
+            else:
+                pos_tag = "{\\q2}"
+            if style_data.get("background_enabled"):
+                lines.append(
+                    f"Dialogue: 0,{format_ass_time(start)},{format_ass_time(end)},Box,,0,0,0,,{blur_tag}{pos_tag}{line_text}"
+                )
+            lines.append(
+                f"Dialogue: 0,{format_ass_time(start)},{format_ass_time(end)},Default,,0,0,0,,{pos_tag}{line_text}"
+            )
 
     output_path.write_text("\n".join(lines).strip() + "\n", encoding="utf-8")
 
@@ -620,6 +759,7 @@ def _build_ass_dialogue(
     highlight_color: str,
     style_data: Dict[str, Any],
     style_name: str,
+    override_tag: str = "",
 ) -> str:
     start = float(words[0].get("_line_start", words[0].get("start", 0.0)))
     end = float(words[-1].get("_line_end", words[-1].get("end", start)))
@@ -650,5 +790,7 @@ def _build_ass_dialogue(
         text = _single_line_text(text, style_data)
         text = _apply_single_line_override(text, style_data)
     else:
-        text = _wrap_text(text, style_data)
+        text = "\\N".join(_split_text_lines(text, style_data))
+    if override_tag:
+        text = f"{override_tag}{text}"
     return f"Dialogue: 0,{format_ass_time(start)},{format_ass_time(end)},{style_name},,0,0,0,,{text}"

@@ -98,3 +98,8 @@
 - Implemented: Word timing smoothing with min/max duration clamps and overlap prevention.
 - Why: Makes karaoke highlights feel more natural for short/long words.
 - Next action: Add a lightweight undo for the last edit block to speed minor fixes.
+
+## 2026-01-16
+- Implemented: Upload language selector to pass explicit language to Whisper.
+- Why: Improves accuracy and avoids mis-detection for non-English videos.
+- Next action: Add a lightweight undo for the last edit block to speed minor fixes.

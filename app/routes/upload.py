@@ -22,7 +22,7 @@ from app.services.subtitles import (
     whisper_segments_to_subtitles,
 )
 from app.services.transcription import transcribe_video
-from app.services.video import burn_in_ass
+from app.services.video import burn_in_ass, get_video_dimensions
 
 router = APIRouter()
 templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
@@ -36,7 +36,12 @@ def upload_form(request: Request) -> Any:
 
 
 @router.post("/upload")
-def handle_upload(request: Request, video: UploadFile = File(...), title: str = Form("")) -> Any:
+def handle_upload(
+    request: Request,
+    video: UploadFile = File(...),
+    title: str = Form(""),
+    language: str = Form(""),
+) -> Any:
     """Accept an uploaded video and create a subtitle job."""
     job_id = uuid.uuid4().hex
     safe_name = f"{job_id}_{Path(video.filename).name}"
@@ -45,19 +50,24 @@ def handle_upload(request: Request, video: UploadFile = File(...), title: str = 
     with upload_path.open("wb") as handle:
         handle.write(video.file.read())
 
+    language = language.strip().lower() or None
     try:
-        segments, words = transcribe_video(upload_path)
+        segments, words = transcribe_video(upload_path, language=language)
         subtitles = whisper_segments_to_subtitles(segments)
     except Exception as exc:  # noqa: BLE001 - keep errors simple for now
         logger.exception("Transcription failed for %s", upload_path)
         raise HTTPException(status_code=500, detail="Transcription failed") from exc
 
+    video_width, video_height = get_video_dimensions(upload_path)
+    style = default_style()
+    style["play_res_x"] = video_width
+    style["play_res_y"] = video_height
     job_data: Dict[str, Any] = {
         "job_id": job_id,
         "title": title.strip() or video.filename,
         "video_filename": safe_name,
         "subtitles": subtitles,
-        "style": default_style(),
+        "style": style,
     }
 
     karaoke_lines = build_karaoke_lines(words, job_data["subtitles"])

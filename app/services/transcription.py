@@ -31,13 +31,15 @@ def extract_audio(video_path: Path) -> Path:
 
 
 def transcribe_video(
-    video_path: Path, model_name: str = "base"
+    video_path: Path, model_name: str = "base", language: str | None = None
 ) -> Tuple[List[Dict[str, str]], List[Dict[str, Union[str, float]]]]:
     """Transcribe a video file and return Whisper segments and word timings."""
     model = whisper.load_model(model_name)
     audio_path = extract_audio(video_path)
     try:
-        result = model.transcribe(str(audio_path), fp16=False, word_timestamps=True)
+        result = model.transcribe(
+            str(audio_path), fp16=False, word_timestamps=True, language=language
+        )
     finally:
         audio_path.unlink(missing_ok=True)
 
