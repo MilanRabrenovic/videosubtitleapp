@@ -512,12 +512,10 @@ def _overlay_dialogues(
     else:
         top_y = pos["y"] - font_size
     baseline_y = top_y + (font_size * 0.6)
-    font_weight = int(style.get("font_weight", 400))
-    weight_factor = min(1.0, max(0.0, (font_weight - 400) / 600))
-    sup_offset = 0.48 - (0.08 * weight_factor)
-    sup_offset = min(0.52, max(0.38, sup_offset))
+    sup_offset = 0.46
+    sub_offset = 0.15
     sup_y = baseline_y - (font_size * sup_offset)
-    sub_y = baseline_y + (small_size * 0.6)
+    sub_y = baseline_y + (small_size * sub_offset)
     dialogues: List[str] = []
     for overlay in overlays:
         text = str(overlay.get("text", "")).strip()
@@ -531,11 +529,11 @@ def _overlay_dialogues(
         ass_text = _escape_ass_text(text)
         prefix_text = _escape_ass_text(prefix)
         suffix_text = _escape_ass_text(suffix)
-        tag = f"{{\\an5\\pos({pos['x']},{int(round(overlay_y))})}}"
+        tag = f"{{\\an5\\pos({pos['x']},{int(round(overlay_y))})\\q2}}"
         overlay_line = (
-            f"{{\\alpha&HFF&}}{prefix_text}"
+            f"{{\\alpha&HFE&}}{prefix_text}"
             f"{{\\alpha&H00&}}{{\\fs{small_size}}}{ass_text}{{\\fs{font_size}}}"
-            f"{{\\alpha&HFF&}}{suffix_text}{{\\alpha&H00&}}"
+            f"{{\\alpha&HFE&}}{suffix_text}{{\\alpha&H00&}}"
         )
         dialogues.append(
             f"Dialogue: 0,{format_ass_time(start)},{format_ass_time(end)},Default,,0,0,0,,{tag}{overlay_line}"
