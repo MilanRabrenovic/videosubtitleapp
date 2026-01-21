@@ -119,3 +119,8 @@
 - Implemented: Job status endpoint and minimal UI polling for processing/preview/export states.
 - Tradeoffs: Single-process worker, polling instead of realtime; easy to replace with Redis/Celery later.
 - Next action: Add auth/usage limits for public access and harden job retention policies.
+
+## 2026-01-20
+- Implemented: Save edits now always queues a fresh preview job so the UI doesn’t lag one edit behind.
+- Implemented: UI polling wired to preview job IDs returned by save, so updates appear without page refresh.
+- Next action: Review multi-user throughput and decide on worker concurrency limits.

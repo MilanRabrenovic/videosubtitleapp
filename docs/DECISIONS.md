@@ -48,6 +48,12 @@ Polling keeps the implementation minimal and reliable; it can be replaced with r
 ## Why background jobs are required for public users
 Transcription and exports can take minutes; background jobs prevent request timeouts and let users return later.
 
+## Why single-worker FIFO by default
+One worker keeps CPU usage predictable and avoids overload on small servers; concurrency can be increased later.
+
+## Why jobs are retained for a fixed window
+Job JSON files are kept for a limited time to balance reliability with storage limits.
+
 ## Tradeoffs accepted for simplicity
 - No authentication or multi-user support.
 - Local filesystem storage only.
