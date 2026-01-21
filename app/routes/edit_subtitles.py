@@ -11,6 +11,8 @@ from app.config import OUTPUTS_DIR, TEMPLATES_DIR, UPLOADS_DIR
 from app.services.cleanup import touch_job
 from app.services.fonts import (
     available_local_fonts,
+    available_local_font_variants,
+    available_google_font_variants,
     delete_font_family,
     ensure_font_downloaded,
     font_dir_for_name,
@@ -109,6 +111,8 @@ def save_edits(
     style_position: str = Form(None),
     style_margin_v: int = Form(None),
     style_max_words_per_line: int = Form(None),
+    style_font_weight: int = Form(None),
+    style_font_style: str = Form(None),
 ) -> Any:
     """Persist edited subtitles without reprocessing the video."""
     job_data = load_subtitle_job(job_id)
@@ -127,6 +131,8 @@ def save_edits(
         "font_size": style_font_size or style_defaults["font_size"],
         "font_bold": existing_style.get("font_bold", style_defaults["font_bold"]),
         "font_italic": existing_style.get("font_italic", style_defaults["font_italic"]),
+        "font_weight": style_font_weight if style_font_weight is not None else style_defaults["font_weight"],
+        "font_style": style_font_style or style_defaults["font_style"],
         "text_color": style_text_color or style_defaults["text_color"],
         "highlight_color": style_highlight_color or style_defaults["highlight_color"],
         "outline_color": style_outline_color or style_defaults["outline_color"],
@@ -160,6 +166,34 @@ def save_edits(
     canonical_font = normalize_font_name(style.get("font_family"))
     if canonical_font:
         style["font_family"] = canonical_font
+    desired_weight = int(style.get("font_weight", 400))
+    desired_italic = str(style.get("font_style", "regular")).lower() == "italic"
+    if is_google_font(style.get("font_family")):
+        ensure_font_downloaded(style.get("font_family"))
+        variants = available_google_font_variants(style.get("font_family"))
+    else:
+        variants = available_local_font_variants(job_id)
+    matching = [
+        variant
+        for variant in variants
+        if variant.get("family") == style.get("font_family")
+        or variant.get("full_name") == style.get("font_family")
+    ]
+    if matching:
+        italic_matches = [variant for variant in matching if variant.get("italic") == desired_italic]
+        candidates = italic_matches or matching
+        best = min(
+            candidates,
+            key=lambda variant: abs(int(variant.get("weight", 400)) - desired_weight),
+        )
+        style["font_family"] = best.get("full_name") or best.get("family")
+        style["font_bold"] = False
+        style["font_italic"] = bool(best.get("italic"))
+        style["font_weight"] = int(best.get("weight", desired_weight))
+        style["font_style"] = "italic" if style["font_italic"] else "regular"
+    else:
+        style["font_bold"] = desired_weight >= 600
+        style["font_italic"] = desired_italic
     words = load_transcript_words(job_id)
     merged_subtitles = merge_subtitles_by_group(subtitles)
     manual_subtitles, manual_lines = apply_manual_breaks(merged_subtitles, words)
@@ -242,12 +276,14 @@ def upload_font(
     saved = save_uploaded_font(font_family, font_file.filename or "", font_file.file.read(), job_id)
     if not saved:
         raise HTTPException(status_code=400, detail="Unsupported font file")
-    saved_dir, detected_family, detected_full, italic = saved
+    saved_dir, detected_family, detected_full, italic, weight = saved
 
     job_data["style"] = normalize_style(job_data.get("style"))
     job_data["style"]["font_family"] = detected_full
     job_data["style"]["font_bold"] = False
     job_data["style"]["font_italic"] = italic
+    job_data["style"]["font_weight"] = int(weight)
+    job_data["style"]["font_style"] = "italic" if italic else "regular"
     job_data.setdefault("custom_fonts", [])
     if detected_full and detected_full not in job_data["custom_fonts"]:
         job_data["custom_fonts"].append(detected_full)

@@ -105,7 +105,7 @@ def delete_font_family(font_name: Optional[str], job_id: Optional[str]) -> bool:
         try:
             with item.open("rb") as handle:
                 data = handle.read()
-            family, full_name, _ = detect_font_info(data, item.name)
+            family, full_name, _, _ = detect_font_info(data, item.name)
             if family == font_name or full_name == font_name:
                 item.unlink()
                 deleted = True
@@ -218,12 +218,72 @@ def available_local_fonts(job_id: Optional[str]) -> list[str]:
             data = path.read_bytes()
         except OSError:
             continue
-        family, full_name, _ = detect_font_info(data, path.name)
+        family, full_name, _, _ = detect_font_info(data, path.name)
         if family:
             fonts.append(family)
         elif full_name:
             fonts.append(full_name)
     return sorted(set(fonts))
+
+
+def available_local_font_variants(job_id: Optional[str]) -> list[dict]:
+    """Return font variant metadata for a job."""
+    variants: list[dict] = []
+    if not job_id:
+        return variants
+    job_dir = _job_fonts_dir(job_id)
+    if not job_dir.exists():
+        return variants
+    for path in job_dir.iterdir():
+        if not path.is_file() or path.suffix.lower() not in {".ttf", ".otf"}:
+            continue
+        try:
+            data = path.read_bytes()
+        except OSError:
+            continue
+        family, full_name, italic, weight = detect_font_info(data, path.name)
+        if not family and not full_name:
+            continue
+        variants.append(
+            {
+                "family": family or full_name,
+                "full_name": full_name or family,
+                "italic": italic,
+                "weight": int(weight) if weight else 400,
+                "path": str(path),
+            }
+        )
+    return variants
+
+
+def available_google_font_variants(font_name: Optional[str]) -> list[dict]:
+    """Return font variant metadata from cached Google fonts."""
+    if not font_name:
+        return []
+    google_dir = _google_fonts_dir(font_name)
+    if not google_dir.exists():
+        return []
+    variants: list[dict] = []
+    for path in google_dir.iterdir():
+        if not path.is_file() or path.suffix.lower() not in {".ttf", ".otf"}:
+            continue
+        try:
+            data = path.read_bytes()
+        except OSError:
+            continue
+        family, full_name, italic, weight = detect_font_info(data, path.name)
+        if not family and not full_name:
+            continue
+        variants.append(
+            {
+                "family": family or full_name,
+                "full_name": full_name or family,
+                "italic": italic,
+                "weight": int(weight) if weight else 400,
+                "path": str(path),
+            }
+        )
+    return variants
 
 
 def font_files_available(font_name: Optional[str]) -> bool:
@@ -262,17 +322,18 @@ def _decode_name(record) -> Optional[str]:
             return None
 
 
-def detect_font_info(data: bytes, filename: Optional[str]) -> tuple[Optional[str], Optional[str], bool]:
-    """Detect font family/full name and italic flag from font data."""
+def detect_font_info(data: bytes, filename: Optional[str]) -> tuple[Optional[str], Optional[str], bool, int]:
+    """Detect font family/full name, italic flag, and weight from font data."""
     if TTFont is None:
         family = guess_font_family(filename)
-        return family, family, False
+        return family, family, False, 400
     try:
         font = TTFont(io.BytesIO(data))
         names = font["name"].names
         family = None
         full_name = None
         style_name = None
+        weight_value = 400
         for record in names:
             if record.nameID == 16 and family is None:
                 family = _decode_name(record)
@@ -284,22 +345,26 @@ def detect_font_info(data: bytes, filename: Optional[str]) -> tuple[Optional[str
                 style_name = _decode_name(record)
             elif record.nameID == 2 and style_name is None:
                 style_name = _decode_name(record)
+        try:
+            weight_value = int(font["OS/2"].usWeightClass)
+        except Exception:
+            weight_value = 400
         if not family:
             family = guess_font_family(filename)
         if not full_name:
             full_name = family
         italic = bool(style_name and "italic" in style_name.lower())
-        return family, full_name, italic
+        return family, full_name, italic, weight_value
     except Exception:
         family = guess_font_family(filename)
-        return family, family, False
+        return family, family, False, 400
 
 
 def save_uploaded_font(
     font_name: Optional[str], filename: str, data: bytes, job_id: str
-) -> Optional[tuple[Path, str, str, bool]]:
+) -> Optional[tuple[Path, str, str, bool, int]]:
     """Save an uploaded font file into a local font directory."""
-    family, full_name, italic = detect_font_info(data, filename)
+    family, full_name, italic, weight = detect_font_info(data, filename)
     detected_family = family or font_name or ""
     detected_full = full_name or detected_family
     if not detected_family or not filename:
@@ -312,6 +377,6 @@ def save_uploaded_font(
     digest = hashlib.sha256(data).hexdigest()[:12]
     target_path = target_dir / f"{Path(filename).stem}-{digest}{Path(filename).suffix}"
     if target_path.exists():
-        return target_dir, detected_family, detected_full, italic
+        return target_dir, detected_family, detected_full, italic, weight
     target_path.write_bytes(data)
-    return target_dir, detected_family, detected_full, italic
+    return target_dir, detected_family, detected_full, italic, weight

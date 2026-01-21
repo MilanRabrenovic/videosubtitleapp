@@ -53,6 +53,8 @@ def default_style() -> Dict[str, Any]:
         "font_size": 48,
         "font_bold": True,
         "font_italic": False,
+        "font_weight": 400,
+        "font_style": "regular",
         "text_color": "#FFFFFF",
         "highlight_color": "#FFFF00",
         "outline_color": "#000000",
@@ -509,9 +511,13 @@ def _overlay_dialogues(
         top_y = pos["y"] - (font_size / 2.0)
     else:
         top_y = pos["y"] - font_size
-    baseline_y = top_y + (font_size * 0.8)
-    sup_y = baseline_y - (font_size * 0.70)
-    sub_y = baseline_y + (small_size * 0.2)
+    baseline_y = top_y + (font_size * 0.6)
+    font_weight = int(style.get("font_weight", 400))
+    weight_factor = min(1.0, max(0.0, (font_weight - 400) / 600))
+    sup_offset = 0.48 - (0.08 * weight_factor)
+    sup_offset = min(0.52, max(0.38, sup_offset))
+    sup_y = baseline_y - (font_size * sup_offset)
+    sub_y = baseline_y + (small_size * 0.6)
     dialogues: List[str] = []
     for overlay in overlays:
         text = str(overlay.get("text", "")).strip()

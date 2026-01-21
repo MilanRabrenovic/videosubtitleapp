@@ -109,6 +109,25 @@
                 </div>
               </label>
               <label>
+                Font weight
+                <select name="style_font_weight">
+                  <option value="300" {% if job.style.font_weight == 300 %}selected{% endif %}>Light (300)</option>
+                  <option value="400" {% if job.style.font_weight == 400 %}selected{% endif %}>Regular (400)</option>
+                  <option value="500" {% if job.style.font_weight == 500 %}selected{% endif %}>Medium (500)</option>
+                  <option value="600" {% if job.style.font_weight == 600 %}selected{% endif %}>SemiBold (600)</option>
+                  <option value="700" {% if job.style.font_weight == 700 %}selected{% endif %}>Bold (700)</option>
+                  <option value="800" {% if job.style.font_weight == 800 %}selected{% endif %}>ExtraBold (800)</option>
+                  <option value="900" {% if job.style.font_weight == 900 %}selected{% endif %}>Black (900)</option>
+                </select>
+              </label>
+              <label>
+                Font style
+                <select name="style_font_style">
+                  <option value="regular" {% if job.style.font_style == "regular" %}selected{% endif %}>Regular</option>
+                  <option value="italic" {% if job.style.font_style == "italic" %}selected{% endif %}>Italic</option>
+                </select>
+              </label>
+              <label>
                 Font size
                 <input type="number" name="style_font_size" min="12" max="96" value="{{ job.style.font_size }}" />
               </label>
