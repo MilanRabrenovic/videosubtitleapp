@@ -103,3 +103,12 @@
 - Implemented: Upload language selector to pass explicit language to Whisper.
 - Why: Improves accuracy and avoids mis-detection for non-English videos.
 - Next action: Add a lightweight undo for the last edit block to speed minor fixes.
+
+## 2026-01-19
+- Implemented: Burned preview video generation on upload/save with karaoke ASS; export for standard and karaoke; word-level alignment improvements.
+- Implemented: Subtitle styling controls (fonts, colors, outline, background, padding, position, line height, max words per line), plus line splitting with word-timed blocks.
+- Implemented: Font system with curated Google fonts cache, system fonts, per-job custom uploads with license confirmation, and delete custom font action.
+- Implemented: Upload validation (size, type, duration), streamed uploads, FFmpeg subprocess timeouts, and storage cleanup by size cap with job touch.
+- Implemented: Sup/sub rendering with font-metric vertical positioning and stable horizontal placement.
+- Incomplete: Background jobs/progress tracking and user-facing job management.
+- Next action: Evaluate background processing and progress indicators for long transcriptions/exports.

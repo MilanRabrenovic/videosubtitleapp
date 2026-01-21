@@ -30,6 +30,15 @@ ASS karaoke tags allow per-word timing and color transitions that SRT and VTT ca
 ## Why karaoke export is separate from web playback captions
 Burned karaoke subtitles are for finalized video delivery; playback highlights remain a lightweight editor aid.
 
+## Why we cache Google Fonts locally
+Google Fonts are downloaded on first use and cached to avoid repeated downloads and keep exports deterministic.
+
+## Why custom fonts are job-scoped
+Uploaded fonts are tied to a specific job to reduce licensing risk and keep storage isolated.
+
+## Why we use a storage cap cleanup
+A size-based cleanup keeps local disk usage bounded without introducing a database or job scheduler.
+
 ## Tradeoffs accepted for simplicity
 - No authentication or multi-user support.
 - Local filesystem storage only.
