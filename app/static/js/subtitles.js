@@ -11,6 +11,8 @@
   const exportVideoStatus = document.getElementById("video-export-status");
   const previewVideo = document.getElementById("preview-video");
   const saveButton = document.getElementById("save-button");
+  const fontLicenseConfirm = document.getElementById("font-license-confirm");
+  const fontUploadButton = document.getElementById("font-upload-button");
   const fontInput = document.getElementById("font-input");
   const fontValue = document.getElementById("font-value");
   const fontOptions = document.getElementById("font-options");
@@ -65,6 +67,14 @@
         fontOptions.hidden = true;
       }
     });
+  }
+
+  if (fontLicenseConfirm && fontUploadButton) {
+    const toggleFontUpload = () => {
+      fontUploadButton.disabled = !fontLicenseConfirm.checked;
+    };
+    fontLicenseConfirm.addEventListener("change", toggleFontUpload);
+    toggleFontUpload();
   }
 
   const collectSubtitles = () => {

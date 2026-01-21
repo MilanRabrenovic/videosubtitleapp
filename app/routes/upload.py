@@ -108,8 +108,10 @@ def handle_upload(
     preview_path = OUTPUTS_DIR / f"{job_id}_preview.mp4"
     preview_ass_path = OUTPUTS_DIR / f"{job_id}_preview.ass"
     try:
+        render_style = dict(job_data["style"])
+        render_style["font_job_id"] = job_id
         karaoke_lines = build_karaoke_lines(words, job_data["subtitles"])
-        generate_karaoke_ass(karaoke_lines, preview_ass_path, job_data["style"])
+        generate_karaoke_ass(karaoke_lines, preview_ass_path, render_style)
         fonts_dir = ensure_font_downloaded(job_data["style"].get("font_family")) or font_dir_for_name(
             job_data["style"].get("font_family"), job_id
         )

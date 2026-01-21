@@ -69,11 +69,13 @@ def export_video(request: Request, job_id: str) -> Any:
 
     subtitles = job_data.get("subtitles", [])
     style = normalize_style(job_data.get("style"))
+    render_style = dict(style)
+    render_style["font_job_id"] = job_id
     srt_path = OUTPUTS_DIR / f"{job_id}.srt"
     touch_job(job_id)
     srt_path.write_text(subtitles_to_srt(subtitles), encoding="utf-8")
     ass_path = OUTPUTS_DIR / f"{job_id}.ass"
-    generate_ass_from_subtitles(subtitles, ass_path, style)
+    generate_ass_from_subtitles(subtitles, ass_path, render_style)
 
     output_path = OUTPUTS_DIR / f"{job_id}_subtitled.mp4"
     fonts_dir = ensure_font_downloaded(style.get("font_family")) or font_dir_for_name(
@@ -115,8 +117,10 @@ def export_video_karaoke(request: Request, job_id: str) -> Any:
     touch_job(job_id)
     subtitles = job_data.get("subtitles", [])
     style = normalize_style(job_data.get("style"))
+    render_style = dict(style)
+    render_style["font_job_id"] = job_id
     karaoke_lines = build_karaoke_lines(words, subtitles)
-    generate_karaoke_ass(karaoke_lines, ass_path, style)
+    generate_karaoke_ass(karaoke_lines, ass_path, render_style)
 
     output_path = OUTPUTS_DIR / f"{job_id}_karaoke.mp4"
     fonts_dir = ensure_font_downloaded(style.get("font_family")) or font_dir_for_name(

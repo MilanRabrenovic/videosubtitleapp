@@ -8,6 +8,7 @@ import re
 import urllib.parse
 import urllib.request
 import zipfile
+from functools import lru_cache
 from pathlib import Path
 from typing import Iterable, Optional
 
@@ -284,6 +285,113 @@ def available_google_font_variants(font_name: Optional[str]) -> list[dict]:
             }
         )
     return variants
+
+
+def resolve_font_file(font_name: Optional[str], job_id: Optional[str] = None) -> Optional[Path]:
+    """Resolve a concrete font file path for a font name."""
+    if not font_name:
+        return None
+    for variant in available_local_font_variants(job_id):
+        if font_name in {variant.get("full_name"), variant.get("family")}:
+            path = Path(str(variant.get("path", "")))
+            if path.exists():
+                return path
+    google_root = FONTS_DIR / "google"
+    if google_root.exists():
+        for folder in google_root.iterdir():
+            if not folder.is_dir():
+                continue
+            for path in folder.iterdir():
+                if not path.is_file() or path.suffix.lower() not in {".ttf", ".otf"}:
+                    continue
+                try:
+                    data = path.read_bytes()
+                except OSError:
+                    continue
+                family, full_name, _, _ = detect_font_info(data, path.name)
+                if font_name in {family, full_name}:
+                    return path
+    system_dir = find_system_font_dir(font_name)
+    if system_dir:
+        for path in system_dir.iterdir():
+            if not path.is_file() or path.suffix.lower() not in {".ttf", ".otf"}:
+                continue
+            if font_name.lower() in path.stem.lower():
+                return path
+    return None
+
+
+@lru_cache(maxsize=32)
+def _load_font_metrics(font_path: str) -> Optional[tuple[dict, dict, int]]:
+    if TTFont is None:
+        return None
+    try:
+        font = TTFont(font_path)
+        cmap = font.getBestCmap() or {}
+        metrics = font["hmtx"].metrics
+        units_per_em = int(font["head"].unitsPerEm or 1000)
+        return cmap, metrics, units_per_em
+    except Exception:
+        return None
+
+
+def text_width_px(text: str, font_path: Optional[Path], font_size: int) -> Optional[float]:
+    """Measure text width in pixels for a font file and size."""
+    if not text or not font_path:
+        return None
+    metrics = _load_font_metrics(str(font_path))
+    if not metrics:
+        return None
+    cmap, hmtx, units_per_em = metrics
+    if not units_per_em:
+        return None
+    total_units = 0
+    notdef_width = hmtx.get(".notdef", (0, 0))[0]
+    for char in text:
+        glyph_name = cmap.get(ord(char))
+        if glyph_name is None:
+            total_units += notdef_width
+            continue
+        glyph_metrics = hmtx.get(glyph_name)
+        if glyph_metrics:
+            total_units += glyph_metrics[0]
+        else:
+            total_units += notdef_width
+    return (total_units * float(font_size)) / float(units_per_em)
+
+
+@lru_cache(maxsize=32)
+def _load_font_vertical_metrics(font_path: str) -> Optional[tuple[int, int, int]]:
+    if TTFont is None:
+        return None
+    try:
+        font = TTFont(font_path)
+        units_per_em = int(font["head"].unitsPerEm or 1000)
+        ascent = None
+        descent = None
+        if "OS/2" in font:
+            try:
+                ascent = int(font["OS/2"].sTypoAscender)
+                descent = int(font["OS/2"].sTypoDescender)
+            except Exception:
+                ascent = None
+                descent = None
+        if ascent is None or descent is None:
+            if "hhea" in font:
+                ascent = int(font["hhea"].ascent)
+                descent = int(font["hhea"].descent)
+        if ascent is None or descent is None:
+            return None
+        return ascent, descent, units_per_em
+    except Exception:
+        return None
+
+
+def font_vertical_metrics(font_path: Optional[Path]) -> Optional[tuple[int, int, int]]:
+    """Return (ascent, descent, units_per_em) for a font file."""
+    if not font_path:
+        return None
+    return _load_font_vertical_metrics(str(font_path))
 
 
 def font_files_available(font_name: Optional[str]) -> bool:

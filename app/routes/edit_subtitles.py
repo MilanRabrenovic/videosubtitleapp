@@ -215,14 +215,16 @@ def save_edits(
     fonts_dir = ensure_font_downloaded(style.get("font_family")) or font_dir_for_name(
         style.get("font_family"), job_id
     )
+    render_style = dict(style)
+    render_style["font_job_id"] = job_id
     if video_path.exists():
         try:
             if words:
                 karaoke_lines = build_karaoke_lines(words, subtitles)
-                generate_karaoke_ass(karaoke_lines, preview_ass_path, style)
+                generate_karaoke_ass(karaoke_lines, preview_ass_path, render_style)
                 burn_in_ass(video_path, preview_ass_path, preview_path, fonts_dir)
             else:
-                generate_ass_from_subtitles(subtitles, preview_ass_path, style)
+                generate_ass_from_subtitles(subtitles, preview_ass_path, render_style)
                 burn_in_ass(video_path, preview_ass_path, preview_path, fonts_dir)
         except RuntimeError:
             logger.exception("Preview burn-in failed for %s", preview_path)
@@ -297,12 +299,14 @@ def upload_font(
     video_path = UPLOADS_DIR / job_data.get("video_filename", "")
     if video_path.exists():
         try:
+            render_style = dict(job_data["style"])
+            render_style["font_job_id"] = job_id
             if words:
                 karaoke_lines = build_karaoke_lines(words, subtitles)
-                generate_karaoke_ass(karaoke_lines, preview_ass_path, job_data["style"])
+                generate_karaoke_ass(karaoke_lines, preview_ass_path, render_style)
                 burn_in_ass(video_path, preview_ass_path, preview_path, saved_dir)
             else:
-                generate_ass_from_subtitles(subtitles, preview_ass_path, job_data["style"])
+                generate_ass_from_subtitles(subtitles, preview_ass_path, render_style)
                 burn_in_ass(video_path, preview_ass_path, preview_path, saved_dir)
         except RuntimeError:
             logger.exception("Preview burn-in failed for %s", preview_path)
@@ -361,12 +365,14 @@ def delete_font(
     video_path = UPLOADS_DIR / job_data.get("video_filename", "")
     if video_path.exists():
         try:
+            render_style = dict(style)
+            render_style["font_job_id"] = job_id
             if words:
                 karaoke_lines = build_karaoke_lines(words, subtitles)
-                generate_karaoke_ass(karaoke_lines, preview_ass_path, style)
+                generate_karaoke_ass(karaoke_lines, preview_ass_path, render_style)
                 burn_in_ass(video_path, preview_ass_path, preview_path)
             else:
-                generate_ass_from_subtitles(subtitles, preview_ass_path, style)
+                generate_ass_from_subtitles(subtitles, preview_ass_path, render_style)
                 burn_in_ass(video_path, preview_ass_path, preview_path)
         except RuntimeError:
             logger.exception("Preview burn-in failed for %s", preview_path)

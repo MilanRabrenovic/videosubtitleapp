@@ -67,15 +67,17 @@
         <input type="file" name="font_file" accept=".ttf,.otf" />
       </label>
       <label>
-        <input type="checkbox" name="font_license_confirm" />
+        <input type="checkbox" name="font_license_confirm" id="font-license-confirm" />
         I have the right to use this font
       </label>
-      <button type="submit">Upload font</button>
+      <button type="submit" id="font-upload-button" disabled>Upload font</button>
     </form>
-    <form action="/edit/{{ job.job_id }}/font-delete" method="post" class="actions">
-      <input type="hidden" name="font_family" value="{{ job.style.font_family }}" />
-      <button type="submit">Delete uploaded font</button>
-    </form>
+    {% if custom_fonts %}
+      <form action="/edit/{{ job.job_id }}/font-delete" method="post" class="actions">
+        <input type="hidden" name="font_family" value="{{ job.style.font_family }}" />
+        <button type="submit">Delete uploaded font</button>
+      </form>
+    {% endif %}
 
     <div class="layout">
       <section>

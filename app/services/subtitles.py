@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from app.config import OUTPUTS_DIR
+from app.services.fonts import font_vertical_metrics, resolve_font_file
 
 
 def job_path(job_id: str) -> Path:
@@ -504,14 +505,24 @@ def _overlay_dialogues(
         return []
     font_size = int(style.get("font_size", 48))
     small_size = max(8, int(round(font_size * 0.6)))
+    font_job_id = style.get("font_job_id")
+    font_path = resolve_font_file(style.get("font_family"), font_job_id)
     alignment = pos["alignment"]
+    metrics = font_vertical_metrics(font_path)
+    if metrics:
+        ascent, descent, units_per_em = metrics
+        height_px = (float(ascent - descent) * float(font_size)) / float(units_per_em)
+        ascent_px = (float(ascent) * float(font_size)) / float(units_per_em)
+    else:
+        height_px = float(font_size)
+        ascent_px = float(font_size) * 0.6
     if alignment == 8:
         top_y = pos["y"]
     elif alignment == 5:
-        top_y = pos["y"] - (font_size / 2.0)
+        top_y = pos["y"] - (height_px / 2.0)
     else:
-        top_y = pos["y"] - font_size
-    baseline_y = top_y + (font_size * 0.6)
+        top_y = pos["y"] - height_px
+    baseline_y = top_y + ascent_px
     sup_offset = 0.46
     sub_offset = 0.15
     sup_y = baseline_y - (font_size * sup_offset)
@@ -529,7 +540,9 @@ def _overlay_dialogues(
         ass_text = _escape_ass_text(text)
         prefix_text = _escape_ass_text(prefix)
         suffix_text = _escape_ass_text(suffix)
-        tag = f"{{\\an5\\pos({pos['x']},{int(round(overlay_y))})\\q2}}"
+        x_shift = max(1, min(12, int(round(font_size * 0.04))))
+        italic_tag = "\\i1" if style.get("font_italic") else "\\i0"
+        tag = f"{{\\an5\\pos({pos['x'] - x_shift},{int(round(overlay_y))})\\q2{italic_tag}}}"
         overlay_line = (
             f"{{\\alpha&HFE&}}{prefix_text}"
             f"{{\\alpha&H00&}}{{\\fs{small_size}}}{ass_text}{{\\fs{font_size}}}"
