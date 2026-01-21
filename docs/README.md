@@ -7,6 +7,7 @@
 - Exports subtitles as SRT or VTT.
 - Exports a video with burned-in subtitles.
 - Exports a karaoke-style video with word-by-word highlighting (ASS).
+- Runs transcription/exports as background jobs with status polling.
 - Provides styling controls (font, size, colors, outline, background, position).
 - Supports curated Google Fonts, system fonts, and per-job custom font uploads.
 

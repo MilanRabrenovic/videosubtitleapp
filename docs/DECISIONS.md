@@ -39,6 +39,15 @@ Uploaded fonts are tied to a specific job to reduce licensing risk and keep stor
 ## Why we use a storage cap cleanup
 A size-based cleanup keeps local disk usage bounded without introducing a database or job scheduler.
 
+## Why file-backed jobs
+JSON files in a `jobs/` directory keep job state persistent across restarts without extra infrastructure.
+
+## Why polling instead of WebSockets
+Polling keeps the implementation minimal and reliable; it can be replaced with real-time updates later.
+
+## Why background jobs are required for public users
+Transcription and exports can take minutes; background jobs prevent request timeouts and let users return later.
+
 ## Tradeoffs accepted for simplicity
 - No authentication or multi-user support.
 - Local filesystem storage only.

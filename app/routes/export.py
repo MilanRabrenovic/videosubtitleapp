@@ -2,28 +2,15 @@
 
 from typing import Any
 
-import logging
-
 from fastapi import APIRouter, Form, HTTPException, Request
 from fastapi.responses import FileResponse
 
 from app.config import OUTPUTS_DIR, UPLOADS_DIR
 from app.services.cleanup import touch_job
-from app.services.fonts import ensure_font_downloaded, font_dir_for_name
-from app.services.subtitles import (
-    build_karaoke_lines,
-    generate_ass_from_subtitles,
-    generate_karaoke_ass,
-    normalize_style,
-    load_subtitle_job,
-    load_transcript_words,
-    subtitles_to_srt,
-    subtitles_to_vtt,
-)
-from app.services.video import burn_in_ass
+from app.services.jobs import create_job, find_active_job
+from app.services.subtitles import load_subtitle_job, subtitles_to_srt, subtitles_to_vtt
 
 router = APIRouter()
-logger = logging.getLogger(__name__)
 
 
 @router.post("/export/{job_id}/subtitles")
@@ -59,39 +46,18 @@ def export_video(request: Request, job_id: str) -> Any:
     if not job_data:
         raise HTTPException(status_code=404, detail="Subtitle job not found")
 
-    video_filename = job_data.get("video_filename")
-    if not video_filename:
-        raise HTTPException(status_code=400, detail="Missing source video filename")
-
-    video_path = UPLOADS_DIR / video_filename
-    if not video_path.exists():
-        raise HTTPException(status_code=404, detail="Source video not found")
-
-    subtitles = job_data.get("subtitles", [])
-    style = normalize_style(job_data.get("style"))
-    render_style = dict(style)
-    render_style["font_job_id"] = job_id
-    srt_path = OUTPUTS_DIR / f"{job_id}.srt"
-    touch_job(job_id)
-    srt_path.write_text(subtitles_to_srt(subtitles), encoding="utf-8")
-    ass_path = OUTPUTS_DIR / f"{job_id}.ass"
-    generate_ass_from_subtitles(subtitles, ass_path, render_style)
-
-    output_path = OUTPUTS_DIR / f"{job_id}_subtitled.mp4"
-    fonts_dir = ensure_font_downloaded(style.get("font_family")) or font_dir_for_name(
-        style.get("font_family"), job_id
+    existing = find_active_job(
+        "export",
+        lambda job: job.get("input", {}).get("options", {}).get("subtitle_job_id") == job_id,
     )
-    try:
-        burn_in_ass(video_path, ass_path, output_path, fonts_dir)
-    except RuntimeError as exc:
-        logger.exception("FFmpeg export failed for %s", output_path)
-        raise HTTPException(status_code=500, detail="FFmpeg failed to export video") from exc
+    if existing:
+        return {"job_id": existing.get("job_id"), "status": existing.get("status")}
 
-    return FileResponse(
-        path=str(output_path),
-        media_type="video/mp4",
-        filename=output_path.name,
+    export_job = create_job(
+        "export",
+        {"video_path": str(UPLOADS_DIR / job_data.get("video_filename", "")), "options": {"subtitle_job_id": job_id}},
     )
+    return {"job_id": export_job["job_id"], "status": export_job["status"]}
 
 
 @router.post("/export/{job_id}/video-karaoke")
@@ -101,39 +67,15 @@ def export_video_karaoke(request: Request, job_id: str) -> Any:
     if not job_data:
         raise HTTPException(status_code=404, detail="Subtitle job not found")
 
-    video_filename = job_data.get("video_filename")
-    if not video_filename:
-        raise HTTPException(status_code=400, detail="Missing source video filename")
-
-    video_path = UPLOADS_DIR / video_filename
-    if not video_path.exists():
-        raise HTTPException(status_code=404, detail="Source video not found")
-
-    words = load_transcript_words(job_id)
-    if not words:
-        raise HTTPException(status_code=404, detail="Transcript words not found")
-
-    ass_path = OUTPUTS_DIR / f"{job_id}_karaoke.ass"
-    touch_job(job_id)
-    subtitles = job_data.get("subtitles", [])
-    style = normalize_style(job_data.get("style"))
-    render_style = dict(style)
-    render_style["font_job_id"] = job_id
-    karaoke_lines = build_karaoke_lines(words, subtitles)
-    generate_karaoke_ass(karaoke_lines, ass_path, render_style)
-
-    output_path = OUTPUTS_DIR / f"{job_id}_karaoke.mp4"
-    fonts_dir = ensure_font_downloaded(style.get("font_family")) or font_dir_for_name(
-        style.get("font_family"), job_id
+    existing = find_active_job(
+        "karaoke_export",
+        lambda job: job.get("input", {}).get("options", {}).get("subtitle_job_id") == job_id,
     )
-    try:
-        burn_in_ass(video_path, ass_path, output_path, fonts_dir)
-    except RuntimeError as exc:
-        logger.exception("FFmpeg karaoke export failed for %s", output_path)
-        raise HTTPException(status_code=500, detail="FFmpeg failed to export karaoke video") from exc
+    if existing:
+        return {"job_id": existing.get("job_id"), "status": existing.get("status")}
 
-    return FileResponse(
-        path=str(output_path),
-        media_type="video/mp4",
-        filename=output_path.name,
+    export_job = create_job(
+        "karaoke_export",
+        {"video_path": str(UPLOADS_DIR / job_data.get("video_filename", "")), "options": {"subtitle_job_id": job_id}},
     )
+    return {"job_id": export_job["job_id"], "status": export_job["status"]}

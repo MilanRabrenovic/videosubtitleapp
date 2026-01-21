@@ -9,13 +9,13 @@ from fastapi.templating import Jinja2Templates
 
 from app.config import OUTPUTS_DIR, TEMPLATES_DIR, UPLOADS_DIR
 from app.services.cleanup import touch_job
+from app.services.jobs import create_job, load_job
 from app.services.fonts import (
     available_local_fonts,
     available_local_font_variants,
     available_google_font_variants,
     delete_font_family,
     ensure_font_downloaded,
-    font_dir_for_name,
     font_files_available,
     google_font_choices,
     guess_font_family,
@@ -29,8 +29,6 @@ from app.services.subtitles import (
     apply_manual_breaks,
     build_karaoke_lines,
     default_style,
-    generate_karaoke_ass,
-    generate_ass_from_subtitles,
     load_subtitle_job,
     load_transcript_words,
     merge_subtitles_by_group,
@@ -40,7 +38,6 @@ from app.services.subtitles import (
     split_subtitles_by_words,
     subtitles_to_srt,
 )
-from app.services.video import burn_in_ass
 
 router = APIRouter()
 templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
@@ -51,9 +48,24 @@ logger = logging.getLogger(__name__)
 def edit_page(request: Request, job_id: str) -> Any:
     """Render the subtitle editing UI."""
     job_data = load_subtitle_job(job_id)
+    job_status = None
+    job_error = None
     if not job_data:
-        raise HTTPException(status_code=404, detail="Subtitle job not found")
-    touch_job(job_id)
+        job_record = load_job(job_id)
+        if not job_record:
+            raise HTTPException(status_code=404, detail="Subtitle job not found")
+        options = job_record.get("input", {}).get("options", {}) or {}
+        job_data = {
+            "job_id": job_id,
+            "title": options.get("title", "Untitled"),
+            "video_filename": options.get("video_filename", ""),
+            "subtitles": [],
+            "style": default_style(),
+        }
+        job_status = job_record.get("status")
+        job_error = job_record.get("error")
+    else:
+        touch_job(job_id)
 
     job_data["style"] = normalize_style(job_data.get("style"))
     for index, block in enumerate(job_data["subtitles"]):
@@ -61,6 +73,7 @@ def edit_page(request: Request, job_id: str) -> Any:
     job_data.setdefault("custom_fonts", [])
 
     preview_path = OUTPUTS_DIR / f"{job_id}_preview.mp4"
+    preview_job_id = None
     preview_token = int(preview_path.stat().st_mtime) if preview_path.exists() else None
     font_css = None
     font_family = job_data["style"].get("font_family")
@@ -70,7 +83,7 @@ def edit_page(request: Request, job_id: str) -> Any:
         if not font_files_available(font_family):
             font_warning = (
                 f"Font '{font_family}' is not available locally. "
-                "Install it on the system or place the TTF/OTF files in outputs/fonts/"
+                "Install it. Or place the TTF/OTF files in outputs/fonts/"
                 f"{font_family.replace(' ', '-')}/."
             )
     job_custom_fonts = job_data.get("custom_fonts") or available_local_fonts(job_id)
@@ -81,11 +94,15 @@ def edit_page(request: Request, job_id: str) -> Any:
             "job": job_data,
             "preview_available": preview_path.exists(),
             "preview_token": preview_token,
+            "preview_job_id": preview_job_id,
             "google_fonts": google_font_choices(),
             "system_fonts": system_font_choices(),
             "custom_fonts": job_custom_fonts,
             "font_css_url": font_css,
             "font_warning": font_warning,
+            "processing_job_id": job_id if job_status in {"queued", "running"} else None,
+            "processing_job_status": job_status,
+            "processing_job_error": job_error,
         },
     )
 
@@ -210,24 +227,14 @@ def save_edits(
     srt_path.write_text(subtitles_to_srt(subtitles), encoding="utf-8")
     touch_job(job_id)
     preview_path = OUTPUTS_DIR / f"{job_id}_preview.mp4"
-    preview_ass_path = OUTPUTS_DIR / f"{job_id}_preview.ass"
     video_path = UPLOADS_DIR / job_data.get("video_filename", "")
-    fonts_dir = ensure_font_downloaded(style.get("font_family")) or font_dir_for_name(
-        style.get("font_family"), job_id
-    )
-    render_style = dict(style)
-    render_style["font_job_id"] = job_id
+    preview_job_id = None
     if video_path.exists():
-        try:
-            if words:
-                karaoke_lines = build_karaoke_lines(words, subtitles)
-                generate_karaoke_ass(karaoke_lines, preview_ass_path, render_style)
-                burn_in_ass(video_path, preview_ass_path, preview_path, fonts_dir)
-            else:
-                generate_ass_from_subtitles(subtitles, preview_ass_path, render_style)
-                burn_in_ass(video_path, preview_ass_path, preview_path, fonts_dir)
-        except RuntimeError:
-            logger.exception("Preview burn-in failed for %s", preview_path)
+        preview_job = create_job(
+            "preview",
+            {"video_path": str(video_path), "options": {"subtitle_job_id": job_id}},
+        )
+        preview_job_id = preview_job["job_id"]
 
     font_css = None
     font_family = style.get("font_family")
@@ -250,6 +257,7 @@ def save_edits(
             "saved": True,
             "preview_available": preview_path.exists(),
             "preview_token": preview_token,
+            "preview_job_id": preview_job_id,
             "google_fonts": google_font_choices(),
             "system_fonts": system_font_choices(),
             "custom_fonts": job_custom_fonts,
@@ -295,21 +303,14 @@ def upload_font(
     subtitles = job_data.get("subtitles", [])
     words = load_transcript_words(job_id)
     preview_path = OUTPUTS_DIR / f"{job_id}_preview.mp4"
-    preview_ass_path = OUTPUTS_DIR / f"{job_id}_preview.ass"
     video_path = UPLOADS_DIR / job_data.get("video_filename", "")
+    preview_job_id = None
     if video_path.exists():
-        try:
-            render_style = dict(job_data["style"])
-            render_style["font_job_id"] = job_id
-            if words:
-                karaoke_lines = build_karaoke_lines(words, subtitles)
-                generate_karaoke_ass(karaoke_lines, preview_ass_path, render_style)
-                burn_in_ass(video_path, preview_ass_path, preview_path, saved_dir)
-            else:
-                generate_ass_from_subtitles(subtitles, preview_ass_path, render_style)
-                burn_in_ass(video_path, preview_ass_path, preview_path, saved_dir)
-        except RuntimeError:
-            logger.exception("Preview burn-in failed for %s", preview_path)
+        preview_job = create_job(
+            "preview",
+            {"video_path": str(video_path), "options": {"subtitle_job_id": job_id}},
+        )
+        preview_job_id = preview_job["job_id"]
 
     font_css = None
     if is_google_font(detected_family):
@@ -324,6 +325,7 @@ def upload_font(
             "saved": True,
             "preview_available": preview_path.exists(),
             "preview_token": preview_token,
+            "preview_job_id": preview_job_id,
             "google_fonts": google_font_choices(),
             "system_fonts": system_font_choices(),
             "custom_fonts": job_custom_fonts,
@@ -361,21 +363,14 @@ def delete_font(
     subtitles = job_data.get("subtitles", [])
     words = load_transcript_words(job_id)
     preview_path = OUTPUTS_DIR / f"{job_id}_preview.mp4"
-    preview_ass_path = OUTPUTS_DIR / f"{job_id}_preview.ass"
     video_path = UPLOADS_DIR / job_data.get("video_filename", "")
+    preview_job_id = None
     if video_path.exists():
-        try:
-            render_style = dict(style)
-            render_style["font_job_id"] = job_id
-            if words:
-                karaoke_lines = build_karaoke_lines(words, subtitles)
-                generate_karaoke_ass(karaoke_lines, preview_ass_path, render_style)
-                burn_in_ass(video_path, preview_ass_path, preview_path)
-            else:
-                generate_ass_from_subtitles(subtitles, preview_ass_path, render_style)
-                burn_in_ass(video_path, preview_ass_path, preview_path)
-        except RuntimeError:
-            logger.exception("Preview burn-in failed for %s", preview_path)
+        preview_job = create_job(
+            "preview",
+            {"video_path": str(video_path), "options": {"subtitle_job_id": job_id}},
+        )
+        preview_job_id = preview_job["job_id"]
 
     job_custom_fonts = job_data.get("custom_fonts") or available_local_fonts(job_id)
     preview_token = int(preview_path.stat().st_mtime) if preview_path.exists() else None
@@ -387,6 +382,7 @@ def delete_font(
             "saved": True,
             "preview_available": preview_path.exists(),
             "preview_token": preview_token,
+            "preview_job_id": preview_job_id,
             "google_fonts": google_font_choices(),
             "system_fonts": system_font_choices(),
             "custom_fonts": job_custom_fonts,

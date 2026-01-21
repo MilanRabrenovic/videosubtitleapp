@@ -57,6 +57,15 @@
     {% if saved %}
       <p class="status">Changes saved.</p>
     {% endif %}
+    {% if processing_job_id %}
+      <p id="job-status" class="status" data-job-id="{{ processing_job_id }}">
+        Processing video… this may take a minute.
+      </p>
+    {% elif processing_job_error %}
+      <p id="job-status" class="status">
+        Processing failed: {{ processing_job_error }}
+      </p>
+    {% endif %}
     {% if font_warning %}
       <p class="status">{{ font_warning }}</p>
     {% endif %}
@@ -265,6 +274,7 @@
     <p id="video-export-status" class="status" style="display: none;"></p>
     <p id="karaoke-export-status" class="status" style="display: none;"></p>
     <p><em>Tip:</em> Save edits before exporting.</p>
+    <span id="preview-job" data-job-id="{{ preview_job_id or '' }}" hidden></span>
   </main>
 </body>
 </html>

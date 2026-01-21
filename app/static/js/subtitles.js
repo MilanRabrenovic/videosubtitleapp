@@ -11,6 +11,8 @@
   const exportVideoStatus = document.getElementById("video-export-status");
   const previewVideo = document.getElementById("preview-video");
   const saveButton = document.getElementById("save-button");
+  const jobStatus = document.getElementById("job-status");
+  const previewJob = document.getElementById("preview-job");
   const fontLicenseConfirm = document.getElementById("font-license-confirm");
   const fontUploadButton = document.getElementById("font-upload-button");
   const fontInput = document.getElementById("font-input");
@@ -19,6 +21,76 @@
   const timestampPattern = /^\d{2}:\d{2}:\d{2},\d{3}$/;
   let isDirty = false;
   let saveTimeoutId = null;
+
+  const pollJob = (jobId, onComplete, onError) => {
+    if (!jobId) {
+      return null;
+    }
+    let cancelled = false;
+    const pollOnce = async () => {
+      try {
+        const response = await fetch(`/jobs/${jobId}`);
+        if (!response.ok) {
+          throw new Error("Job status failed");
+        }
+        const job = await response.json();
+        if (job.status === "completed") {
+          cancelled = true;
+          onComplete(job);
+        } else if (job.status === "failed") {
+          cancelled = true;
+          onError(job);
+        }
+      } catch (error) {
+        console.error(error);
+      }
+    };
+    pollOnce();
+    const interval = setInterval(() => {
+      if (cancelled) {
+        clearInterval(interval);
+        return;
+      }
+      pollOnce();
+    }, 2500);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  };
+
+  const startPreviewPolling = (jobId) => {
+    if (!jobId) {
+      return;
+    }
+    if (status) {
+      status.textContent = "Rendering preview...";
+    }
+    pollJob(
+      jobId,
+      () => {
+        if (previewVideo) {
+          const source = previewVideo.querySelector("source");
+          if (source && source.src.includes("/outputs/")) {
+            const cacheBuster = `v=${Date.now()}`;
+            source.src = source.src.split("?")[0] + "?" + cacheBuster;
+            previewVideo.load();
+          }
+        }
+        if (status) {
+          status.textContent = "Preview updated.";
+          setTimeout(() => {
+            status.textContent = "";
+          }, 1800);
+        }
+      },
+      (job) => {
+        if (status) {
+          status.textContent = job.error ? `Preview failed: ${job.error}` : "Preview failed.";
+        }
+      }
+    );
+  };
 
   const hasInvalidTimestamps = () => {
     const blocks = subtitleList.querySelectorAll(".subtitle-block");
@@ -143,6 +215,39 @@
       if (updatedList) {
         subtitleList.innerHTML = updatedList.innerHTML;
       }
+      const updatedForm = doc.getElementById("subtitle-form");
+      if (updatedForm && form) {
+        const fields = Array.from(form.querySelectorAll("input[name], select[name], textarea[name]"));
+        fields.forEach((field) => {
+          const name = field.getAttribute("name");
+          if (!name) {
+            return;
+          }
+          const updated = updatedForm.querySelector(`[name="${CSS.escape(name)}"]`);
+          if (!updated) {
+            return;
+          }
+          if (field.type === "checkbox") {
+            field.checked = updated.checked;
+          } else if (field.type === "radio") {
+            field.checked = updated.checked;
+          } else {
+            field.value = updated.value;
+          }
+        });
+      }
+      const updatedJobStatus = doc.getElementById("job-status");
+      if (updatedJobStatus && jobStatus) {
+        jobStatus.textContent = updatedJobStatus.textContent || "";
+        jobStatus.dataset.jobId = updatedJobStatus.dataset.jobId || "";
+      }
+      const updatedPreviewJob = doc.getElementById("preview-job");
+      if (updatedPreviewJob && previewJob) {
+        previewJob.dataset.jobId = updatedPreviewJob.dataset.jobId || "";
+        if (previewJob.dataset.jobId) {
+          startPreviewPolling(previewJob.dataset.jobId);
+        }
+      }
       if (previewVideo) {
         const source = previewVideo.querySelector("source");
         if (source && source.src.includes("/outputs/")) {
@@ -190,23 +295,37 @@
       if (!response.ok) {
         throw new Error("Video export failed");
       }
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      const disposition = response.headers.get("content-disposition") || "";
-      const filenameMatch = disposition.match(/filename=\"?([^\";]+)\"?/);
-      link.href = url;
-      link.download = filenameMatch ? filenameMatch[1] : fallbackName;
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      window.URL.revokeObjectURL(url);
-      statusEl.textContent = "Video exported.";
+      const payload = await response.json();
+      const jobId = payload.job_id;
+      if (!jobId) {
+        throw new Error("Missing export job ID");
+      }
+      pollJob(
+        jobId,
+        (job) => {
+          const url = job.output && job.output.video_url ? job.output.video_url : null;
+          if (!url) {
+            statusEl.textContent = "Video exported, but file was not found.";
+            button.disabled = false;
+            return;
+          }
+          const link = document.createElement("a");
+          link.href = url;
+          link.download = fallbackName;
+          document.body.appendChild(link);
+          link.click();
+          link.remove();
+          statusEl.textContent = "Video exported.";
+          button.disabled = false;
+        },
+        (job) => {
+          statusEl.textContent = job.error ? job.error : "Video export failed.";
+          button.disabled = false;
+        }
+      );
     } catch (error) {
       console.error(error);
       statusEl.textContent = "Video export failed.";
-    } finally {
-      button.disabled = false;
     }
   };
 
@@ -228,4 +347,20 @@
     "karaoke.mp4",
     "Exporting video..."
   );
+
+  if (jobStatus && jobStatus.dataset.jobId) {
+    pollJob(
+      jobStatus.dataset.jobId,
+      () => {
+        window.location.reload();
+      },
+      (job) => {
+        jobStatus.textContent = job.error ? `Processing failed: ${job.error}` : "Processing failed.";
+      }
+    );
+  }
+
+  if (previewJob && previewJob.dataset.jobId) {
+    startPreviewPolling(previewJob.dataset.jobId);
+  }
 })();

@@ -112,3 +112,10 @@
 - Implemented: Sup/sub rendering with font-metric vertical positioning and stable horizontal placement.
 - Incomplete: Background jobs/progress tracking and user-facing job management.
 - Next action: Evaluate background processing and progress indicators for long transcriptions/exports.
+
+## 2026-01-19
+- Implemented: File-backed job queue with persistent JSON state, worker threads, and job status polling.
+- Implemented: Transcription, preview rendering, and export now run in background jobs (no blocking requests).
+- Implemented: Job status endpoint and minimal UI polling for processing/preview/export states.
+- Tradeoffs: Single-process worker, polling instead of realtime; easy to replace with Redis/Celery later.
+- Next action: Add auth/usage limits for public access and harden job retention policies.
