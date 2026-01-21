@@ -10,8 +10,13 @@
   const exportKaraokeButtons = document.querySelectorAll("[data-export='video-karaoke']");
   const exportVideoStatus = document.getElementById("video-export-status");
   const previewVideo = document.getElementById("preview-video");
+  const saveButton = document.getElementById("save-button");
+  const fontInput = document.getElementById("font-input");
+  const fontValue = document.getElementById("font-value");
+  const fontOptions = document.getElementById("font-options");
   const timestampPattern = /^\d{2}:\d{2}:\d{2},\d{3}$/;
   let isDirty = false;
+  let saveTimeoutId = null;
 
   const hasInvalidTimestamps = () => {
     const blocks = subtitleList.querySelectorAll(".subtitle-block");
@@ -24,6 +29,42 @@
 
   if (!form || !subtitleList || !hiddenInput) {
     return;
+  }
+
+  if (fontInput && fontValue && fontOptions) {
+    const options = Array.from(fontOptions.querySelectorAll(".font-option"));
+    const filterOptions = () => {
+      const query = fontInput.value.trim().toLowerCase();
+      options.forEach((option) => {
+        const label = option.dataset.value.toLowerCase();
+        option.style.display = label.includes(query) ? "block" : "none";
+      });
+    };
+
+    fontInput.addEventListener("focus", () => {
+      fontOptions.hidden = false;
+      filterOptions();
+    });
+
+    fontInput.addEventListener("input", () => {
+      fontValue.value = fontInput.value.trim();
+      filterOptions();
+    });
+
+    options.forEach((option) => {
+      option.addEventListener("click", () => {
+        const value = option.dataset.value;
+        fontInput.value = value;
+        fontValue.value = value;
+        fontOptions.hidden = true;
+      });
+    });
+
+    document.addEventListener("click", (event) => {
+      if (!fontOptions.contains(event.target) && event.target !== fontInput) {
+        fontOptions.hidden = true;
+      }
+    });
   }
 
   const collectSubtitles = () => {
@@ -63,6 +104,11 @@
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
     hiddenInput.value = JSON.stringify(collectSubtitles());
+    if (saveButton) {
+      saveButton.disabled = true;
+      saveButton.dataset.originalText = saveButton.dataset.originalText || saveButton.textContent;
+      saveButton.textContent = "Saving...";
+    }
     if (timestampHint) {
       timestampHint.style.display = hasInvalidTimestamps() ? "block" : "none";
     }
@@ -74,7 +120,10 @@
       const html = await response.text();
       if (saveStatus) {
         saveStatus.style.display = "inline";
-        setTimeout(() => {
+        if (saveTimeoutId) {
+          clearTimeout(saveTimeoutId);
+        }
+        saveTimeoutId = setTimeout(() => {
           saveStatus.style.display = "none";
         }, 1800);
       }
@@ -95,6 +144,10 @@
       isDirty = false;
     } catch (error) {
       console.error(error);
+    }
+    if (saveButton) {
+      saveButton.disabled = false;
+      saveButton.textContent = saveButton.dataset.originalText || "Save edits";
     }
   });
 

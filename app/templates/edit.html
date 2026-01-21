@@ -17,6 +17,29 @@
     textarea { width: 100%; min-height: 64px; }
     .actions { margin-top: 16px; display: flex; gap: 12px; flex-wrap: wrap; }
     .status { margin-top: 8px; color: #2b6cb0; }
+    .font-picker { position: relative; }
+    .font-options {
+      position: absolute;
+      z-index: 10;
+      background: #fff;
+      border: 1px solid #ddd;
+      max-height: 220px;
+      overflow-y: auto;
+      min-width: 220px;
+      padding: 6px;
+      box-shadow: 0 6px 16px rgba(0, 0, 0, 0.1);
+    }
+    .font-group { font-size: 12px; color: #666; margin: 6px 6px 2px; }
+    .font-option {
+      display: block;
+      width: 100%;
+      text-align: left;
+      background: none;
+      border: none;
+      padding: 6px;
+      cursor: pointer;
+    }
+    .font-option:hover { background: #f0f4ff; }
     .video-panel { position: sticky; top: 16px; }
     video { width: 100%; max-width: 480px; }
     @media (max-width: 960px) {
@@ -43,7 +66,15 @@
         <input type="hidden" name="font_family" value="{{ job.style.font_family }}" />
         <input type="file" name="font_file" accept=".ttf,.otf" />
       </label>
+      <label>
+        <input type="checkbox" name="font_license_confirm" />
+        I have the right to use this font
+      </label>
       <button type="submit">Upload font</button>
+    </form>
+    <form action="/edit/{{ job.job_id }}/font-delete" method="post" class="actions">
+      <input type="hidden" name="font_family" value="{{ job.style.font_family }}" />
+      <button type="submit">Delete uploaded font</button>
     </form>
 
     <div class="layout">
@@ -56,12 +87,26 @@
             <div class="subtitle-row">
               <label>
                 Font
-                <input type="text" name="style_font_family" list="google-fonts" value="{{ job.style.font_family }}" />
-                <datalist id="google-fonts">
-                  {% for font_name in google_fonts %}
-                    <option value="{{ font_name }}"></option>
-                  {% endfor %}
-                </datalist>
+                <div class="font-picker">
+                  <input type="text" id="font-input" value="{{ job.style.font_family }}" autocomplete="off" />
+                  <input type="hidden" id="font-value" name="style_font_family" value="{{ job.style.font_family }}" />
+                  <div id="font-options" class="font-options" hidden>
+                    <div class="font-group">System</div>
+                    {% for font_name in system_fonts %}
+                      <button type="button" class="font-option" data-value="{{ font_name }}">{{ font_name }}</button>
+                    {% endfor %}
+                    <div class="font-group">Google</div>
+                    {% for font_name in google_fonts %}
+                      <button type="button" class="font-option" data-value="{{ font_name }}">{{ font_name }}</button>
+                    {% endfor %}
+                    {% if custom_fonts %}
+                      <div class="font-group">Custom (This Job)</div>
+                      {% for font_name in custom_fonts %}
+                        <button type="button" class="font-option" data-value="{{ font_name }}">{{ font_name }}</button>
+                      {% endfor %}
+                    {% endif %}
+                  </div>
+                </div>
               </label>
               <label>
                 Font size
@@ -160,7 +205,7 @@
           </div>
 
           <div class="actions">
-            <button type="submit">Save edits</button>
+            <button type="submit" id="save-button">Save edits</button>
             <span id="save-status" class="status" style="display: none;">Subtitles saved</span>
           </div>
           <p id="timestamp-hint" class="status" style="display: none;">

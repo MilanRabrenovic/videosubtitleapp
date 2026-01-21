@@ -77,7 +77,7 @@ def export_video(request: Request, job_id: str) -> Any:
 
     output_path = OUTPUTS_DIR / f"{job_id}_subtitled.mp4"
     fonts_dir = ensure_font_downloaded(style.get("font_family")) or font_dir_for_name(
-        style.get("font_family")
+        style.get("font_family"), job_id
     )
     try:
         burn_in_ass(video_path, ass_path, output_path, fonts_dir)
@@ -120,7 +120,7 @@ def export_video_karaoke(request: Request, job_id: str) -> Any:
 
     output_path = OUTPUTS_DIR / f"{job_id}_karaoke.mp4"
     fonts_dir = ensure_font_downloaded(style.get("font_family")) or font_dir_for_name(
-        style.get("font_family")
+        style.get("font_family"), job_id
     )
     try:
         burn_in_ass(video_path, ass_path, output_path, fonts_dir)

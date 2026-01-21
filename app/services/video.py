@@ -42,26 +42,44 @@ def get_video_dimensions(video_path: Path) -> tuple[int, int]:
 
 def get_video_duration(video_path: Path) -> float | None:
     """Return video duration in seconds using ffprobe."""
-    command = [
-        "ffprobe",
-        "-v",
-        "error",
-        "-show_entries",
-        "format=duration",
-        "-of",
-        "default=nokey=1:noprint_wrappers=1",
-        str(video_path),
+    commands = [
+        [
+            "ffprobe",
+            "-v",
+            "error",
+            "-show_entries",
+            "format=duration",
+            "-of",
+            "default=nokey=1:noprint_wrappers=1",
+            str(video_path),
+        ],
+        [
+            "ffprobe",
+            "-v",
+            "error",
+            "-select_streams",
+            "v:0",
+            "-show_entries",
+            "stream=duration",
+            "-of",
+            "default=nokey=1:noprint_wrappers=1",
+            str(video_path),
+        ],
     ]
-    try:
-        result = subprocess.run(command, capture_output=True, text=True, timeout=10)
-    except subprocess.TimeoutExpired:
-        return None
-    if result.returncode != 0:
-        return None
-    try:
-        return float(result.stdout.strip())
-    except ValueError:
-        return None
+    for command in commands:
+        try:
+            result = subprocess.run(command, capture_output=True, text=True, timeout=10)
+        except subprocess.TimeoutExpired:
+            continue
+        if result.returncode != 0:
+            continue
+        try:
+            duration = float(result.stdout.strip())
+        except ValueError:
+            continue
+        if duration > 0:
+            return duration
+    return None
 
 
 def validate_video_file(video_path: Path, max_bytes: int, max_seconds: int) -> None:
@@ -73,9 +91,7 @@ def validate_video_file(video_path: Path, max_bytes: int, max_seconds: int) -> N
     if size > max_bytes:
         raise ValueError("Video file is too large")
     duration = get_video_duration(video_path)
-    if duration is None:
-        raise ValueError("Unable to read video duration")
-    if duration > max_seconds:
+    if duration is not None and duration > max_seconds:
         raise ValueError("Video is too long")
 
 

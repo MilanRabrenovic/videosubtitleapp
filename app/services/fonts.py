@@ -21,28 +21,20 @@ except ImportError:  # pragma: no cover - optional dependency
 GOOGLE_FONTS: list[str] = [
     "Roboto",
     "Open Sans",
-    "Lato",
     "Montserrat",
     "Poppins",
     "Raleway",
-    "Playfair Display",
     "Merriweather",
+    "Playfair Display",
     "Oswald",
-    "Inter",
-    "Nunito",
-    "Noto Sans",
-    "Noto Serif",
-    "PT Sans",
-    "Source Sans 3",
-    "Work Sans",
-    "Manrope",
-    "Roboto Condensed",
-    "Anton",
     "Bebas Neue",
-    "Abril Fatface",
-    "Fira Sans",
-    "Rubik",
-    "Arimo",
+    "Manrope",
+]
+
+SYSTEM_FONTS: list[str] = [
+    "Arial",
+    "Verdana",
+    "Helvetica",
 ]
 
 
@@ -73,14 +65,58 @@ def _font_dir(font_name: str) -> Path:
     return FONTS_DIR / safe
 
 
-def font_dir_for_name(font_name: Optional[str]) -> Optional[Path]:
+def _job_fonts_dir(job_id: str) -> Path:
+    return FONTS_DIR / "jobs" / job_id
+
+
+def _google_fonts_dir(font_name: str) -> Path:
+    safe = re.sub(r"[^A-Za-z0-9_-]+", "-", font_name.strip())
+    return FONTS_DIR / "google" / safe
+
+
+def font_dir_for_name(font_name: Optional[str], job_id: Optional[str] = None) -> Optional[Path]:
     """Return the font directory for a name if it exists and has font files."""
+    if job_id:
+        job_dir = _job_fonts_dir(job_id)
+        if any(job_dir.glob("*.ttf")) or any(job_dir.glob("*.otf")):
+            return job_dir
     if not font_name:
         return None
+    google_dir = _google_fonts_dir(font_name)
+    if any(google_dir.glob("*.ttf")) or any(google_dir.glob("*.otf")):
+        return google_dir
     target_dir = _font_dir(font_name)
     if any(target_dir.glob("*.ttf")) or any(target_dir.glob("*.otf")):
         return target_dir
     return None
+
+
+def delete_font_family(font_name: Optional[str], job_id: Optional[str]) -> bool:
+    """Delete uploaded font files for a job."""
+    if not font_name or not job_id:
+        return False
+    job_dir = _job_fonts_dir(job_id)
+    if not job_dir.exists():
+        return False
+    deleted = False
+    for item in job_dir.iterdir():
+        if not item.is_file():
+            continue
+        try:
+            with item.open("rb") as handle:
+                data = handle.read()
+            family, full_name, _ = detect_font_info(data, item.name)
+            if family == font_name or full_name == font_name:
+                item.unlink()
+                deleted = True
+        except OSError:
+            continue
+    try:
+        if not any(job_dir.iterdir()):
+            job_dir.rmdir()
+    except OSError:
+        pass
+    return deleted
 
 
 def _system_font_dirs() -> list[Path]:
@@ -111,7 +147,7 @@ def ensure_font_downloaded(font_name: Optional[str]) -> Optional[Path]:
     canonical = normalize_font_name(font_name)
     if not canonical:
         return None
-    target_dir = _font_dir(canonical)
+    target_dir = _google_fonts_dir(canonical)
     target_dir.mkdir(parents=True, exist_ok=True)
     if any(target_dir.glob("*.ttf")) or any(target_dir.glob("*.otf")):
         return target_dir
@@ -151,20 +187,42 @@ def ensure_font_downloaded(font_name: Optional[str]) -> Optional[Path]:
 
 
 def available_fonts() -> Iterable[str]:
-    """Return the list of supported Google Fonts."""
-    return GOOGLE_FONTS
+    """Return the list of supported Google Fonts plus system fonts."""
+    return list(SYSTEM_FONTS) + list(GOOGLE_FONTS)
 
 
-def available_local_fonts() -> list[str]:
-    """Return font family names from uploaded font directories."""
+def google_font_choices() -> list[str]:
+    """Return the curated Google Fonts list."""
+    return list(GOOGLE_FONTS)
+
+
+def system_font_choices() -> list[str]:
+    """Return the system font list."""
+    return list(SYSTEM_FONTS)
+
+
+def available_local_fonts(job_id: Optional[str]) -> list[str]:
+    """Return font family names from uploaded font files for a job."""
     fonts: list[str] = []
-    if not FONTS_DIR.exists():
+    if not job_id:
         return fonts
-    for path in FONTS_DIR.iterdir():
-        if not path.is_dir():
+    job_dir = _job_fonts_dir(job_id)
+    if not job_dir.exists():
+        return fonts
+    for path in job_dir.iterdir():
+        if not path.is_file():
             continue
-        if any(path.glob("*.ttf")) or any(path.glob("*.otf")):
-            fonts.append(path.name.replace("-", " ").strip())
+        if path.suffix.lower() not in {".ttf", ".otf"}:
+            continue
+        try:
+            data = path.read_bytes()
+        except OSError:
+            continue
+        family, full_name, _ = detect_font_info(data, path.name)
+        if family:
+            fonts.append(family)
+        elif full_name:
+            fonts.append(full_name)
     return sorted(set(fonts))
 
 
@@ -173,6 +231,9 @@ def font_files_available(font_name: Optional[str]) -> bool:
     canonical = normalize_font_name(font_name)
     if not canonical:
         return font_dir_for_name(font_name) is not None
+    google_dir = _google_fonts_dir(canonical)
+    if any(google_dir.glob("*.ttf")) or any(google_dir.glob("*.otf")):
+        return True
     target_dir = _font_dir(canonical)
     if any(target_dir.glob("*.ttf")) or any(target_dir.glob("*.otf")):
         return True
@@ -235,7 +296,7 @@ def detect_font_info(data: bytes, filename: Optional[str]) -> tuple[Optional[str
 
 
 def save_uploaded_font(
-    font_name: Optional[str], filename: str, data: bytes
+    font_name: Optional[str], filename: str, data: bytes, job_id: str
 ) -> Optional[tuple[Path, str, str, bool]]:
     """Save an uploaded font file into a local font directory."""
     family, full_name, italic = detect_font_info(data, filename)
@@ -246,7 +307,7 @@ def save_uploaded_font(
     ext = Path(filename).suffix.lower()
     if ext not in {".ttf", ".otf"}:
         return None
-    target_dir = _font_dir(detected_family)
+    target_dir = _job_fonts_dir(job_id)
     target_dir.mkdir(parents=True, exist_ok=True)
     digest = hashlib.sha256(data).hexdigest()[:12]
     target_path = target_dir / f"{Path(filename).stem}-{digest}{Path(filename).suffix}"

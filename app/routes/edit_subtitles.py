@@ -10,16 +10,18 @@ from fastapi.templating import Jinja2Templates
 from app.config import OUTPUTS_DIR, TEMPLATES_DIR, UPLOADS_DIR
 from app.services.cleanup import touch_job
 from app.services.fonts import (
-    available_fonts,
     available_local_fonts,
+    delete_font_family,
     ensure_font_downloaded,
     font_dir_for_name,
     font_files_available,
+    google_font_choices,
     guess_font_family,
     google_fonts_css_url,
     is_google_font,
     normalize_font_name,
     save_uploaded_font,
+    system_font_choices,
 )
 from app.services.subtitles import (
     apply_manual_breaks,
@@ -54,6 +56,7 @@ def edit_page(request: Request, job_id: str) -> Any:
     job_data["style"] = normalize_style(job_data.get("style"))
     for index, block in enumerate(job_data["subtitles"]):
         block.setdefault("group_id", index)
+    job_data.setdefault("custom_fonts", [])
 
     preview_path = OUTPUTS_DIR / f"{job_id}_preview.mp4"
     preview_token = int(preview_path.stat().st_mtime) if preview_path.exists() else None
@@ -68,7 +71,7 @@ def edit_page(request: Request, job_id: str) -> Any:
                 "Install it on the system or place the TTF/OTF files in outputs/fonts/"
                 f"{font_family.replace(' ', '-')}/."
             )
-    font_choices = sorted(set(list(available_fonts()) + list(available_local_fonts())))
+    job_custom_fonts = job_data.get("custom_fonts") or available_local_fonts(job_id)
     return templates.TemplateResponse(
         "edit.html",
         {
@@ -76,7 +79,9 @@ def edit_page(request: Request, job_id: str) -> Any:
             "job": job_data,
             "preview_available": preview_path.exists(),
             "preview_token": preview_token,
-            "google_fonts": font_choices,
+            "google_fonts": google_font_choices(),
+            "system_fonts": system_font_choices(),
+            "custom_fonts": job_custom_fonts,
             "font_css_url": font_css,
             "font_warning": font_warning,
         },
@@ -165,6 +170,7 @@ def save_edits(
     subtitles = subtitles_split or split_subtitles_by_words(manual_subtitles, style["max_words_per_line"])
     job_data["subtitles"] = subtitles
     job_data["style"] = style
+    job_data.setdefault("custom_fonts", [])
     save_subtitle_job(job_id, job_data)
     srt_path = OUTPUTS_DIR / f"{job_id}.srt"
     srt_path.write_text(subtitles_to_srt(subtitles), encoding="utf-8")
@@ -173,7 +179,7 @@ def save_edits(
     preview_ass_path = OUTPUTS_DIR / f"{job_id}_preview.ass"
     video_path = UPLOADS_DIR / job_data.get("video_filename", "")
     fonts_dir = ensure_font_downloaded(style.get("font_family")) or font_dir_for_name(
-        style.get("font_family")
+        style.get("font_family"), job_id
     )
     if video_path.exists():
         try:
@@ -199,7 +205,7 @@ def save_edits(
                 f"{font_family.replace(' ', '-')}/."
             )
     preview_token = int(preview_path.stat().st_mtime) if preview_path.exists() else None
-    font_choices = sorted(set(list(available_fonts()) + list(available_local_fonts())))
+    job_custom_fonts = job_data.get("custom_fonts") or available_local_fonts(job_id)
     return templates.TemplateResponse(
         "edit.html",
         {
@@ -208,7 +214,9 @@ def save_edits(
             "saved": True,
             "preview_available": preview_path.exists(),
             "preview_token": preview_token,
-            "google_fonts": font_choices,
+            "google_fonts": google_font_choices(),
+            "system_fonts": system_font_choices(),
+            "custom_fonts": job_custom_fonts,
             "font_css_url": font_css,
             "font_warning": font_warning,
         },
@@ -221,14 +229,17 @@ def upload_font(
     job_id: str,
     font_file: UploadFile = File(...),
     font_family: str = Form(""),
+    font_license_confirm: str = Form(None),
 ) -> Any:
     """Upload a custom font file for ASS rendering."""
     job_data = load_subtitle_job(job_id)
     if not job_data:
         raise HTTPException(status_code=404, detail="Subtitle job not found")
+    if font_license_confirm != "on":
+        raise HTTPException(status_code=400, detail="Please confirm font usage rights")
     guessed_family = guess_font_family(font_file.filename)
     font_family = guessed_family or font_family.strip() or font_file.filename or ""
-    saved = save_uploaded_font(font_family, font_file.filename or "", font_file.file.read())
+    saved = save_uploaded_font(font_family, font_file.filename or "", font_file.file.read(), job_id)
     if not saved:
         raise HTTPException(status_code=400, detail="Unsupported font file")
     saved_dir, detected_family, detected_full, italic = saved
@@ -237,6 +248,9 @@ def upload_font(
     job_data["style"]["font_family"] = detected_full
     job_data["style"]["font_bold"] = False
     job_data["style"]["font_italic"] = italic
+    job_data.setdefault("custom_fonts", [])
+    if detected_full and detected_full not in job_data["custom_fonts"]:
+        job_data["custom_fonts"].append(detected_full)
     save_subtitle_job(job_id, job_data)
     touch_job(job_id)
 
@@ -261,7 +275,7 @@ def upload_font(
     if is_google_font(detected_family):
         font_css = google_fonts_css_url(detected_family)
     preview_token = int(preview_path.stat().st_mtime) if preview_path.exists() else None
-    font_choices = sorted(set(list(available_fonts()) + list(available_local_fonts())))
+    job_custom_fonts = job_data.get("custom_fonts") or available_local_fonts(job_id)
     return templates.TemplateResponse(
         "edit.html",
         {
@@ -270,8 +284,71 @@ def upload_font(
             "saved": True,
             "preview_available": preview_path.exists(),
             "preview_token": preview_token,
-            "google_fonts": font_choices,
+            "google_fonts": google_font_choices(),
+            "system_fonts": system_font_choices(),
+            "custom_fonts": job_custom_fonts,
             "font_css_url": font_css,
+            "font_warning": None,
+        },
+    )
+
+
+@router.post("/edit/{job_id}/font-delete")
+def delete_font(
+    request: Request,
+    job_id: str,
+    font_family: str = Form(""),
+) -> Any:
+    """Delete an uploaded font family and reset to default."""
+    job_data = load_subtitle_job(job_id)
+    if not job_data:
+        raise HTTPException(status_code=404, detail="Subtitle job not found")
+    font_family = font_family.strip()
+    delete_font_family(font_family, job_id)
+    style = normalize_style(job_data.get("style"))
+    defaults = default_style()
+    style["font_family"] = defaults["font_family"]
+    style["font_bold"] = defaults["font_bold"]
+    style["font_italic"] = defaults["font_italic"]
+    job_data["style"] = style
+    custom_fonts = job_data.get("custom_fonts", [])
+    if font_family in custom_fonts:
+        custom_fonts = [font for font in custom_fonts if font != font_family]
+        job_data["custom_fonts"] = custom_fonts
+    save_subtitle_job(job_id, job_data)
+    touch_job(job_id)
+
+    subtitles = job_data.get("subtitles", [])
+    words = load_transcript_words(job_id)
+    preview_path = OUTPUTS_DIR / f"{job_id}_preview.mp4"
+    preview_ass_path = OUTPUTS_DIR / f"{job_id}_preview.ass"
+    video_path = UPLOADS_DIR / job_data.get("video_filename", "")
+    if video_path.exists():
+        try:
+            if words:
+                karaoke_lines = build_karaoke_lines(words, subtitles)
+                generate_karaoke_ass(karaoke_lines, preview_ass_path, style)
+                burn_in_ass(video_path, preview_ass_path, preview_path)
+            else:
+                generate_ass_from_subtitles(subtitles, preview_ass_path, style)
+                burn_in_ass(video_path, preview_ass_path, preview_path)
+        except RuntimeError:
+            logger.exception("Preview burn-in failed for %s", preview_path)
+
+    job_custom_fonts = job_data.get("custom_fonts") or available_local_fonts(job_id)
+    preview_token = int(preview_path.stat().st_mtime) if preview_path.exists() else None
+    return templates.TemplateResponse(
+        "edit.html",
+        {
+            "request": request,
+            "job": job_data,
+            "saved": True,
+            "preview_available": preview_path.exists(),
+            "preview_token": preview_token,
+            "google_fonts": google_font_choices(),
+            "system_fonts": system_font_choices(),
+            "custom_fonts": job_custom_fonts,
+            "font_css_url": None,
             "font_warning": None,
         },
     )

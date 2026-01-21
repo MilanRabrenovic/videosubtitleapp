@@ -111,7 +111,7 @@ def handle_upload(
         karaoke_lines = build_karaoke_lines(words, job_data["subtitles"])
         generate_karaoke_ass(karaoke_lines, preview_ass_path, job_data["style"])
         fonts_dir = ensure_font_downloaded(job_data["style"].get("font_family")) or font_dir_for_name(
-            job_data["style"].get("font_family")
+            job_data["style"].get("font_family"), job_id
         )
         burn_in_ass(upload_path, preview_ass_path, preview_path, fonts_dir)
     except RuntimeError as exc:
