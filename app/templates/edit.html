@@ -47,6 +47,34 @@
       border: 0;
       border-radius: 0.5rem;
     }
+    .checkbox {
+      appearance: none;
+      width: 18px;
+      height: 18px;
+      border-radius: 6px;
+      border: 1px solid #cbd5f5;
+      background: #ffffff;
+      display: inline-grid;
+      place-content: center;
+      transition: border-color 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
+    }
+    .checkbox:checked {
+      background: #fbbf24;
+      border-color: #f59e0b;
+    }
+    .checkbox:checked::after {
+      content: "";
+      width: 6px;
+      height: 10px;
+      border: 2px solid #1f2937;
+      border-top: 0;
+      border-left: 0;
+      transform: rotate(45deg);
+    }
+    .checkbox:focus-visible {
+      outline: none;
+      box-shadow: 0 0 0 3px rgba(251, 191, 36, 0.35);
+    }
   </style>
   <script src="/static/js/subtitles.js" defer></script>
 </head>
@@ -69,7 +97,7 @@
       id="pin-form"
     >
       <label class="flex items-center gap-2 text-sm text-slate-700">
-        <input type="checkbox" name="pinned" id="pin-checkbox" {% if job_pinned %}checked{% endif %} />
+        <input type="checkbox" name="pinned" id="pin-checkbox" class="checkbox" {% if job_pinned %}checked{% endif %} />
         Pin this job (prevent cleanup)
       </label>
       <button
@@ -123,7 +151,7 @@
         />
       </label>
       <label class="flex items-center gap-2 text-sm text-slate-700">
-        <input type="checkbox" name="font_license_confirm" id="font-license-confirm" />
+        <input type="checkbox" name="font_license_confirm" id="font-license-confirm" class="checkbox" />
         I have the right to use this font
       </label>
       <button
@@ -257,7 +285,7 @@
               <p class="text-xs font-semibold uppercase tracking-[0.25em] text-slate-500">Outline</p>
               <div class="mt-4 grid gap-4 lg:grid-cols-3">
                 <label class="flex items-center gap-2 text-sm font-medium text-slate-700">
-                  <input type="checkbox" name="style_outline_enabled" {% if job.style.outline_enabled %}checked{% endif %} />
+                  <input type="checkbox" name="style_outline_enabled" class="checkbox" {% if job.style.outline_enabled %}checked{% endif %} />
                   Outline enabled
                 </label>
                 <div class="flex flex-col gap-2 text-sm font-medium text-slate-700">
@@ -288,7 +316,7 @@
               <div class="flex flex-wrap items-center justify-between gap-3">
                 <p class="text-xs font-semibold uppercase tracking-[0.25em] text-slate-500">Background</p>
                 <label class="flex items-center gap-2 text-sm font-medium text-slate-700">
-                  <input type="checkbox" name="style_background_enabled" {% if job.style.background_enabled %}checked{% endif %} />
+                  <input type="checkbox" name="style_background_enabled" class="checkbox" {% if job.style.background_enabled %}checked{% endif %} />
                   Background box
                 </label>
               </div>
