@@ -228,6 +228,21 @@ def split_subtitles_by_word_timings(
     """Split subtitles using word-level timings for precise start/end times."""
     if max_words <= 0:
         return []
+
+    def _join_karaoke_tokens(tokens: List[str]) -> str:
+        joined: List[str] = []
+        for token in tokens:
+            token = str(token).strip()
+            if not token:
+                continue
+            if not joined:
+                joined.append(token)
+                continue
+            if joined[-1].endswith("-"):
+                joined[-1] = f"{joined[-1]}{token}"
+            else:
+                joined.append(token)
+        return " ".join(joined).strip()
     split_blocks: List[Dict[str, Any]] = []
     last_end = 0.0
     min_gap = 0.2
@@ -245,7 +260,8 @@ def split_subtitles_by_word_timings(
                 start = last_end + min_gap
             if end < start + min_gap:
                 end = start + min_gap
-            text = " ".join(str(word.get("word", "")).strip() for word in chunk).strip()
+            tokens = [str(word.get("word", "")).strip() for word in chunk]
+            text = _join_karaoke_tokens(tokens)
             if not text:
                 continue
             split_blocks.append(
@@ -703,6 +719,51 @@ def generate_ass_from_subtitles(
 
     output_path.write_text("\n".join(lines).strip() + "\n", encoding="utf-8")
 
+def _tokenize_for_match(text: str) -> List[str]:
+    tokens: List[str] = []
+    for raw in text.split():
+        cleaned = _strip_sup_sub_tags(raw)
+        core = re.sub(r"^\W+|\W+$", "", cleaned)
+        if not core:
+            tokens.append(cleaned)
+            continue
+        if "-" in core:
+            parts = [part for part in core.split("-") if part]
+            tokens.extend(parts or [core])
+        else:
+            tokens.append(core)
+    return tokens
+
+
+def _split_token_for_alignment(token: str) -> tuple[List[str], List[str]]:
+    cleaned = _strip_sup_sub_tags(token)
+    leading = re.match(r"^\W+", cleaned)
+    trailing = re.search(r"\W+$", cleaned)
+    prefix = leading.group(0) if leading else ""
+    suffix = trailing.group(0) if trailing else ""
+    core = re.sub(r"^\W+|\W+$", "", cleaned)
+    if not core:
+        return [token], [cleaned]
+    if "-" not in core:
+        return [token], [core]
+    parts = [part for part in core.split("-") if part]
+    if not parts:
+        return [token], [core]
+    display_parts: List[str] = []
+    match_parts: List[str] = []
+    for index, part in enumerate(parts):
+        display = part
+        if index == 0 and prefix:
+            display = f"{prefix}{display}"
+        if index < len(parts) - 1:
+            display = f"{display}-"
+        if index == len(parts) - 1 and suffix:
+            display = f"{display}{suffix}"
+        display_parts.append(display)
+        match_parts.append(part)
+    return display_parts, match_parts
+
+
 def build_karaoke_lines(words: List[Dict[str, Any]], subtitles: List[Dict[str, Any]]) -> List[List[Dict[str, Any]]]:
     """Align word timings to subtitle text, returning word lines per subtitle block."""
     if not subtitles:
@@ -741,12 +802,20 @@ def build_karaoke_lines(words: List[Dict[str, Any]], subtitles: List[Dict[str, A
             block_words.append(word)
             index += 1
 
-        tokens = block_text.split()
-        if not tokens:
+        raw_tokens = block_text.split()
+        if not raw_tokens:
+            continue
+        display_tokens: List[str] = []
+        match_tokens: List[str] = []
+        for token in raw_tokens:
+            display_parts, match_parts = _split_token_for_alignment(token)
+            display_tokens.extend(display_parts)
+            match_tokens.extend(match_parts)
+        if not display_tokens:
             continue
         line_words: List[Dict[str, Any]] = []
-        if block_words and len(block_words) == len(tokens):
-            for token, word in zip(tokens, block_words):
+        if block_words and len(block_words) == len(match_tokens):
+            for token, word in zip(display_tokens, block_words):
                 line_words.append(
                     {
                         "word": token,
@@ -754,15 +823,30 @@ def build_karaoke_lines(words: List[Dict[str, Any]], subtitles: List[Dict[str, A
                         "end": float(word.get("end", block_start)),
                     }
                 )
+        elif block_words and match_tokens:
+            total = len(block_words)
+            count = len(match_tokens)
+            for index, token in enumerate(display_tokens):
+                start_idx = int(index * total / count)
+                end_idx = int((index + 1) * total / count) - 1
+                if start_idx >= total:
+                    start_idx = total - 1
+                if end_idx < start_idx:
+                    end_idx = start_idx
+                if end_idx >= total:
+                    end_idx = total - 1
+                start = float(block_words[start_idx].get("start", block_start))
+                end = float(block_words[end_idx].get("end", start))
+                line_words.append({"word": token, "start": start, "end": end})
         else:
             block_duration = max(0.1, block_end - block_start)
-            per_word = block_duration / len(tokens)
-            for offset, token in enumerate(tokens):
+            per_word = block_duration / len(display_tokens)
+            for offset, token in enumerate(display_tokens):
                 start = block_start + offset * per_word
                 end = start + per_word
                 line_words.append({"word": token, "start": start, "end": end})
         if line_words:
-            line_words = _smooth_word_timings(line_words, block_start, block_end)
+            line_words = _smooth_word_timings(line_words, block_start, block_end, max_duration=None)
             line_words[0]["_line_start"] = block_start
             line_words[-1]["_line_end"] = block_end
             aligned_lines.append(line_words)
@@ -775,7 +859,7 @@ def _smooth_word_timings(
     line_start: float,
     line_end: float,
     min_duration: float = 0.04,
-    max_duration: float = 0.6,
+    max_duration: Optional[float] = 0.6,
     min_gap: float = 0.01,
 ) -> List[Dict[str, Any]]:
     """Clamp word durations and prevent overlaps for smoother karaoke timing."""
@@ -788,7 +872,7 @@ def _smooth_word_timings(
         duration = end - start
         if duration < min_duration:
             end = start + min_duration
-        if duration > max_duration:
+        if max_duration is not None and duration > max_duration:
             end = start + max_duration
         if end > line_end:
             end = line_end
@@ -837,7 +921,17 @@ def apply_manual_breaks(
             group_counter += 1
             continue
 
-        tokens_per_segment = [segment.split() for segment in segments]
+        tokens_per_segment: List[List[str]] = []
+        display_tokens_per_segment: List[List[str]] = []
+        for segment in segments:
+            display_tokens: List[str] = []
+            match_tokens: List[str] = []
+            for token in segment.split():
+                display_parts, match_parts = _split_token_for_alignment(token)
+                display_tokens.extend(display_parts)
+                match_tokens.extend(match_parts)
+            display_tokens_per_segment.append(display_tokens)
+            tokens_per_segment.append(match_tokens)
         total_tokens = sum(len(tokens) for tokens in tokens_per_segment)
         block_start = srt_timestamp_to_seconds(str(block.get("start", "00:00:00,000")))
         block_end = srt_timestamp_to_seconds(str(block.get("end", "00:00:00,000")))
@@ -846,7 +940,7 @@ def apply_manual_breaks(
 
         if line_words and total_tokens == len(line_words):
             cursor = 0
-            for tokens in tokens_per_segment:
+            for segment_text, tokens in zip(segments, tokens_per_segment):
                 if not tokens:
                     continue
                 segment_words = line_words[cursor : cursor + len(tokens)]
@@ -857,7 +951,7 @@ def apply_manual_breaks(
                     {
                         "start": format_timestamp(start),
                         "end": format_timestamp(end),
-                        "text": " ".join(tokens),
+                        "text": segment_text,
                         "group_id": group_counter,
                     }
                 )
@@ -869,7 +963,9 @@ def apply_manual_breaks(
                 continue
             block_duration = max(0.1, block_end - block_start)
             current_time = block_start
-            for seg_index, tokens in enumerate(tokens_per_segment):
+            for seg_index, (segment_text, tokens, display_tokens) in enumerate(
+                zip(segments, tokens_per_segment, display_tokens_per_segment)
+            ):
                 if not tokens:
                     continue
                 weight = len(tokens) / total_tokens
@@ -879,7 +975,7 @@ def apply_manual_breaks(
                 current_time = end
                 per_word = max(0.05, (end - start) / len(tokens))
                 segment_words = []
-                for token_index, token in enumerate(tokens):
+                for token_index, token in enumerate(display_tokens):
                     w_start = start + token_index * per_word
                     w_end = w_start + per_word
                     segment_words.append({"word": token, "start": w_start, "end": w_end})
@@ -887,7 +983,7 @@ def apply_manual_breaks(
                     {
                         "start": format_timestamp(start),
                         "end": format_timestamp(end),
-                        "text": " ".join(tokens),
+                        "text": segment_text,
                         "group_id": group_counter,
                     }
                 )
@@ -912,6 +1008,7 @@ def _build_ass_dialogue(
     chunks: List[str] = []
     for word in words:
         word_text = format_ass_text(str(word.get("word", "")).strip(), style_data)
+        separator = "" if word_text.endswith("-") else " "
         word_start = float(word.get("start", start))
         word_end = float(word.get("end", word_start))
         if word_start < start:
@@ -923,13 +1020,13 @@ def _build_ass_dialogue(
         rel_end = max(rel_start + 1, int(round((word_end - start) * 1000)))
         if rel_start == 0:
             chunks.append(
-                f"{{\\k{duration}\\1c{highlight_color}&\\t({rel_end},{rel_end},\\1c{base_color}&)}}{word_text} "
+                f"{{\\k{duration}\\1c{highlight_color}&\\t({rel_end},{rel_end},\\1c{base_color}&)}}{word_text}{separator}"
             )
         else:
             chunks.append(
                 f"{{\\k{duration}\\1c{base_color}&"
                 f"\\t({rel_start},{rel_start},\\1c{highlight_color}&)"
-                f"\\t({rel_end},{rel_end},\\1c{base_color}&)}}{word_text} "
+                f"\\t({rel_end},{rel_end},\\1c{base_color}&)}}{word_text}{separator}"
             )
     text = "".join(chunks).strip()
     if style_data.get("single_line", True):
