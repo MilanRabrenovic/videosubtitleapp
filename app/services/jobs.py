@@ -298,7 +298,14 @@ def _worker_loop() -> None:
         try:
             output = run_job(job)
         except Exception as exc:  # noqa: BLE001 - explicit error capture
-            update_job_status(job_id, "failed", str(exc))
+            payload = getattr(exc, "error_payload", None)
+            if not isinstance(payload, dict):
+                payload = {
+                    "code": "UNKNOWN",
+                    "message": "Something went wrong while processing this job.",
+                    "hint": "Try again or contact support if this keeps happening.",
+                }
+            update_job(job_id, {"status": "failed", "error": payload})
         else:
             update_job(job_id, {"status": "completed", "output": output, "error": None})
         finally:

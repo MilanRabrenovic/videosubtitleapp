@@ -131,3 +131,9 @@
 - Implemented: Conservative cleanup rules (skip pinned/locked, honor expires_at, delete in batches).
 - Implemented: Pin toggle in editor and editor lock heartbeats.
 - Next action: Add auth/ownership so recent jobs are scoped per user.
+
+## 2026-01-22
+- Implemented: Structured error payloads for failed jobs (code/message/hint).
+- Implemented: Whisper/FFmpeg failures now map to user-friendly messages and hints.
+- Implemented: UI now shows clean failure copy during processing, preview, and export.
+- Next action: Add retry UX for failed jobs and scope errors per user.

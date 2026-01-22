@@ -70,9 +70,13 @@
         Processing video… this may take a minute.
       </p>
     {% elif processing_job_error %}
-      <p id="job-status" class="status">
-        Processing failed: {{ processing_job_error }}
-      </p>
+      <div id="job-status" class="status">
+        <strong>Something went wrong</strong><br />
+        {{ processing_job_error.message if processing_job_error.message else processing_job_error }}
+        {% if processing_job_error.hint %}
+          <br /><span>{{ processing_job_error.hint }}</span>
+        {% endif %}
+      </div>
     {% endif %}
     {% if font_warning %}
       <p class="status">{{ font_warning }}</p>

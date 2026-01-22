@@ -7,6 +7,8 @@ from typing import Dict, List, Tuple, Union
 
 import whisper
 
+from app.services.errors import JobError, error_payload
+
 
 def extract_audio(video_path: Path) -> Path:
     """Extract mono 16kHz WAV audio from a video file using FFmpeg."""
@@ -34,12 +36,41 @@ def transcribe_video(
     video_path: Path, model_name: str = "base", language: str | None = None
 ) -> Tuple[List[Dict[str, str]], List[Dict[str, Union[str, float]]]]:
     """Transcribe a video file and return Whisper segments and word timings."""
-    model = whisper.load_model(model_name)
+    try:
+        model = whisper.load_model(model_name)
+    except Exception as exc:  # noqa: BLE001
+        payload = error_payload(
+            "WHISPER_FAILED",
+            "Transcription failed while preparing the speech model.",
+            "Try again in a few minutes.",
+        )
+        raise JobError(payload, str(exc)) from exc
     audio_path = extract_audio(video_path)
     try:
         result = model.transcribe(
             str(audio_path), fp16=False, word_timestamps=True, language=language
         )
+    except Exception as exc:  # noqa: BLE001
+        message = str(exc).lower()
+        if "audio" in message or "ffmpeg" in message or "codec" in message:
+            payload = error_payload(
+                "INVALID_MEDIA",
+                "We couldn't transcribe this video. The audio track may be missing or unsupported.",
+                "Try uploading a video with clear speech and standard audio encoding.",
+            )
+        elif "language" in message:
+            payload = error_payload(
+                "WHISPER_FAILED",
+                "Transcription failed due to a language mismatch.",
+                "Try selecting a different language and re-uploading.",
+            )
+        else:
+            payload = error_payload(
+                "WHISPER_FAILED",
+                "We couldn't transcribe this video.",
+                "Try uploading a video with clearer audio.",
+            )
+        raise JobError(payload, str(exc)) from exc
     finally:
         audio_path.unlink(missing_ok=True)
 
@@ -64,4 +95,11 @@ def transcribe_video(
                     "end": float(word.get("end", segment["end"])),
                 }
             )
+    if not segments or not words:
+        payload = error_payload(
+            "INVALID_MEDIA",
+            "We couldn't find any speech to transcribe.",
+            "Try uploading a video with audible dialogue.",
+        )
+        raise JobError(payload)
     return segments, words

@@ -27,6 +27,18 @@
   let isDirty = false;
   let saveTimeoutId = null;
 
+  const formatJobError = (job) => {
+    if (!job || !job.error) {
+      return "Something went wrong.";
+    }
+    if (typeof job.error === "string") {
+      return job.error;
+    }
+    const message = job.error.message || "Something went wrong.";
+    const hint = job.error.hint ? ` ${job.error.hint}` : "";
+    return `${message}${hint}`;
+  };
+
   const pollJob = (jobId, onComplete, onError) => {
     if (!jobId) {
       return null;
@@ -112,7 +124,7 @@
       },
       (job) => {
         if (status) {
-          status.textContent = job.error ? `Preview failed: ${job.error}` : "Preview failed.";
+          status.textContent = `Preview failed: ${formatJobError(job)}`;
         }
         if (saveButton) {
           saveButton.disabled = false;
@@ -357,7 +369,7 @@
           button.disabled = false;
         },
         (job) => {
-          statusEl.textContent = job.error ? job.error : "Video export failed.";
+          statusEl.textContent = formatJobError(job);
           button.disabled = false;
         }
       );
@@ -397,7 +409,7 @@
         window.location.reload();
       },
       (job) => {
-        jobStatus.textContent = job.error ? `Processing failed: ${job.error}` : "Processing failed.";
+        jobStatus.textContent = `Processing failed: ${formatJobError(job)}`;
         if (saveButton) {
           saveButton.disabled = false;
           saveButton.textContent = saveButton.dataset.originalText || "Save edits";

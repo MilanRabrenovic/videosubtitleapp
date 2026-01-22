@@ -63,6 +63,15 @@ Subscriptions require predictability; keeping recent/active jobs avoids breaking
 ## Why pin/lock semantics were chosen
 Pinning protects important jobs, while lock signals active edits without heavy coordination.
 
+## Why errors are categorized instead of raw logs
+Short, user-safe error messages are easier to understand and avoid leaking sensitive details.
+
+## Why retry is manual, not automatic
+Manual retries keep behavior predictable and avoid repeated failures on bad inputs.
+
+## Why hints are advisory
+Hints guide users without making guarantees about their specific media or environment.
+
 ## Tradeoffs accepted for simplicity
 - No authentication or multi-user support.
 - Local filesystem storage only.

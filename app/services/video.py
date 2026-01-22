@@ -3,6 +3,7 @@
 import subprocess
 from pathlib import Path
 
+from app.services.errors import JobError, error_payload
 
 def _escape_filter_path(path: Path) -> str:
     """Escape a file path for FFmpeg filter arguments."""
@@ -112,9 +113,15 @@ def burn_in_subtitles(video_path: Path, subtitles_path: Path, output_path: Path)
     try:
         result = subprocess.run(command, capture_output=True, text=True, timeout=300)
     except subprocess.TimeoutExpired as exc:
-        raise RuntimeError("FFmpeg timed out while burning subtitles") from exc
+        payload = error_payload(
+            "TIMEOUT",
+            "Video export timed out during subtitle rendering.",
+            "Try a shorter video or reduce the output resolution.",
+        )
+        raise JobError(payload, str(exc)) from exc
     if result.returncode != 0:
-        raise RuntimeError(f"FFmpeg failed: {result.stderr.strip()}")
+        payload = _ffmpeg_error_payload(result.stderr)
+        raise JobError(payload, result.stderr.strip())
 
 
 def burn_in_ass(video_path: Path, ass_path: Path, output_path: Path, fonts_dir: Path | None = None) -> None:
@@ -136,6 +143,39 @@ def burn_in_ass(video_path: Path, ass_path: Path, output_path: Path, fonts_dir: 
     try:
         result = subprocess.run(command, capture_output=True, text=True, timeout=300)
     except subprocess.TimeoutExpired as exc:
-        raise RuntimeError("FFmpeg timed out while burning subtitles") from exc
+        payload = error_payload(
+            "TIMEOUT",
+            "Video export timed out during subtitle rendering.",
+            "Try a shorter video or reduce the output resolution.",
+        )
+        raise JobError(payload, str(exc)) from exc
     if result.returncode != 0:
-        raise RuntimeError(f"FFmpeg failed: {result.stderr.strip()}")
+        payload = _ffmpeg_error_payload(result.stderr)
+        raise JobError(payload, result.stderr.strip())
+
+
+def _ffmpeg_error_payload(stderr: str) -> dict:
+    message = (stderr or "").lower()
+    if "no such filter" in message or "subtitles" in message and "filter" in message:
+        return error_payload(
+            "FFMPEG_FAILED",
+            "Video export failed because subtitle rendering is not supported.",
+            "Install FFmpeg with libass support and try again.",
+        )
+    if "font" in message or "fonts" in message:
+        return error_payload(
+            "FFMPEG_FAILED",
+            "Video export failed due to a font rendering issue.",
+            "Try a different font or remove custom fonts.",
+        )
+    if "invalid data" in message or "unknown decoder" in message or "unsupported" in message:
+        return error_payload(
+            "INVALID_MEDIA",
+            "We couldn't process this video format.",
+            "Try a standard MP4 with H.264 video and AAC audio.",
+        )
+    return error_payload(
+        "FFMPEG_FAILED",
+        "Video export failed during subtitle rendering.",
+        "Try a different font or reduce video resolution.",
+    )
