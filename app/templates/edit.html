@@ -25,6 +25,29 @@
     };
   </script>
   <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    input[type="color"] {
+      -webkit-appearance: none;
+      appearance: none;
+      border: 1px solid #e2e8f0;
+      border-radius: 0.5rem;
+      padding: 0;
+      background: #ffffff;
+      height: 2.5rem;
+      width: 100%;
+    }
+    input[type="color"]::-webkit-color-swatch-wrapper {
+      padding: 0;
+    }
+    input[type="color"]::-webkit-color-swatch {
+      border: 0;
+      border-radius: 0.5rem;
+    }
+    input[type="color"]::-moz-color-swatch {
+      border: 0;
+      border-radius: 0.5rem;
+    }
+  </style>
   <script src="/static/js/subtitles.js" defer></script>
 </head>
 <body class="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-100 text-slate-900 font-display">
@@ -195,11 +218,11 @@
               <div class="mt-4 grid gap-4 lg:grid-cols-3">
               <label class="flex flex-col gap-2 text-sm font-medium text-slate-700">
                 Text color
-                <input type="color" name="style_text_color" value="{{ job.style.text_color }}" class="h-10 w-full rounded-lg border border-slate-200 bg-white" />
+                <input type="color" name="style_text_color" value="{{ job.style.text_color }}" class="h-10 w-full rounded-lg border border-slate-200 bg-white" style="appearance: none;" />
               </label>
               <label class="flex flex-col gap-2 text-sm font-medium text-slate-700">
                 Highlight color
-                <input type="color" name="style_highlight_color" value="{{ job.style.highlight_color }}" class="h-10 w-full rounded-lg border border-slate-200 bg-white" />
+                <input type="color" name="style_highlight_color" value="{{ job.style.highlight_color }}" class="h-10 w-full rounded-lg border border-slate-200 bg-white" style="appearance: none;" />
               </label>
               </div>
             </div>
@@ -213,7 +236,7 @@
                 </label>
                 <label class="flex flex-col gap-2 text-sm font-medium text-slate-700">
                   Outline color
-                  <input type="color" name="style_outline_color" value="{{ job.style.outline_color }}" class="h-10 w-full rounded-lg border border-slate-200 bg-white" />
+                  <input type="color" name="style_outline_color" value="{{ job.style.outline_color }}" class="h-10 w-full rounded-lg border border-slate-200 bg-white" style="appearance: none;" />
                 </label>
                 <label class="flex flex-col gap-2 text-sm font-medium text-slate-700">
                   Outline size
@@ -231,7 +254,7 @@
                 </label>
               <label class="flex flex-col gap-2 text-sm font-medium text-slate-700">
                 Background color
-                <input type="color" name="style_background_color" value="{{ job.style.background_color }}" class="h-10 w-full rounded-lg border border-slate-200 bg-white" />
+                <input type="color" name="style_background_color" value="{{ job.style.background_color }}" class="h-10 w-full rounded-lg border border-slate-200 bg-white" style="appearance: none;" />
               </label>
               <label class="flex flex-col gap-2 text-sm font-medium text-slate-700">
                 Background opacity
