@@ -7,136 +7,166 @@
   {% if font_css_url %}
     <link rel="stylesheet" href="{{ font_css_url }}" />
   {% endif %}
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap"
+    rel="stylesheet"
+  />
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            display: ["Space Grotesk", "ui-sans-serif", "system-ui"],
+          },
+        },
+      },
+    };
+  </script>
+  <script src="https://cdn.tailwindcss.com"></script>
   <script src="/static/js/subtitles.js" defer></script>
-  <style>
-    body { font-family: Arial, sans-serif; margin: 24px; }
-    .layout { display: grid; grid-template-columns: 1.6fr 1fr; gap: 24px; align-items: start; }
-    .subtitle-block { border: 1px solid #ddd; padding: 12px; margin-bottom: 12px; }
-    .subtitle-row { display: flex; gap: 12px; margin-bottom: 8px; }
-    .subtitle-row label { flex: 1; }
-    textarea { width: 100%; min-height: 64px; }
-    .actions { margin-top: 16px; display: flex; gap: 12px; flex-wrap: wrap; }
-    .status { margin-top: 8px; color: #2b6cb0; }
-    .font-picker { position: relative; }
-    .font-options {
-      position: absolute;
-      z-index: 10;
-      background: #fff;
-      border: 1px solid #ddd;
-      max-height: 220px;
-      overflow-y: auto;
-      min-width: 220px;
-      padding: 6px;
-      box-shadow: 0 6px 16px rgba(0, 0, 0, 0.1);
-    }
-    .font-group { font-size: 12px; color: #666; margin: 6px 6px 2px; }
-    .font-option {
-      display: block;
-      width: 100%;
-      text-align: left;
-      background: none;
-      border: none;
-      padding: 6px;
-      cursor: pointer;
-    }
-    .font-option:hover { background: #f0f4ff; }
-    .video-panel { position: sticky; top: 16px; }
-    video { width: 100%; max-width: 480px; }
-    @media (max-width: 960px) {
-      .layout { grid-template-columns: 1fr; }
-      .video-panel { position: static; }
-    }
-  </style>
 </head>
-<body>
-  <main>
-    <h1>Edit Subtitles</h1>
-    <p><strong>Job:</strong> {{ job.title }}</p>
-    <p><strong>Video file:</strong> {{ job.video_filename }}</p>
-    <form action="/jobs/{{ job.job_id }}/pin" method="post" class="actions" id="pin-form">
-      <label>
+<body class="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-100 text-slate-900 font-display">
+  <main class="mx-auto flex w-full max-w-7xl flex-col gap-8 px-6 py-10">
+    <header class="space-y-3">
+      <p class="text-sm uppercase tracking-[0.3em] text-amber-600/80">Subtitle Studio</p>
+      <h1 class="text-3xl font-semibold tracking-tight md:text-4xl">Edit subtitles</h1>
+      <div class="flex flex-wrap items-center gap-4 text-sm text-slate-600">
+        <span><strong class="text-slate-900">Job:</strong> {{ job.title }}</span>
+        <span class="text-slate-300">·</span>
+        <span><strong class="text-slate-900">Video:</strong> {{ job.video_filename }}</span>
+      </div>
+    </header>
+
+    <form
+      action="/jobs/{{ job.job_id }}/pin"
+      method="post"
+      class="flex flex-wrap items-center gap-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"
+      id="pin-form"
+    >
+      <label class="flex items-center gap-2 text-sm text-slate-700">
         <input type="checkbox" name="pinned" id="pin-checkbox" {% if job_pinned %}checked{% endif %} />
         Pin this job (prevent cleanup)
       </label>
-      <button type="button" id="pin-submit">Save</button>
-      <span id="pin-status" class="status" style="display: none;">Pin saved</span>
+      <button
+        type="button"
+        id="pin-submit"
+        class="rounded-lg border border-slate-200 bg-slate-100 px-4 py-2 text-sm font-semibold text-slate-800 hover:bg-slate-200"
+      >
+        Save
+      </button>
+      <span id="pin-status" class="text-sm text-amber-700" style="display: none;">Pin saved</span>
     </form>
 
     {% if saved %}
-      <p class="status">Changes saved.</p>
+      <p class="text-sm text-amber-700">Changes saved.</p>
     {% endif %}
     {% if processing_job_id %}
-      <p id="job-status" class="status" data-job-id="{{ processing_job_id }}">
+      <p id="job-status" class="text-sm text-amber-700" data-job-id="{{ processing_job_id }}">
         Processing video… this may take a minute.
       </p>
     {% elif processing_job_error %}
-      <div id="job-status" class="status">
-        <strong>Something went wrong</strong><br />
+      <div id="job-status" class="rounded-xl border border-slate-200 bg-white p-4 text-sm text-amber-700 shadow-sm">
+        <strong class="block text-base text-slate-900">Something went wrong</strong>
         {% if processing_job_step %}
-          Failed during {{ processing_job_step }}.<br />
+          <span class="block">Failed during {{ processing_job_step }}.</span>
         {% endif %}
-        {{ processing_job_error.message if processing_job_error.message else processing_job_error }}
+        <span class="block">
+          {{ processing_job_error.message if processing_job_error.message else processing_job_error }}
+        </span>
         {% if processing_job_error.hint %}
-          <br /><span>{{ processing_job_error.hint }}</span>
+          <span class="block text-slate-500">{{ processing_job_error.hint }}</span>
         {% endif %}
       </div>
     {% endif %}
     {% if font_warning %}
-      <p class="status">{{ font_warning }}</p>
+      <p class="text-sm text-amber-700">{{ font_warning }}</p>
     {% endif %}
-    <form action="/edit/{{ job.job_id }}/font-upload" method="post" enctype="multipart/form-data" class="actions">
-      <label>
+    <form
+      action="/edit/{{ job.job_id }}/font-upload"
+      method="post"
+      enctype="multipart/form-data"
+      class="flex flex-wrap items-center gap-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"
+    >
+      <label class="flex flex-col gap-2 text-sm font-medium text-slate-700">
         Upload font (TTF/OTF)
         <input type="hidden" name="font_family" value="{{ job.style.font_family }}" />
-        <input type="file" name="font_file" accept=".ttf,.otf" />
+        <input
+          type="file"
+          name="font_file"
+          accept=".ttf,.otf"
+          class="w-full rounded-lg border border-dashed border-slate-200 bg-slate-50 px-4 py-2 text-sm text-slate-700 file:mr-4 file:rounded-md file:border-0 file:bg-amber-400/90 file:px-3 file:py-2 file:text-sm file:font-semibold file:text-slate-900 hover:file:bg-amber-400"
+        />
       </label>
-      <label>
+      <label class="flex items-center gap-2 text-sm text-slate-700">
         <input type="checkbox" name="font_license_confirm" id="font-license-confirm" />
         I have the right to use this font
       </label>
-      <button type="submit" id="font-upload-button" disabled>Upload font</button>
+      <button
+        type="submit"
+        id="font-upload-button"
+        class="rounded-lg bg-amber-400 px-4 py-2 text-sm font-semibold text-slate-900 disabled:cursor-not-allowed disabled:opacity-60"
+        disabled
+      >
+        Upload font
+      </button>
     </form>
     {% if custom_fonts %}
-      <form action="/edit/{{ job.job_id }}/font-delete" method="post" class="actions">
+      <form action="/edit/{{ job.job_id }}/font-delete" method="post" class="flex items-center gap-3">
         <input type="hidden" name="font_family" value="{{ job.style.font_family }}" />
-        <button type="submit">Delete uploaded font</button>
+        <button type="submit" class="rounded-lg border border-slate-200 px-4 py-2 text-sm text-slate-700 hover:bg-slate-100">
+          Delete uploaded font
+        </button>
       </form>
     {% endif %}
 
-    <div class="layout">
-      <section>
-        <form id="subtitle-form" action="/edit/{{ job.job_id }}" method="post">
+    <div class="grid gap-8 lg:grid-cols-[1.6fr_1fr]">
+      <section class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+        <form id="subtitle-form" action="/edit/{{ job.job_id }}" method="post" class="space-y-6">
           <input type="hidden" id="subtitles-json" name="subtitles_json" value="" />
 
-          <fieldset>
-            <legend>Subtitle styling</legend>
-            <div class="subtitle-row">
-              <label>
+          <fieldset class="space-y-6">
+            <legend class="text-sm uppercase tracking-[0.3em] text-slate-500">Subtitle styling</legend>
+            <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              <p class="text-xs font-semibold uppercase tracking-[0.25em] text-slate-500">Typography</p>
+              <div class="mt-4 grid gap-4 lg:grid-cols-4">
+              <label class="flex flex-col gap-2 text-sm font-medium text-slate-700">
                 Font
-                <div class="font-picker">
-                  <input type="text" id="font-input" value="{{ job.style.font_family }}" autocomplete="off" />
+                <div class="relative">
+                  <input
+                    type="text"
+                    id="font-input"
+                    value="{{ job.style.font_family }}"
+                    autocomplete="off"
+                    class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:border-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-200"
+                  />
                   <input type="hidden" id="font-value" name="style_font_family" value="{{ job.style.font_family }}" />
-                  <div id="font-options" class="font-options" hidden>
-                    <div class="font-group">System</div>
+                  <div
+                    id="font-options"
+                    class="font-options absolute left-0 top-full z-10 mt-2 max-h-60 w-full min-w-[220px] overflow-y-auto rounded-xl border border-slate-200 bg-white p-2 text-sm shadow-xl"
+                    hidden
+                  >
+                    <div class="font-group px-2 pb-1 text-xs uppercase tracking-wide text-slate-500">System</div>
                     {% for font_name in system_fonts %}
-                      <button type="button" class="font-option" data-value="{{ font_name }}">{{ font_name }}</button>
+                      <button type="button" class="font-option w-full rounded-md px-2 py-1 text-left text-slate-700 hover:bg-slate-100" data-value="{{ font_name }}">{{ font_name }}</button>
                     {% endfor %}
-                    <div class="font-group">Google</div>
+                    <div class="font-group px-2 pb-1 pt-3 text-xs uppercase tracking-wide text-slate-500">Google</div>
                     {% for font_name in google_fonts %}
-                      <button type="button" class="font-option" data-value="{{ font_name }}">{{ font_name }}</button>
+                      <button type="button" class="font-option w-full rounded-md px-2 py-1 text-left text-slate-700 hover:bg-slate-100" data-value="{{ font_name }}">{{ font_name }}</button>
                     {% endfor %}
                     {% if custom_fonts %}
-                      <div class="font-group">Custom (This Job)</div>
+                      <div class="font-group px-2 pb-1 pt-3 text-xs uppercase tracking-wide text-slate-500">Custom (This Job)</div>
                       {% for font_name in custom_fonts %}
-                        <button type="button" class="font-option" data-value="{{ font_name }}">{{ font_name }}</button>
+                        <button type="button" class="font-option w-full rounded-md px-2 py-1 text-left text-slate-700 hover:bg-slate-100" data-value="{{ font_name }}">{{ font_name }}</button>
                       {% endfor %}
                     {% endif %}
                   </div>
                 </div>
               </label>
-              <label>
-                Font weight
-                <select name="style_font_weight">
+              <label class="flex flex-col gap-2 text-sm font-medium text-slate-700">
+                Weight
+                <select name="style_font_weight" class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900">
                   <option value="300" {% if job.style.font_weight == 300 %}selected{% endif %}>Light (300)</option>
                   <option value="400" {% if job.style.font_weight == 400 %}selected{% endif %}>Regular (400)</option>
                   <option value="500" {% if job.style.font_weight == 500 %}selected{% endif %}>Medium (500)</option>
@@ -146,149 +176,196 @@
                   <option value="900" {% if job.style.font_weight == 900 %}selected{% endif %}>Black (900)</option>
                 </select>
               </label>
-              <label>
-                Font style
-                <select name="style_font_style">
+              <label class="flex flex-col gap-2 text-sm font-medium text-slate-700">
+                Style
+                <select name="style_font_style" class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900">
                   <option value="regular" {% if job.style.font_style == "regular" %}selected{% endif %}>Regular</option>
                   <option value="italic" {% if job.style.font_style == "italic" %}selected{% endif %}>Italic</option>
                 </select>
               </label>
-              <label>
-                Font size
-                <input type="number" name="style_font_size" min="12" max="96" value="{{ job.style.font_size }}" />
+              <label class="flex flex-col gap-2 text-sm font-medium text-slate-700">
+                Size
+                <input type="number" name="style_font_size" min="12" max="96" value="{{ job.style.font_size }}" class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900" />
               </label>
+              </div>
             </div>
-            <div class="subtitle-row">
-              <label>
+
+            <div class="rounded-2xl border border-slate-200 bg-white p-4">
+              <p class="text-xs font-semibold uppercase tracking-[0.25em] text-slate-500">Colors</p>
+              <div class="mt-4 grid gap-4 lg:grid-cols-3">
+              <label class="flex flex-col gap-2 text-sm font-medium text-slate-700">
                 Text color
-                <input type="color" name="style_text_color" value="{{ job.style.text_color }}" />
+                <input type="color" name="style_text_color" value="{{ job.style.text_color }}" class="h-10 w-full rounded-lg border border-slate-200 bg-white" />
               </label>
-              <label>
+              <label class="flex flex-col gap-2 text-sm font-medium text-slate-700">
                 Highlight color
-                <input type="color" name="style_highlight_color" value="{{ job.style.highlight_color }}" />
+                <input type="color" name="style_highlight_color" value="{{ job.style.highlight_color }}" class="h-10 w-full rounded-lg border border-slate-200 bg-white" />
               </label>
-              <label>
-                Outline color
-                <input type="color" name="style_outline_color" value="{{ job.style.outline_color }}" />
-              </label>
-              <label>
-                Outline
-                <input type="checkbox" name="style_outline_enabled" {% if job.style.outline_enabled %}checked{% endif %} />
-              </label>
-              <label>
-                Outline size
-                <input type="number" name="style_outline_size" min="0" max="10" value="{{ job.style.outline_size }}" />
-              </label>
+              </div>
             </div>
-            <div class="subtitle-row">
-              <label>
-                Background box
-                <input type="checkbox" name="style_background_enabled" {% if job.style.background_enabled %}checked{% endif %} />
-              </label>
-              <label>
+
+            <div class="rounded-2xl border border-slate-200 bg-white p-4">
+              <p class="text-xs font-semibold uppercase tracking-[0.25em] text-slate-500">Outline</p>
+              <div class="mt-4 grid gap-4 lg:grid-cols-3">
+                <label class="flex items-center gap-2 text-sm font-medium text-slate-700">
+                  <input type="checkbox" name="style_outline_enabled" {% if job.style.outline_enabled %}checked{% endif %} />
+                  Outline enabled
+                </label>
+                <label class="flex flex-col gap-2 text-sm font-medium text-slate-700">
+                  Outline color
+                  <input type="color" name="style_outline_color" value="{{ job.style.outline_color }}" class="h-10 w-full rounded-lg border border-slate-200 bg-white" />
+                </label>
+                <label class="flex flex-col gap-2 text-sm font-medium text-slate-700">
+                  Outline size
+                  <input type="number" name="style_outline_size" min="0" max="10" value="{{ job.style.outline_size }}" class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900" />
+                </label>
+              </div>
+            </div>
+
+            <div class="rounded-2xl border border-slate-200 bg-white p-4">
+              <p class="text-xs font-semibold uppercase tracking-[0.25em] text-slate-500">Background</p>
+              <div class="mt-4 grid gap-4 lg:grid-cols-6">
+                <label class="flex items-center gap-2 text-sm font-medium text-slate-700">
+                  <input type="checkbox" name="style_background_enabled" {% if job.style.background_enabled %}checked{% endif %} />
+                  Background box
+                </label>
+              <label class="flex flex-col gap-2 text-sm font-medium text-slate-700">
                 Background color
-                <input type="color" name="style_background_color" value="{{ job.style.background_color }}" />
+                <input type="color" name="style_background_color" value="{{ job.style.background_color }}" class="h-10 w-full rounded-lg border border-slate-200 bg-white" />
               </label>
-              <label>
+              <label class="flex flex-col gap-2 text-sm font-medium text-slate-700">
                 Background opacity
-                <input type="number" name="style_background_opacity" min="0" max="1" step="0.1" value="{{ job.style.background_opacity }}" />
+                <input type="number" name="style_background_opacity" min="0" max="1" step="0.1" value="{{ job.style.background_opacity }}" class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900" />
               </label>
-              <label>
+              <label class="flex flex-col gap-2 text-sm font-medium text-slate-700">
                 Background padding
-                <input type="number" name="style_background_padding" min="0" max="40" value="{{ job.style.background_padding }}" />
+                <input type="number" name="style_background_padding" min="0" max="40" value="{{ job.style.background_padding }}" class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900" />
               </label>
-              <label>
+              <label class="flex flex-col gap-2 text-sm font-medium text-slate-700">
                 Background softness
-                <input type="number" name="style_background_blur" min="0" max="10" step="0.5" value="{{ job.style.background_blur }}" />
+                <input type="number" name="style_background_blur" min="0" max="10" step="0.5" value="{{ job.style.background_blur }}" class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900" />
               </label>
-              <label>
+              <label class="flex flex-col gap-2 text-sm font-medium text-slate-700">
                 Subtitle line spacing
-                <input type="number" name="style_line_height" min="0" max="200" step="1" value="{{ job.style.line_height }}" />
+                <input type="number" name="style_line_height" min="0" max="200" step="1" value="{{ job.style.line_height }}" class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900" />
               </label>
+              </div>
             </div>
-            <div class="subtitle-row">
-              <label>
+
+            <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              <p class="text-xs font-semibold uppercase tracking-[0.25em] text-slate-500">Layout</p>
+              <div class="mt-4 grid gap-4 lg:grid-cols-3">
+              <label class="flex flex-col gap-2 text-sm font-medium text-slate-700">
                 Position
-                <select name="style_position">
+                <select name="style_position" class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900">
                   <option value="bottom" {% if job.style.position == "bottom" %}selected{% endif %}>Bottom</option>
                   <option value="center" {% if job.style.position == "center" %}selected{% endif %}>Center</option>
                   <option value="top" {% if job.style.position == "top" %}selected{% endif %}>Top</option>
                 </select>
               </label>
-              <label>
+              <label class="flex flex-col gap-2 text-sm font-medium text-slate-700">
                 Vertical margin
-                <input type="number" name="style_margin_v" min="0" max="200" value="{{ job.style.margin_v }}" />
+                <input type="number" name="style_margin_v" min="0" max="200" value="{{ job.style.margin_v }}" class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900" />
               </label>
-            </div>
-            <div class="subtitle-row">
-              <label>
+              <label class="flex flex-col gap-2 text-sm font-medium text-slate-700">
                 Max words per line
-                <input type="number" name="style_max_words_per_line" min="1" max="12" value="{{ job.style.max_words_per_line }}" />
+                <input type="number" name="style_max_words_per_line" min="1" max="12" value="{{ job.style.max_words_per_line }}" class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900" />
               </label>
+              </div>
             </div>
           </fieldset>
 
-          <div id="subtitle-list">
+            <div class="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+              <div>
+                <h2 class="text-lg font-semibold text-slate-900">Subtitle blocks</h2>
+                <p class="text-sm text-slate-500">
+                  Edit text and timing. Keep timestamps in HH:MM:SS,mmm format.
+                </p>
+              </div>
+            <div class="text-xs uppercase tracking-[0.25em] text-slate-400">
+              {{ job.subtitles | length }} blocks
+            </div>
+          </div>
+          <div id="subtitle-list" class="mt-4 space-y-4">
             {% for block in job.subtitles %}
-              <div class="subtitle-block" data-index="{{ loop.index0 }}" data-group="{{ block.group_id }}">
-                <div class="subtitle-row">
-                  <label>
+              <div class="subtitle-block rounded-2xl border border-slate-200 bg-white p-4 shadow-sm" data-index="{{ loop.index0 }}" data-group="{{ block.group_id }}">
+                <div class="mb-3 flex items-center justify-between text-xs uppercase tracking-[0.2em] text-slate-400">
+                  <span>Block {{ loop.index }}</span>
+                  <span class="block-duration text-slate-500" data-start="{{ block.start }}" data-end="{{ block.end }}">--</span>
+                </div>
+                <div class="grid gap-3 md:grid-cols-2">
+                  <label class="flex flex-col gap-2 text-sm font-medium text-slate-700">
                     Start time
-                    <input type="text" class="start" value="{{ block.start }}" />
+                    <input type="text" class="start rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900" value="{{ block.start }}" />
                   </label>
-                  <label>
+                  <label class="flex flex-col gap-2 text-sm font-medium text-slate-700">
                     End time
-                    <input type="text" class="end" value="{{ block.end }}" />
+                    <input type="text" class="end rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900" value="{{ block.end }}" />
                   </label>
                 </div>
-                <label>
-                  Text
-                  <textarea class="text">{{ block.text }}</textarea>
+                <p class="mt-2 text-xs text-slate-400">Format example: 00:01:12,340</p>
+                <label class="mt-3 flex flex-col gap-2 text-sm font-medium text-slate-700">
+                  Subtitle text
+                  <textarea class="text min-h-[96px] w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900">{{ block.text }}</textarea>
                 </label>
               </div>
             {% endfor %}
           </div>
 
-          <div class="actions">
-            <button type="submit" id="save-button">Save edits</button>
-            <span id="save-status" class="status" style="display: none;">Subtitles saved</span>
+          <div class="flex flex-wrap items-center gap-4">
+            <button
+              type="submit"
+              id="save-button"
+              class="rounded-lg bg-amber-400 px-5 py-2 text-sm font-semibold text-slate-900 hover:bg-amber-300 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              Save edits
+            </button>
+            <span id="save-status" class="text-sm text-amber-700" style="display: none;">Subtitles saved</span>
           </div>
-          <p id="timestamp-hint" class="status" style="display: none;">
+          <p id="timestamp-hint" class="text-sm text-amber-700" style="display: none;">
             One or more timestamps look invalid (expected HH:MM:SS,mmm)
           </p>
-          <p id="edit-status" class="status"></p>
+          <p id="edit-status" class="text-sm text-amber-700"></p>
         </form>
       </section>
-      <aside class="video-panel">
-        <h2>Preview</h2>
-        <video id="preview-video" controls>
+      <aside class="lg:sticky lg:top-6">
+        <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          <h2 class="text-lg font-semibold">Preview</h2>
+          <video id="preview-video" controls class="mt-4 w-full max-w-[520px] rounded-xl border border-slate-200">
           {% if preview_available %}
             <source src="/outputs/{{ job.job_id }}_preview.mp4{% if preview_token %}?v={{ preview_token }}{% endif %}" type="video/mp4" />
           {% else %}
             <source src="/uploads/{{ job.video_filename }}" type="video/mp4" />
           {% endif %}
           Your browser does not support the video tag.
-        </video>
+          </video>
+        </div>
       </aside>
     </div>
 
-    <div class="actions">
+    <div class="flex flex-wrap items-center gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
       <form action="/export/{{ job.job_id }}/subtitles" method="post">
         <input type="hidden" name="format" value="srt" />
-        <button type="submit" data-export="srt">Download subtitles (SRT)</button>
+        <button type="submit" data-export="srt" class="rounded-lg border border-slate-200 px-4 py-2 text-sm text-slate-700 hover:bg-slate-100">
+          Download subtitles (SRT)
+        </button>
       </form>
       <form action="/export/{{ job.job_id }}/subtitles" method="post">
         <input type="hidden" name="format" value="vtt" />
-        <button type="submit">Download subtitles (VTT)</button>
+        <button type="submit" class="rounded-lg border border-slate-200 px-4 py-2 text-sm text-slate-700 hover:bg-slate-100">
+          Download subtitles (VTT)
+        </button>
       </form>
       <form action="/export/{{ job.job_id }}/video-karaoke" method="post">
-        <button type="submit" data-export="video-karaoke">Export video with word highlight</button>
+        <button type="submit" data-export="video-karaoke" class="rounded-lg bg-amber-400 px-4 py-2 text-sm font-semibold text-slate-900 hover:bg-amber-300">
+          Export video with word highlight
+        </button>
       </form>
     </div>
-    <p id="export-status" class="status" style="display: none;"></p>
-    <p id="video-export-status" class="status" style="display: none;"></p>
-    <p id="karaoke-export-status" class="status" style="display: none;"></p>
-    <p><em>Tip:</em> Save edits before exporting.</p>
+    <p id="export-status" class="text-sm text-amber-700" style="display: none;"></p>
+    <p id="video-export-status" class="text-sm text-amber-700" style="display: none;"></p>
+    <p id="karaoke-export-status" class="text-sm text-amber-700" style="display: none;"></p>
+    <p class="text-sm text-slate-500"><em>Tip:</em> Save edits before exporting.</p>
     <span id="preview-job" data-job-id="{{ preview_job_id or '' }}" hidden></span>
     <span id="editor-job" data-job-id="{{ job.job_id }}" hidden></span>
   </main>

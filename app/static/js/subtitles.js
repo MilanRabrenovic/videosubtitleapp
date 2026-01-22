@@ -149,6 +149,40 @@
     });
   };
 
+  const parseTimestamp = (value) => {
+    if (!timestampPattern.test(value)) {
+      return null;
+    }
+    const [hours, minutes, secondsMs] = value.split(":");
+    const [seconds, millis] = secondsMs.split(",");
+    return (
+      Number(hours) * 3600 +
+      Number(minutes) * 60 +
+      Number(seconds) +
+      Number(millis) / 1000
+    );
+  };
+
+  const updateBlockDurations = () => {
+    const blocks = subtitleList.querySelectorAll(".subtitle-block");
+    blocks.forEach((block) => {
+      const holder = block.querySelector(".block-duration");
+      if (!holder) {
+        return;
+      }
+      const start = block.querySelector(".start").value.trim();
+      const end = block.querySelector(".end").value.trim();
+      const startSeconds = parseTimestamp(start);
+      const endSeconds = parseTimestamp(end);
+      if (startSeconds === null || endSeconds === null || endSeconds < startSeconds) {
+        holder.textContent = "--";
+        return;
+      }
+      const duration = endSeconds - startSeconds;
+      holder.textContent = `${duration.toFixed(2)}s`;
+    });
+  };
+
   if (!form || !subtitleList || !hiddenInput) {
     return;
   }
@@ -229,6 +263,7 @@
   subtitleList.addEventListener("input", () => {
     hiddenInput.value = JSON.stringify(collectSubtitles());
     markDirty();
+    updateBlockDurations();
   });
 
   form.addEventListener("submit", async (event) => {
@@ -265,6 +300,7 @@
       const updatedList = doc.getElementById("subtitle-list");
       if (updatedList) {
         subtitleList.innerHTML = updatedList.innerHTML;
+        updateBlockDurations();
       }
       const updatedForm = doc.getElementById("subtitle-form");
       if (updatedForm && form) {
@@ -325,6 +361,7 @@
   // Initialize hidden input with current values.
   hiddenInput.value = JSON.stringify(collectSubtitles());
   isDirty = false;
+  updateBlockDurations();
 
   if (exportSrtButton && exportStatus) {
     exportSrtButton.addEventListener("click", () => {

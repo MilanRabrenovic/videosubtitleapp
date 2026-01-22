@@ -4,56 +4,104 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Upload Video</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap"
+    rel="stylesheet"
+  />
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            display: ["Space Grotesk", "ui-sans-serif", "system-ui"],
+          },
+        },
+      },
+    };
+  </script>
+  <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body>
-  <main>
-    <h1>Upload a Video</h1>
-    <p>This app generates subtitles and lets you edit them in the browser.</p>
+<body class="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-800 text-slate-100 font-display">
+  <main class="mx-auto flex w-full max-w-6xl flex-col gap-10 px-6 py-12">
+    <header class="space-y-3">
+      <p class="text-sm uppercase tracking-[0.3em] text-amber-300/80">Subtitle Studio</p>
+      <h1 class="text-4xl font-semibold tracking-tight md:text-5xl">Upload a video, fix the words, export fast.</h1>
+      <p class="max-w-2xl text-lg text-slate-300">
+        Generate subtitles with Whisper, edit them in plain text, and export burned-in captions without leaving the page.
+      </p>
+    </header>
 
-    <form id="upload-form" action="/upload" method="post" enctype="multipart/form-data">
-      <label>
-        Video title (optional)
-        <input type="text" name="title" placeholder="Project name" />
-      </label>
-      <br />
-      <label>
-        Language
-        <select name="language">
-          <option value="">Auto-detect</option>
-          <option value="en">English</option>
-          <option value="fr">French</option>
-          <option value="de">German</option>
-          <option value="sk">Slovak</option>
-          <option value="fi">Finnish</option>
-        </select>
-      </label>
-      <br />
-      <label>
-        Video file
-        <input type="file" name="video" accept="video/*" required />
-      </label>
-      <br />
-      <button id="upload-submit" type="submit">Upload &amp; Generate Subtitles</button>
-    </form>
-    <p id="upload-status" aria-live="polite"></p>
-
-    {% if recent_jobs %}
-      <section>
-        <h2>My recent jobs</h2>
-        <ul>
-          {% for job in recent_jobs %}
-            <li>
-              <a href="/edit/{{ job.job_id }}">{{ job.title }}</a>
-              ({{ job.status }})
-              {% if job.last_accessed_at %}
-                — last opened {{ job.last_accessed_at }}
-              {% endif %}
-              <span>· {{ job.job_id_short }}</span>
-            </li>
-          {% endfor %}
-        </ul>
+    <div class="grid gap-8 lg:grid-cols-[1.2fr_0.8fr]">
+      <section class="rounded-2xl border border-white/10 bg-slate-900/60 p-6 shadow-2xl shadow-black/40">
+        <form id="upload-form" action="/upload" method="post" enctype="multipart/form-data" class="space-y-5">
+          <label class="block space-y-2 text-sm font-medium text-slate-200">
+            Video title (optional)
+            <input
+              type="text"
+              name="title"
+              placeholder="Project name"
+              class="w-full rounded-lg border border-white/10 bg-slate-950/70 px-4 py-3 text-base text-slate-100 placeholder:text-slate-500 focus:border-amber-300/60 focus:outline-none focus:ring-2 focus:ring-amber-300/40"
+            />
+          </label>
+          <label class="block space-y-2 text-sm font-medium text-slate-200">
+            Language
+            <select
+              name="language"
+              class="w-full rounded-lg border border-white/10 bg-slate-950/70 px-4 py-3 text-base text-slate-100 focus:border-amber-300/60 focus:outline-none focus:ring-2 focus:ring-amber-300/40"
+            >
+              <option value="">Auto-detect</option>
+              <option value="en">English</option>
+              <option value="fr">French</option>
+              <option value="de">German</option>
+              <option value="sk">Slovak</option>
+              <option value="fi">Finnish</option>
+            </select>
+          </label>
+          <label class="block space-y-2 text-sm font-medium text-slate-200">
+            Video file
+            <input
+              type="file"
+              name="video"
+              accept="video/*"
+              required
+              class="w-full rounded-lg border border-dashed border-white/20 bg-slate-950/40 px-4 py-3 text-sm text-slate-200 file:mr-4 file:rounded-md file:border-0 file:bg-amber-300/90 file:px-3 file:py-2 file:text-sm file:font-semibold file:text-slate-900 hover:file:bg-amber-300"
+            />
+          </label>
+          <button
+            id="upload-submit"
+            type="submit"
+            class="inline-flex w-full items-center justify-center rounded-lg bg-amber-300 px-5 py-3 text-sm font-semibold text-slate-900 transition hover:bg-amber-200 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            Upload &amp; Generate Subtitles
+          </button>
+        </form>
+        <p id="upload-status" aria-live="polite" class="mt-4 text-sm text-amber-200/90"></p>
       </section>
-    {% endif %}
+
+      {% if recent_jobs %}
+        <section class="rounded-2xl border border-white/10 bg-slate-900/40 p-6">
+          <h2 class="text-lg font-semibold text-slate-100">My recent jobs</h2>
+          <ul class="mt-4 space-y-3 text-sm text-slate-300">
+            {% for job in recent_jobs %}
+              <li class="rounded-xl border border-white/5 bg-slate-950/50 p-4">
+                <a href="/edit/{{ job.job_id }}" class="text-base font-semibold text-amber-200 hover:text-amber-100">
+                  {{ job.title }}
+                </a>
+                <div class="mt-2 flex flex-wrap items-center gap-2 text-xs text-slate-400">
+                  <span class="rounded-full border border-white/10 px-2 py-1 uppercase tracking-wide">{{ job.status }}</span>
+                  {% if job.last_accessed_at %}
+                    <span>Last opened {{ job.last_accessed_at }}</span>
+                  {% endif %}
+                  <span class="text-slate-500">· {{ job.job_id_short }}</span>
+                </div>
+              </li>
+            {% endfor %}
+          </ul>
+        </section>
+      {% endif %}
+    </div>
   </main>
   <script>
     const form = document.getElementById("upload-form");
