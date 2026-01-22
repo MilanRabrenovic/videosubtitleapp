@@ -360,6 +360,8 @@
         jobId,
         (job) => {
           const url = job.output && job.output.video_url ? job.output.video_url : null;
+          const downloadName =
+            job.output && job.output.download_name ? job.output.download_name : fallbackName;
           if (!url) {
             statusEl.textContent = "Video exported, but file was not found.";
             button.disabled = false;
@@ -367,7 +369,7 @@
           }
           const link = document.createElement("a");
           link.href = url;
-          link.download = fallbackName;
+          link.download = downloadName;
           document.body.appendChild(link);
           link.click();
           link.remove();

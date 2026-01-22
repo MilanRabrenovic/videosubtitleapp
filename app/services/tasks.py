@@ -23,6 +23,7 @@ from app.services.subtitles import (
     whisper_segments_to_subtitles,
 )
 from app.services.transcription import transcribe_video
+import re
 from app.services.video import burn_in_ass, get_video_dimensions
 
 
@@ -153,6 +154,13 @@ def run_export_job(job: Dict[str, Any]) -> Dict[str, Any]:
     render_style = _render_style(job_id, style)
     subtitles = job_data.get("subtitles", [])
     words = load_transcript_words(job_id)
+    def safe_name(value: str) -> str:
+        cleaned = re.sub(r"[^A-Za-z0-9._-]+", "-", value).strip("-")
+        return cleaned or "subtitle-export"
+
+    title = str(job_data.get("title") or job_data.get("video_filename") or "subtitle-export")
+    base_name = safe_name(Path(title).stem)
+
     if job.get("type") == "karaoke_export":
         step_name = "export_karaoke"
         if not words:
@@ -163,10 +171,12 @@ def run_export_job(job: Dict[str, Any]) -> Dict[str, Any]:
         karaoke_lines = build_karaoke_lines(words, subtitles)
         generate_karaoke_ass(karaoke_lines, ass_path, render_style)
         output_path = OUTPUTS_DIR / f"{job_id}_karaoke.mp4"
+        download_name = f"{base_name}.mp4"
     else:
         ass_path = OUTPUTS_DIR / f"{job_id}.ass"
         generate_ass_from_subtitles(subtitles, ass_path, render_style)
         output_path = OUTPUTS_DIR / f"{job_id}_subtitled.mp4"
+        download_name = f"{base_name}.mp4"
         step_name = "export_standard"
     fonts_dir = ensure_font_downloaded(render_style.get("font_family")) or font_dir_for_name(
         render_style.get("font_family"), job_id
@@ -180,7 +190,11 @@ def run_export_job(job: Dict[str, Any]) -> Dict[str, Any]:
         raise
     else:
         complete_step(job_id, step_name)
-    return {"subtitle_path": str(OUTPUTS_DIR / f"{job_id}.json"), "video_path": str(output_path)}
+    return {
+        "subtitle_path": str(OUTPUTS_DIR / f"{job_id}.json"),
+        "video_path": str(output_path),
+        "download_name": download_name,
+    }
 
 
 def run_job(job: Dict[str, Any]) -> Dict[str, Any]:

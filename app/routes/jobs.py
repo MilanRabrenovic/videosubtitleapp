@@ -43,6 +43,7 @@ def job_status(job_id: str) -> Dict[str, Any]:
             "subtitle_path": output.get("subtitle_path"),
             "video_path": output.get("video_path"),
             "video_url": _output_url(output.get("video_path")),
+            "download_name": output.get("download_name"),
         },
     }
 
