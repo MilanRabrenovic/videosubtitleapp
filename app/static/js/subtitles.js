@@ -20,10 +20,10 @@
   const pinStatus = document.getElementById("pin-status");
   const toast = document.getElementById("toast");
   const toastClasses = {
-    info: "bg-slate-900 text-white",
-    success: "bg-emerald-500 text-white",
-    error: "bg-rose-500 text-white",
-    warning: "bg-amber-400 text-slate-900",
+    info: "bg-slate-900/90 text-white border border-slate-700/60",
+    success: "bg-emerald-50 text-emerald-900 border border-emerald-200",
+    error: "bg-rose-50 text-rose-900 border border-rose-200",
+    warning: "bg-amber-50 text-amber-900 border border-amber-200",
   };
   const fontLicenseConfirm = document.getElementById("font-license-confirm");
   const fontUploadButton = document.getElementById("font-upload-button");
@@ -40,7 +40,7 @@
       return;
     }
     const base =
-      "pointer-events-none fixed bottom-6 left-1/2 z-50 w-[calc(100%-2rem)] max-w-xl -translate-x-1/2 rounded-xl px-4 py-3 text-center text-sm font-medium shadow-xl";
+      "pointer-events-none fixed bottom-6 left-1/2 z-50 w-[calc(100%-2rem)] max-w-xl -translate-x-1/2 rounded-xl px-4 py-3 text-center text-sm font-medium shadow-lg backdrop-blur";
     toast.className = `${base} ${toastClasses[type] || toastClasses.info}`;
     toast.textContent = message;
     toast.classList.remove("hidden");

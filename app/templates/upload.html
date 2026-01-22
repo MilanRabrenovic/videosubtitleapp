@@ -88,7 +88,7 @@
                 <p class="text-base font-semibold text-slate-800">Drop your video here</p>
                 <p class="text-sm text-slate-500">or click to browse</p>
               </div>
-              <p id="file-name" class="text-xs text-slate-500"></p>
+              <p id="file-name" class="max-w-full break-all text-xs text-slate-500"></p>
             </label>
           </div>
           <div class="flex flex-wrap items-center justify-center gap-4 md:col-span-2">
@@ -152,10 +152,10 @@
     const fileName = document.getElementById("file-name");
     const toast = document.getElementById("toast");
     const toastClasses = {
-      info: "bg-slate-900 text-white",
-      success: "bg-emerald-500 text-white",
-      error: "bg-rose-500 text-white",
-      warning: "bg-amber-400 text-slate-900",
+      info: "bg-slate-900/90 text-white border border-slate-700/60",
+      success: "bg-emerald-50 text-emerald-900 border border-emerald-200",
+      error: "bg-rose-50 text-rose-900 border border-rose-200",
+      warning: "bg-amber-50 text-amber-900 border border-amber-200",
     };
     let toastTimer = null;
     const showToast = (message, type = "info", timeout = 2200) => {
