@@ -47,9 +47,11 @@
     if (toastTimer) {
       clearTimeout(toastTimer);
     }
-    toastTimer = setTimeout(() => {
-      toast.classList.add("hidden");
-    }, timeout);
+    if (timeout > 0) {
+      toastTimer = setTimeout(() => {
+        toast.classList.add("hidden");
+      }, timeout);
+    }
   };
 
   const formatJobError = (job) => {
@@ -489,7 +491,7 @@
       saveButton.textContent = "Processing...";
     }
     if (jobStatus.textContent.trim()) {
-      showToast(jobStatus.textContent.trim(), "info", 2600);
+      showToast(jobStatus.textContent.trim(), "info", 0);
     }
     pollJob(
       jobStatus.dataset.jobId,

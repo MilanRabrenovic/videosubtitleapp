@@ -170,15 +170,17 @@
       if (toastTimer) {
         clearTimeout(toastTimer);
       }
-      toastTimer = setTimeout(() => {
-        toast.classList.add("hidden");
-      }, timeout);
+      if (timeout > 0) {
+        toastTimer = setTimeout(() => {
+          toast.classList.add("hidden");
+        }, timeout);
+      }
     };
     if (form && submit && status) {
       form.addEventListener("submit", () => {
         submit.disabled = true;
         status.textContent = "Transcribing video. This may take a minute...";
-        showToast("Transcribing video. This may take a minute…", "info", 2800);
+        showToast("Transcribing video. This may take a minute…", "info", 0);
       });
     }
     if (fileInput && fileName) {
