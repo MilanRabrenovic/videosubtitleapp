@@ -18,6 +18,13 @@
   const pinCheckbox = document.getElementById("pin-checkbox");
   const pinSubmit = document.getElementById("pin-submit");
   const pinStatus = document.getElementById("pin-status");
+  const toast = document.getElementById("toast");
+  const toastClasses = {
+    info: "bg-slate-900 text-white",
+    success: "bg-emerald-500 text-white",
+    error: "bg-rose-500 text-white",
+    warning: "bg-amber-400 text-slate-900",
+  };
   const fontLicenseConfirm = document.getElementById("font-license-confirm");
   const fontUploadButton = document.getElementById("font-upload-button");
   const fontInput = document.getElementById("font-input");
@@ -26,6 +33,24 @@
   const timestampPattern = /^\d{2}:\d{2}:\d{2},\d{3}$/;
   let isDirty = false;
   let saveTimeoutId = null;
+  let toastTimer = null;
+
+  const showToast = (message, type = "info", timeout = 2200) => {
+    if (!toast) {
+      return;
+    }
+    const base =
+      "pointer-events-none fixed bottom-6 left-1/2 z-50 w-[calc(100%-2rem)] max-w-xl -translate-x-1/2 rounded-xl px-4 py-3 text-center text-sm font-medium shadow-xl";
+    toast.className = `${base} ${toastClasses[type] || toastClasses.info}`;
+    toast.textContent = message;
+    toast.classList.remove("hidden");
+    if (toastTimer) {
+      clearTimeout(toastTimer);
+    }
+    toastTimer = setTimeout(() => {
+      toast.classList.add("hidden");
+    }, timeout);
+  };
 
   const formatJobError = (job) => {
     if (!job || !job.error) {
@@ -99,9 +124,7 @@
     if (!jobId) {
       return;
     }
-    if (status) {
-      status.textContent = "Rendering preview...";
-    }
+    showToast("Rendering preview...", "info", 2400);
     if (saveButton) {
       saveButton.disabled = true;
       saveButton.textContent = "Rendering preview...";
@@ -117,21 +140,14 @@
             previewVideo.load();
           }
         }
-        if (status) {
-          status.textContent = "Preview updated.";
-          setTimeout(() => {
-            status.textContent = "";
-          }, 1800);
-        }
+        showToast("Preview updated.", "success");
         if (saveButton) {
           saveButton.disabled = false;
           saveButton.textContent = saveButton.dataset.originalText || "Save edits";
         }
       },
       (job) => {
-        if (status) {
-          status.textContent = `Preview failed: ${formatJobFailure(job, "Preview failed.")}`;
-        }
+        showToast(formatJobFailure(job, "Preview failed."), "error", 3200);
         if (saveButton) {
           saveButton.disabled = false;
           saveButton.textContent = saveButton.dataset.originalText || "Save edits";
@@ -245,9 +261,6 @@
   };
 
   const markDirty = () => {
-    if (status) {
-      status.textContent = "Unsaved changes";
-    }
     if (exportStatus) {
       exportStatus.style.display = "none";
     }
@@ -277,8 +290,8 @@
       saveButton.dataset.originalText = saveButton.dataset.originalText || saveButton.textContent;
       saveButton.textContent = "Saving...";
     }
-    if (timestampHint) {
-      timestampHint.style.display = hasInvalidTimestamps() ? "block" : "none";
+    if (hasInvalidTimestamps()) {
+      showToast("One or more timestamps look invalid (expected HH:MM:SS,mmm).", "warning", 3200);
     }
     try {
       const response = await fetch(form.action, { method: "POST", body: new FormData(form) });
@@ -286,15 +299,7 @@
         throw new Error("Save failed");
       }
       const html = await response.text();
-      if (saveStatus) {
-        saveStatus.style.display = "inline";
-        if (saveTimeoutId) {
-          clearTimeout(saveTimeoutId);
-        }
-        saveTimeoutId = setTimeout(() => {
-          saveStatus.style.display = "none";
-        }, 1800);
-      }
+      showToast("Subtitles saved.", "success");
       const parser = new DOMParser();
       const doc = parser.parseFromString(html, "text/html");
       const updatedList = doc.getElementById("subtitle-list");
@@ -351,6 +356,7 @@
       isDirty = false;
     } catch (error) {
       console.error(error);
+      showToast("Save failed. Please try again.", "error", 3200);
     }
     if (saveButton && !queuedPreviewJob) {
       saveButton.disabled = false;
@@ -365,10 +371,12 @@
 
   if (exportSrtButton && exportStatus) {
     exportSrtButton.addEventListener("click", () => {
-      exportStatus.textContent = isDirty
-        ? "SRT export may not include unsaved changes."
-        : "SRT exported from latest edits.";
-      exportStatus.style.display = "block";
+      showToast(
+        isDirty
+          ? "SRT export may not include unsaved changes."
+          : "SRT exported from latest edits.",
+        isDirty ? "warning" : "success"
+      );
     });
   }
 
@@ -381,8 +389,7 @@
       return;
     }
     button.disabled = true;
-    statusEl.textContent = startText;
-    statusEl.style.display = "block";
+    showToast(startText, "info", 2600);
     try {
       const response = await fetch(form.action, { method: "POST", body: new FormData(form) });
       if (!response.ok) {
@@ -400,7 +407,7 @@
           const downloadName =
             job.output && job.output.download_name ? job.output.download_name : fallbackName;
           if (!url) {
-            statusEl.textContent = "Video exported, but file was not found.";
+            showToast("Video exported, but file was not found.", "warning", 3200);
             button.disabled = false;
             return;
           }
@@ -410,17 +417,17 @@
           document.body.appendChild(link);
           link.click();
           link.remove();
-          statusEl.textContent = "Video exported.";
+          showToast("Video exported.", "success");
           button.disabled = false;
         },
         (job) => {
-          statusEl.textContent = formatJobFailure(job, "Video export failed.");
+          showToast(formatJobFailure(job, "Video export failed."), "error", 3600);
           button.disabled = false;
         }
       );
     } catch (error) {
       console.error(error);
-      statusEl.textContent = "Video export failed.";
+      showToast("Video export failed.", "error", 3600);
     }
   };
 
@@ -448,19 +455,24 @@
       saveButton.disabled = true;
       saveButton.textContent = "Processing...";
     }
+    if (jobStatus.textContent.trim()) {
+      showToast(jobStatus.textContent.trim(), "info", 2600);
+    }
     pollJob(
       jobStatus.dataset.jobId,
       () => {
         window.location.reload();
       },
       (job) => {
-        jobStatus.textContent = `Processing failed: ${formatJobFailure(job, "Processing failed.")}`;
+        showToast(formatJobFailure(job, "Processing failed."), "error", 3600);
         if (saveButton) {
           saveButton.disabled = false;
           saveButton.textContent = saveButton.dataset.originalText || "Save edits";
         }
       }
     );
+  } else if (jobStatus && jobStatus.textContent.trim()) {
+    showToast(jobStatus.textContent.trim(), "error", 3600);
   }
 
   if (previewJob && previewJob.dataset.jobId) {
@@ -483,15 +495,11 @@
         if (!response.ok) {
           throw new Error("Pin update failed");
         }
-        if (pinStatus) {
-          pinStatus.style.display = "inline";
-          setTimeout(() => {
-            pinStatus.style.display = "none";
-          }, 1800);
-        }
+        showToast("Pin saved.", "success");
       } catch (error) {
         console.error(error);
         pinSubmit.disabled = false;
+        showToast("Pin update failed.", "error", 3200);
       }
     });
   }

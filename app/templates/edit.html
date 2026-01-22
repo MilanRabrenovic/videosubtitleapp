@@ -60,14 +60,14 @@
     </form>
 
     {% if saved %}
-      <p class="text-sm text-amber-700">Changes saved.</p>
+      <p class="hidden text-sm text-amber-700">Changes saved.</p>
     {% endif %}
     {% if processing_job_id %}
-      <p id="job-status" class="text-sm text-amber-700" data-job-id="{{ processing_job_id }}">
+      <p id="job-status" class="hidden text-sm text-amber-700" data-job-id="{{ processing_job_id }}">
         Processing video… this may take a minute.
       </p>
     {% elif processing_job_error %}
-      <div id="job-status" class="rounded-xl border border-slate-200 bg-white p-4 text-sm text-amber-700 shadow-sm">
+      <div id="job-status" class="hidden rounded-xl border border-slate-200 bg-white p-4 text-sm text-amber-700 shadow-sm">
         <strong class="block text-base text-slate-900">Something went wrong</strong>
         {% if processing_job_step %}
           <span class="block">Failed during {{ processing_job_step }}.</span>
@@ -81,7 +81,7 @@
       </div>
     {% endif %}
     {% if font_warning %}
-      <p class="text-sm text-amber-700">{{ font_warning }}</p>
+      <p class="hidden text-sm text-amber-700">{{ font_warning }}</p>
     {% endif %}
     <form
       action="/edit/{{ job.job_id }}/font-upload"
@@ -320,12 +320,12 @@
             >
               Save edits
             </button>
-            <span id="save-status" class="text-sm text-amber-700" style="display: none;">Subtitles saved</span>
+            <span id="save-status" class="hidden text-sm text-amber-700">Subtitles saved</span>
           </div>
-          <p id="timestamp-hint" class="text-sm text-amber-700" style="display: none;">
+          <p id="timestamp-hint" class="hidden text-sm text-amber-700">
             One or more timestamps look invalid (expected HH:MM:SS,mmm)
           </p>
-          <p id="edit-status" class="text-sm text-amber-700"></p>
+          <p id="edit-status" class="hidden text-sm text-amber-700"></p>
         </form>
       </section>
       <aside class="lg:sticky lg:top-6 self-start">
@@ -360,9 +360,9 @@
               Export video with word highlight
             </button>
           </form>
-          <p id="export-status" class="text-sm text-amber-700" style="display: none;"></p>
-          <p id="video-export-status" class="text-sm text-amber-700" style="display: none;"></p>
-          <p id="karaoke-export-status" class="text-sm text-amber-700" style="display: none;"></p>
+          <p id="export-status" class="hidden text-sm text-amber-700"></p>
+          <p id="video-export-status" class="hidden text-sm text-amber-700"></p>
+          <p id="karaoke-export-status" class="hidden text-sm text-amber-700"></p>
           <p class="text-xs text-slate-500"><em>Tip:</em> Save edits before exporting.</p>
         </div>
       </aside>
@@ -370,6 +370,12 @@
 
     <span id="preview-job" data-job-id="{{ preview_job_id or '' }}" hidden></span>
     <span id="editor-job" data-job-id="{{ job.job_id }}" hidden></span>
+    <div
+      id="toast"
+      class="pointer-events-none fixed bottom-6 left-1/2 z-50 hidden w-[calc(100%-2rem)] max-w-xl -translate-x-1/2 rounded-xl px-4 py-3 text-center text-sm font-medium shadow-xl"
+      role="status"
+      aria-live="polite"
+    ></div>
   </main>
 </body>
 </html>

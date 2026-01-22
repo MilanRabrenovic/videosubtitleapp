@@ -10,6 +10,12 @@
     href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap"
     rel="stylesheet"
   />
+  <div
+    id="toast"
+    class="pointer-events-none fixed bottom-6 left-1/2 z-50 hidden w-[calc(100%-2rem)] max-w-xl -translate-x-1/2 rounded-xl px-4 py-3 text-center text-sm font-medium shadow-xl"
+    role="status"
+    aria-live="polite"
+  ></div>
   <script>
     tailwind.config = {
       theme: {
@@ -144,10 +150,35 @@
     const dropZone = document.getElementById("drop-zone");
     const fileInput = document.getElementById("video-input");
     const fileName = document.getElementById("file-name");
+    const toast = document.getElementById("toast");
+    const toastClasses = {
+      info: "bg-slate-900 text-white",
+      success: "bg-emerald-500 text-white",
+      error: "bg-rose-500 text-white",
+      warning: "bg-amber-400 text-slate-900",
+    };
+    let toastTimer = null;
+    const showToast = (message, type = "info", timeout = 2200) => {
+      if (!toast) {
+        return;
+      }
+      toast.className =
+        "pointer-events-none fixed bottom-6 left-1/2 z-50 w-[calc(100%-2rem)] max-w-xl -translate-x-1/2 rounded-xl px-4 py-3 text-center text-sm font-medium shadow-xl";
+      toast.classList.add(...toastClasses[type].split(" "));
+      toast.textContent = message;
+      toast.classList.remove("hidden");
+      if (toastTimer) {
+        clearTimeout(toastTimer);
+      }
+      toastTimer = setTimeout(() => {
+        toast.classList.add("hidden");
+      }, timeout);
+    };
     if (form && submit && status) {
       form.addEventListener("submit", () => {
         submit.disabled = true;
         status.textContent = "Transcribing video. This may take a minute...";
+        showToast("Transcribing video. This may take a minute…", "info", 2800);
       });
     }
     if (fileInput && fileName) {
@@ -215,6 +246,7 @@
           if (card) {
             card.remove();
           }
+          showToast("Job deleted.", "success");
         } catch (error) {
           console.error(error);
           button.disabled = false;
@@ -222,6 +254,7 @@
           if (statusEl) {
             statusEl.textContent = error.message || "Delete failed";
           }
+          showToast(error.message || "Delete failed.", "error");
         }
       });
     });
