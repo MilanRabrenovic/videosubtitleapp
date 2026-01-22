@@ -216,14 +216,40 @@
             <div class="rounded-2xl border border-slate-200 bg-white p-4">
               <p class="text-xs font-semibold uppercase tracking-[0.25em] text-slate-500">Colors</p>
               <div class="mt-4 grid gap-4 lg:grid-cols-3">
-              <label class="flex flex-col gap-2 text-sm font-medium text-slate-700">
+              <div class="flex flex-col gap-2 text-sm font-medium text-slate-700">
                 Text color
-                <input type="color" name="style_text_color" value="{{ job.style.text_color }}" class="h-10 w-full rounded-lg border border-slate-200 bg-white" style="appearance: none;" />
-              </label>
-              <label class="flex flex-col gap-2 text-sm font-medium text-slate-700">
+                <div class="flex items-center gap-3 rounded-full border border-slate-200 bg-white px-3 py-2">
+                  <input
+                    type="color"
+                    name="style_text_color"
+                    value="{{ job.style.text_color }}"
+                    class="color-input sr-only"
+                    data-color-key="text"
+                  />
+                  <span class="color-dot h-6 w-6 rounded-full border border-slate-200" style="background-color: {{ job.style.text_color }};" data-color-key="text"></span>
+                  <span class="color-hex text-xs uppercase tracking-widest text-slate-500" data-color-key="text">{{ job.style.text_color }}</span>
+                  <button type="button" class="color-trigger ml-auto text-xs font-semibold text-amber-600 hover:text-amber-500" data-color-key="text">
+                    Change
+                  </button>
+                </div>
+              </div>
+              <div class="flex flex-col gap-2 text-sm font-medium text-slate-700">
                 Highlight color
-                <input type="color" name="style_highlight_color" value="{{ job.style.highlight_color }}" class="h-10 w-full rounded-lg border border-slate-200 bg-white" style="appearance: none;" />
-              </label>
+                <div class="flex items-center gap-3 rounded-full border border-slate-200 bg-white px-3 py-2">
+                  <input
+                    type="color"
+                    name="style_highlight_color"
+                    value="{{ job.style.highlight_color }}"
+                    class="color-input sr-only"
+                    data-color-key="highlight"
+                  />
+                  <span class="color-dot h-6 w-6 rounded-full border border-slate-200" style="background-color: {{ job.style.highlight_color }};" data-color-key="highlight"></span>
+                  <span class="color-hex text-xs uppercase tracking-widest text-slate-500" data-color-key="highlight">{{ job.style.highlight_color }}</span>
+                  <button type="button" class="color-trigger ml-auto text-xs font-semibold text-amber-600 hover:text-amber-500" data-color-key="highlight">
+                    Change
+                  </button>
+                </div>
+              </div>
               </div>
             </div>
 
@@ -234,10 +260,23 @@
                   <input type="checkbox" name="style_outline_enabled" {% if job.style.outline_enabled %}checked{% endif %} />
                   Outline enabled
                 </label>
-                <label class="flex flex-col gap-2 text-sm font-medium text-slate-700">
+                <div class="flex flex-col gap-2 text-sm font-medium text-slate-700">
                   Outline color
-                  <input type="color" name="style_outline_color" value="{{ job.style.outline_color }}" class="h-10 w-full rounded-lg border border-slate-200 bg-white" style="appearance: none;" />
-                </label>
+                  <div class="flex items-center gap-3 rounded-full border border-slate-200 bg-white px-3 py-2">
+                    <input
+                      type="color"
+                      name="style_outline_color"
+                      value="{{ job.style.outline_color }}"
+                      class="color-input sr-only"
+                      data-color-key="outline"
+                    />
+                    <span class="color-dot h-6 w-6 rounded-full border border-slate-200" style="background-color: {{ job.style.outline_color }};" data-color-key="outline"></span>
+                    <span class="color-hex text-xs uppercase tracking-widest text-slate-500" data-color-key="outline">{{ job.style.outline_color }}</span>
+                    <button type="button" class="color-trigger ml-auto text-xs font-semibold text-amber-600 hover:text-amber-500" data-color-key="outline">
+                      Change
+                    </button>
+                  </div>
+                </div>
                 <label class="flex flex-col gap-2 text-sm font-medium text-slate-700">
                   Outline size
                   <input type="number" name="style_outline_size" min="0" max="10" value="{{ job.style.outline_size }}" class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900" />
@@ -246,16 +285,31 @@
             </div>
 
             <div class="rounded-2xl border border-slate-200 bg-white p-4">
-              <p class="text-xs font-semibold uppercase tracking-[0.25em] text-slate-500">Background</p>
-              <div class="mt-4 grid gap-4 lg:grid-cols-6">
+              <div class="flex flex-wrap items-center justify-between gap-3">
+                <p class="text-xs font-semibold uppercase tracking-[0.25em] text-slate-500">Background</p>
                 <label class="flex items-center gap-2 text-sm font-medium text-slate-700">
                   <input type="checkbox" name="style_background_enabled" {% if job.style.background_enabled %}checked{% endif %} />
                   Background box
                 </label>
-              <label class="flex flex-col gap-2 text-sm font-medium text-slate-700">
+              </div>
+              <div class="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+              <div class="flex flex-col gap-2 text-sm font-medium text-slate-700">
                 Background color
-                <input type="color" name="style_background_color" value="{{ job.style.background_color }}" class="h-10 w-full rounded-lg border border-slate-200 bg-white" style="appearance: none;" />
-              </label>
+                <div class="flex items-center gap-3 rounded-full border border-slate-200 bg-white px-3 py-2">
+                  <input
+                    type="color"
+                    name="style_background_color"
+                    value="{{ job.style.background_color }}"
+                    class="color-input sr-only"
+                    data-color-key="background"
+                  />
+                  <span class="color-dot h-6 w-6 rounded-full border border-slate-200" style="background-color: {{ job.style.background_color }};" data-color-key="background"></span>
+                  <span class="color-hex text-xs uppercase tracking-widest text-slate-500" data-color-key="background">{{ job.style.background_color }}</span>
+                  <button type="button" class="color-trigger ml-auto text-xs font-semibold text-amber-600 hover:text-amber-500" data-color-key="background">
+                    Change
+                  </button>
+                </div>
+              </div>
               <label class="flex flex-col gap-2 text-sm font-medium text-slate-700">
                 Background opacity
                 <input type="number" name="style_background_opacity" min="0" max="1" step="0.1" value="{{ job.style.background_opacity }}" class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900" />

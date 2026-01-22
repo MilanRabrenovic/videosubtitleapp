@@ -239,6 +239,39 @@
     });
   }
 
+  const colorInputs = document.querySelectorAll(".color-input");
+  if (colorInputs.length) {
+    const updateColor = (key, value) => {
+      const dot = document.querySelector(`.color-dot[data-color-key="${key}"]`);
+      const hex = document.querySelector(`.color-hex[data-color-key="${key}"]`);
+      if (dot) {
+        dot.style.backgroundColor = value;
+      }
+      if (hex) {
+        hex.textContent = value;
+      }
+    };
+    colorInputs.forEach((input) => {
+      const key = input.dataset.colorKey;
+      if (!key) {
+        return;
+      }
+      input.addEventListener("change", () => {
+        updateColor(key, input.value);
+      });
+    });
+    const triggers = document.querySelectorAll(".color-trigger");
+    triggers.forEach((trigger) => {
+      trigger.addEventListener("click", () => {
+        const key = trigger.dataset.colorKey;
+        const input = document.querySelector(`.color-input[data-color-key="${key}"]`);
+        if (input) {
+          input.click();
+        }
+      });
+    });
+  }
+
   if (fontLicenseConfirm && fontUploadButton) {
     const toggleFontUpload = () => {
       fontUploadButton.disabled = !fontLicenseConfirm.checked;
