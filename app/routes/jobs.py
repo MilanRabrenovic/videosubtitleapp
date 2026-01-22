@@ -3,7 +3,7 @@
 from pathlib import Path
 from typing import Any, Dict
 
-from fastapi import APIRouter, Form, HTTPException
+from fastapi import APIRouter, Form, HTTPException, Request
 
 from app.config import OUTPUTS_DIR
 from app.services.jobs import delete_job, last_failed_step, list_recent_jobs, load_job, touch_job_access, update_job
@@ -48,9 +48,10 @@ def job_status(job_id: str) -> Dict[str, Any]:
 
 
 @router.get("/jobs/recent")
-def recent_jobs() -> Dict[str, Any]:
+def recent_jobs(request: Request) -> Dict[str, Any]:
+    session_id = getattr(request.state, "session_id", None)
     jobs = []
-    for job in list_recent_jobs():
+    for job in list_recent_jobs(owner_session_id=session_id):
         jobs.append(
             {
                 "job_id": job.get("job_id"),
@@ -58,6 +59,22 @@ def recent_jobs() -> Dict[str, Any]:
                 "status": job.get("status"),
                 "last_accessed_at": job.get("last_accessed_at"),
                 "title": (job.get("input", {}) or {}).get("options", {}).get("title"),
+            }
+        )
+    return {"jobs": jobs}
+
+
+@router.get("/jobs/mine")
+def my_jobs(request: Request) -> Dict[str, Any]:
+    session_id = getattr(request.state, "session_id", None)
+    jobs = []
+    for job in list_recent_jobs(owner_session_id=session_id):
+        jobs.append(
+            {
+                "job_id": job.get("job_id"),
+                "type": job.get("type"),
+                "status": job.get("status"),
+                "last_accessed_at": job.get("last_accessed_at"),
             }
         )
     return {"jobs": jobs}

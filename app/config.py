@@ -22,6 +22,7 @@ JOB_PINNED_RETENTION_DAYS = 30
 JOB_LOCK_TTL_MINUTES = 30
 JOB_RECENT_LIMIT = 8
 JOB_CLEANUP_BATCH = 5
+SESSION_COOKIE_NAME = "subtitle_session_id"
 
 
 def ensure_directories() -> None:

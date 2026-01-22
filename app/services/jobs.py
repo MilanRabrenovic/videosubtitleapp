@@ -63,7 +63,12 @@ def _atomic_write(path: Path, payload: Dict[str, Any]) -> None:
         os.replace(tmp_path, path)
 
 
-def create_job(job_type: str, input_data: Dict[str, Any], job_id: Optional[str] = None) -> Dict[str, Any]:
+def create_job(
+    job_type: str,
+    input_data: Dict[str, Any],
+    job_id: Optional[str] = None,
+    owner_session_id: Optional[str] = None,
+) -> Dict[str, Any]:
     """Create a queued job and persist it."""
     job_id = job_id or uuid.uuid4().hex
     now = _now_iso()
@@ -80,6 +85,7 @@ def create_job(job_type: str, input_data: Dict[str, Any], job_id: Optional[str] 
         "locked": False,
         "expires_at": _expires_at_iso(now),
         "steps": [],
+        "owner_session_id": owner_session_id,
         "input": input_data,
         "output": {"subtitle_path": None, "video_path": None},
     }
@@ -109,6 +115,9 @@ def load_job(job_id: str) -> Optional[Dict[str, Any]]:
         changed = True
     if "steps" not in data:
         data["steps"] = []
+        changed = True
+    if "owner_session_id" not in data:
+        data["owner_session_id"] = None
         changed = True
     if changed:
         _atomic_write(_job_path(job_id), data)
@@ -286,7 +295,7 @@ def _is_locked(job: Dict[str, Any]) -> bool:
     return _utcnow() - last_accessed <= timedelta(minutes=JOB_LOCK_TTL_MINUTES)
 
 
-def list_recent_jobs(limit: Optional[int] = None) -> list[Dict[str, Any]]:
+def list_recent_jobs(limit: Optional[int] = None, owner_session_id: Optional[str] = None) -> list[Dict[str, Any]]:
     """Return recent jobs sorted by last access."""
     limit = limit or JOB_RECENT_LIMIT
     now = _utcnow()
@@ -294,6 +303,8 @@ def list_recent_jobs(limit: Optional[int] = None) -> list[Dict[str, Any]]:
     for job in _iter_jobs():
         expires_at = _parse_iso(job.get("expires_at"))
         if expires_at and expires_at <= now:
+            continue
+        if owner_session_id and job.get("owner_session_id") != owner_session_id:
             continue
         jobs.append(job)
     jobs.sort(

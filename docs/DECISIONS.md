@@ -81,6 +81,12 @@ We only track job processing steps and outcomes, not user behavior or content.
 ## Why no third-party services were added
 Local logging keeps the app self-contained and avoids external dependencies for v1.
 
+## Why session IDs were chosen instead of auth
+Session cookies provide lightweight isolation without collecting identity data.
+
+## Why this is temporary
+Session-based ownership prevents accidental cross-user access but is not a substitute for authentication.
+
 ## Tradeoffs accepted for simplicity
 - No authentication or multi-user support.
 - Local filesystem storage only.

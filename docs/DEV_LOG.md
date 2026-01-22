@@ -144,3 +144,9 @@
 - Implemented: Minimal UI copy now includes “Failed during …” without exposing timestamps.
 - Not tracked: user behavior analytics, transcripts, or media content.
 - Next action: Add retry UX or support tooling for step-level diagnostics.
+
+## 2026-01-22
+- Implemented: Session-scoped job ownership via cookie (subtitle_session_id).
+- Implemented: “My recent jobs” list now shows only jobs from the current browser session.
+- Implemented: Jobs now store owner_session_id; legacy jobs remain unowned.
+- Next action: Add real auth and owner-scoped job access once accounts exist.

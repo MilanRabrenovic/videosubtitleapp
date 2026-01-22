@@ -55,9 +55,11 @@ def export_video(request: Request, job_id: str) -> Any:
     if existing:
         return {"job_id": existing.get("job_id"), "status": existing.get("status")}
 
+    session_id = getattr(request.state, "session_id", None)
     export_job = create_job(
         "export",
         {"video_path": str(UPLOADS_DIR / job_data.get("video_filename", "")), "options": {"subtitle_job_id": job_id}},
+        owner_session_id=session_id,
     )
     return {"job_id": export_job["job_id"], "status": export_job["status"]}
 
@@ -76,8 +78,10 @@ def export_video_karaoke(request: Request, job_id: str) -> Any:
     if existing:
         return {"job_id": existing.get("job_id"), "status": existing.get("status")}
 
+    session_id = getattr(request.state, "session_id", None)
     export_job = create_job(
         "karaoke_export",
         {"video_path": str(UPLOADS_DIR / job_data.get("video_filename", "")), "options": {"subtitle_job_id": job_id}},
+        owner_session_id=session_id,
     )
     return {"job_id": export_job["job_id"], "status": export_job["status"]}

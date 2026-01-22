@@ -237,9 +237,11 @@ def save_edits(
     video_path = UPLOADS_DIR / job_data.get("video_filename", "")
     preview_job_id = None
     if video_path.exists():
+        session_id = getattr(request.state, "session_id", None)
         preview_job = create_job(
             "preview",
             {"video_path": str(video_path), "options": {"subtitle_job_id": job_id}},
+            owner_session_id=session_id,
         )
         preview_job_id = preview_job["job_id"]
 
@@ -315,9 +317,11 @@ def upload_font(
     video_path = UPLOADS_DIR / job_data.get("video_filename", "")
     preview_job_id = None
     if video_path.exists():
+        session_id = getattr(request.state, "session_id", None)
         preview_job = create_job(
             "preview",
             {"video_path": str(video_path), "options": {"subtitle_job_id": job_id}},
+            owner_session_id=session_id,
         )
         preview_job_id = preview_job["job_id"]
 
@@ -377,9 +381,11 @@ def delete_font(
     video_path = UPLOADS_DIR / job_data.get("video_filename", "")
     preview_job_id = None
     if video_path.exists():
+        session_id = getattr(request.state, "session_id", None)
         preview_job = create_job(
             "preview",
             {"video_path": str(video_path), "options": {"subtitle_job_id": job_id}},
+            owner_session_id=session_id,
         )
         preview_job_id = preview_job["job_id"]
 

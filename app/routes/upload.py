@@ -28,13 +28,15 @@ templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 @router.get("/upload")
 def upload_form(request: Request) -> Any:
     """Render the upload form."""
+    session_id = getattr(request.state, "session_id", None)
     recent = []
-    for job in list_recent_jobs():
+    for job in list_recent_jobs(owner_session_id=session_id):
         if job.get("type") != "transcription":
             continue
         recent.append(
             {
                 "job_id": job.get("job_id"),
+                "job_id_short": str(job.get("job_id", ""))[:8],
                 "title": (job.get("input", {}) or {}).get("options", {}).get("title") or "Untitled",
                 "status": job.get("status"),
                 "last_accessed_at": job.get("last_accessed_at"),
@@ -81,7 +83,8 @@ def handle_upload(
             "language": language.strip().lower() or None,
         },
     }
-    create_job("transcription", job_input, job_id=job_id)
+    session_id = getattr(request.state, "session_id", None)
+    create_job("transcription", job_input, job_id=job_id, owner_session_id=session_id)
     start_step(job_id, "upload")
     complete_step(job_id, "upload")
 
