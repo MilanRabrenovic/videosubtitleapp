@@ -6,12 +6,22 @@ import json
 import os
 import threading
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from queue import Queue
 from typing import Any, Callable, Dict, Iterable, Optional
 
-from app.config import JOBS_DIR, JOB_MAX_AGE_HOURS, JOB_WORKER_COUNT
+from app.config import (
+    JOBS_DIR,
+    JOB_LOCK_TTL_MINUTES,
+    JOB_MAX_AGE_HOURS,
+    JOB_CLEANUP_BATCH,
+    JOB_RECENT_LIMIT,
+    JOB_RETENTION_DAYS,
+    JOB_PINNED_RETENTION_DAYS,
+    JOB_WORKER_COUNT,
+)
+from app.config import OUTPUTS_DIR
 
 _queue: Queue[str] = Queue()
 _queue_lock = threading.Lock()
@@ -20,8 +30,26 @@ _enqueued: set[str] = set()
 _workers_started = False
 
 
+def _utcnow() -> datetime:
+    return datetime.now(timezone.utc)
+
+
 def _now_iso() -> str:
-    return datetime.utcnow().isoformat(timespec="seconds") + "Z"
+    return _utcnow().isoformat(timespec="seconds").replace("+00:00", "Z")
+
+
+def _parse_iso(value: Optional[str]) -> Optional[datetime]:
+    if not value:
+        return None
+    try:
+        return datetime.fromisoformat(value.replace("Z", "+00:00")).astimezone(timezone.utc)
+    except ValueError:
+        return None
+
+
+def _expires_at_iso(created_at: Optional[str]) -> str:
+    created = _parse_iso(created_at) or _utcnow()
+    return (created + timedelta(days=JOB_RETENTION_DAYS)).isoformat(timespec="seconds").replace("+00:00", "Z")
 
 
 def _job_path(job_id: str) -> Path:
@@ -47,6 +75,10 @@ def create_job(job_type: str, input_data: Dict[str, Any], job_id: Optional[str] 
         "error": None,
         "created_at": now,
         "updated_at": now,
+        "last_accessed_at": now,
+        "pinned": False,
+        "locked": False,
+        "expires_at": _expires_at_iso(now),
         "input": input_data,
         "output": {"subtitle_path": None, "video_path": None},
     }
@@ -60,7 +92,23 @@ def load_job(job_id: str) -> Optional[Dict[str, Any]]:
     path = _job_path(job_id)
     if not path.exists():
         return None
-    return json.loads(path.read_text(encoding="utf-8"))
+    data = json.loads(path.read_text(encoding="utf-8"))
+    changed = False
+    if "last_accessed_at" not in data:
+        data["last_accessed_at"] = data.get("updated_at") or data.get("created_at") or _now_iso()
+        changed = True
+    if "pinned" not in data:
+        data["pinned"] = False
+        changed = True
+    if "locked" not in data:
+        data["locked"] = False
+        changed = True
+    if "expires_at" not in data:
+        data["expires_at"] = _expires_at_iso(data.get("created_at"))
+        changed = True
+    if changed:
+        _atomic_write(_job_path(job_id), data)
+    return data
 
 
 def update_job(job_id: str, updates: Dict[str, Any]) -> Optional[Dict[str, Any]]:
@@ -72,6 +120,18 @@ def update_job(job_id: str, updates: Dict[str, Any]) -> Optional[Dict[str, Any]]
     job["updated_at"] = _now_iso()
     _atomic_write(_job_path(job_id), job)
     return job
+
+
+def touch_job_access(job_id: str, locked: Optional[bool] = None) -> Optional[Dict[str, Any]]:
+    """Update last_accessed_at and optionally lock state."""
+    now = _now_iso()
+    updates: Dict[str, Any] = {
+        "last_accessed_at": now,
+        "expires_at": _expires_at_iso(now),
+    }
+    if locked is not None:
+        updates["locked"] = locked
+    return update_job(job_id, updates)
 
 
 def update_job_status(job_id: str, status: str, error: Optional[str] = None) -> Optional[Dict[str, Any]]:
@@ -112,14 +172,72 @@ def find_active_job(job_type: str, predicate: Callable[[Dict[str, Any]], bool]) 
     return None
 
 
+def _is_locked(job: Dict[str, Any]) -> bool:
+    if not job.get("locked"):
+        return False
+    last_accessed = _parse_iso(job.get("last_accessed_at"))
+    if not last_accessed:
+        return False
+    return _utcnow() - last_accessed <= timedelta(minutes=JOB_LOCK_TTL_MINUTES)
+
+
+def list_recent_jobs(limit: Optional[int] = None) -> list[Dict[str, Any]]:
+    """Return recent jobs sorted by last access."""
+    limit = limit or JOB_RECENT_LIMIT
+    now = _utcnow()
+    jobs = []
+    for job in _iter_jobs():
+        expires_at = _parse_iso(job.get("expires_at"))
+        if expires_at and expires_at <= now:
+            continue
+        jobs.append(job)
+    jobs.sort(
+        key=lambda item: _parse_iso(item.get("last_accessed_at")) or datetime.min.replace(tzinfo=timezone.utc),
+        reverse=True,
+    )
+    return jobs[:limit]
+
+
+def delete_job(job_id: str) -> bool:
+    """Delete a job JSON file and related output artifacts."""
+    path = _job_path(job_id)
+    if not path.exists():
+        return False
+    try:
+        job = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return False
+    if job.get("pinned") and _is_locked(job):
+        return False
+    try:
+        path.unlink()
+    except OSError:
+        return False
+    prefixes = [
+        f"{job_id}.",
+        f"{job_id}_preview.",
+        f"{job_id}_karaoke.",
+        f"{job_id}_transcript_words.",
+    ]
+    for file_path in OUTPUTS_DIR.glob(f"{job_id}*"):
+        name = file_path.name
+        if any(name.startswith(prefix) for prefix in prefixes):
+            try:
+                file_path.unlink()
+            except OSError:
+                continue
+    return True
+
+
 def cleanup_jobs() -> None:
     """Remove old job files to limit disk usage."""
     if JOB_MAX_AGE_HOURS <= 0:
         return
-    cutoff = datetime.utcnow() - timedelta(hours=JOB_MAX_AGE_HOURS)
+    cutoff = _utcnow() - timedelta(hours=JOB_MAX_AGE_HOURS)
+    deleted = 0
     for path in JOBS_DIR.glob("*.json"):
         try:
-            modified = datetime.utcfromtimestamp(path.stat().st_mtime)
+            modified = datetime.fromtimestamp(path.stat().st_mtime, tz=timezone.utc)
         except OSError:
             continue
         if modified >= cutoff:
@@ -130,8 +248,24 @@ def cleanup_jobs() -> None:
             continue
         if job.get("status") not in {"completed", "failed"}:
             continue
+        if job.get("pinned"):
+            last_accessed = _parse_iso(job.get("last_accessed_at"))
+            if last_accessed:
+                pinned_cutoff = _utcnow() - timedelta(days=JOB_PINNED_RETENTION_DAYS)
+                if last_accessed > pinned_cutoff:
+                    continue
+            else:
+                continue
+        if _is_locked(job):
+            continue
+        expires_at = _parse_iso(job.get("expires_at"))
+        if expires_at and expires_at > _utcnow():
+            continue
         try:
             path.unlink()
+            deleted += 1
+            if deleted >= JOB_CLEANUP_BATCH:
+                break
         except OSError:
             continue
 

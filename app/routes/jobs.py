@@ -3,10 +3,10 @@
 from pathlib import Path
 from typing import Any, Dict
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Form, HTTPException
 
 from app.config import OUTPUTS_DIR
-from app.services.jobs import load_job
+from app.services.jobs import delete_job, list_recent_jobs, load_job, touch_job_access, update_job
 
 router = APIRouter()
 
@@ -34,9 +34,67 @@ def job_status(job_id: str) -> Dict[str, Any]:
         "type": job.get("type"),
         "status": job.get("status"),
         "error": job.get("error"),
+        "last_accessed_at": job.get("last_accessed_at"),
+        "pinned": job.get("pinned"),
+        "locked": job.get("locked"),
+        "expires_at": job.get("expires_at"),
         "output": {
             "subtitle_path": output.get("subtitle_path"),
             "video_path": output.get("video_path"),
             "video_url": _output_url(output.get("video_path")),
         },
     }
+
+
+@router.get("/jobs/recent")
+def recent_jobs() -> Dict[str, Any]:
+    jobs = []
+    for job in list_recent_jobs():
+        jobs.append(
+            {
+                "job_id": job.get("job_id"),
+                "type": job.get("type"),
+                "status": job.get("status"),
+                "last_accessed_at": job.get("last_accessed_at"),
+                "title": (job.get("input", {}) or {}).get("options", {}).get("title"),
+            }
+        )
+    return {"jobs": jobs}
+
+
+@router.post("/jobs/{job_id}/pin")
+def pin_job(job_id: str, pinned: str = Form("off")) -> Dict[str, Any]:
+    job = load_job(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    update_job(job_id, {"pinned": pinned == "on"})
+    touch_job_access(job_id)
+    return {"job_id": job_id, "pinned": pinned == "on"}
+
+
+@router.post("/jobs/{job_id}/touch")
+def touch_job(job_id: str, locked: str = Form(None)) -> Dict[str, Any]:
+    job = load_job(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    lock_value = None
+    if locked is not None:
+        lock_value = locked == "on"
+    updated = touch_job_access(job_id, lock_value)
+    return {
+        "job_id": job_id,
+        "last_accessed_at": updated.get("last_accessed_at") if updated else None,
+        "locked": updated.get("locked") if updated else None,
+    }
+
+
+@router.post("/jobs/{job_id}/delete")
+def delete_job_route(job_id: str) -> Dict[str, Any]:
+    job = load_job(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    if job.get("locked"):
+        raise HTTPException(status_code=409, detail="Job is locked")
+    if not delete_job(job_id):
+        raise HTTPException(status_code=400, detail="Unable to delete job")
+    return {"job_id": job_id, "deleted": True}

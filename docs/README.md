@@ -26,4 +26,4 @@
 - Authentication and user accounts.
 - Databases or cloud storage.
 - Advanced editors (timelines, waveform views).
-- Background jobs or real-time progress tracking.
+- Real-time progress tracking or WebSockets.

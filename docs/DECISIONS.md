@@ -54,6 +54,15 @@ One worker keeps CPU usage predictable and avoids overload on small servers; con
 ## Why jobs are retained for a fixed window
 Job JSON files are kept for a limited time to balance reliability with storage limits.
 
+## Why file-backed lifecycle fields instead of a database
+Keeping lifecycle state in JSON preserves persistence without extra infrastructure and is easy to migrate later.
+
+## Why conservative cleanup beats aggressive purging
+Subscriptions require predictability; keeping recent/active jobs avoids breaking user workflows.
+
+## Why pin/lock semantics were chosen
+Pinning protects important jobs, while lock signals active edits without heavy coordination.
+
 ## Tradeoffs accepted for simplicity
 - No authentication or multi-user support.
 - Local filesystem storage only.

@@ -1,7 +1,6 @@
 """Subtitle editing endpoints."""
 
 import json
-import logging
 from typing import Any
 
 from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
@@ -9,7 +8,7 @@ from fastapi.templating import Jinja2Templates
 
 from app.config import OUTPUTS_DIR, TEMPLATES_DIR, UPLOADS_DIR
 from app.services.cleanup import touch_job
-from app.services.jobs import create_job, load_job
+from app.services.jobs import create_job, load_job, touch_job_access
 from app.services.fonts import (
     available_local_fonts,
     available_local_font_variants,
@@ -27,7 +26,6 @@ from app.services.fonts import (
 )
 from app.services.subtitles import (
     apply_manual_breaks,
-    build_karaoke_lines,
     default_style,
     load_subtitle_job,
     load_transcript_words,
@@ -41,7 +39,6 @@ from app.services.subtitles import (
 
 router = APIRouter()
 templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
-logger = logging.getLogger(__name__)
 
 
 @router.get("/edit/{job_id}")
@@ -50,10 +47,12 @@ def edit_page(request: Request, job_id: str) -> Any:
     job_data = load_subtitle_job(job_id)
     job_status = None
     job_error = None
+    job_record = load_job(job_id)
+    job_pinned = job_record.get("pinned", False) if job_record else False
     if not job_data:
-        job_record = load_job(job_id)
         if not job_record:
             raise HTTPException(status_code=404, detail="Subtitle job not found")
+        touch_job_access(job_id, locked=True)
         options = job_record.get("input", {}).get("options", {}) or {}
         job_data = {
             "job_id": job_id,
@@ -66,6 +65,7 @@ def edit_page(request: Request, job_id: str) -> Any:
         job_error = job_record.get("error")
     else:
         touch_job(job_id)
+        touch_job_access(job_id, locked=True)
 
     job_data["style"] = normalize_style(job_data.get("style"))
     for index, block in enumerate(job_data["subtitles"]):
@@ -87,6 +87,8 @@ def edit_page(request: Request, job_id: str) -> Any:
                 f"{font_family.replace(' ', '-')}/."
             )
     job_custom_fonts = job_data.get("custom_fonts") or available_local_fonts(job_id)
+    job_record = load_job(job_id)
+    job_pinned = job_record.get("pinned", False) if job_record else False
     return templates.TemplateResponse(
         "edit.html",
         {
@@ -103,6 +105,7 @@ def edit_page(request: Request, job_id: str) -> Any:
             "processing_job_id": job_id if job_status in {"queued", "running"} else None,
             "processing_job_status": job_status,
             "processing_job_error": job_error,
+            "job_pinned": job_pinned,
         },
     )
 
@@ -226,6 +229,7 @@ def save_edits(
     srt_path = OUTPUTS_DIR / f"{job_id}.srt"
     srt_path.write_text(subtitles_to_srt(subtitles), encoding="utf-8")
     touch_job(job_id)
+    touch_job_access(job_id, locked=False)
     preview_path = OUTPUTS_DIR / f"{job_id}_preview.mp4"
     video_path = UPLOADS_DIR / job_data.get("video_filename", "")
     preview_job_id = None
@@ -249,6 +253,8 @@ def save_edits(
             )
     preview_token = int(preview_path.stat().st_mtime) if preview_path.exists() else None
     job_custom_fonts = job_data.get("custom_fonts") or available_local_fonts(job_id)
+    job_record = load_job(job_id)
+    job_pinned = job_record.get("pinned", False) if job_record else False
     return templates.TemplateResponse(
         "edit.html",
         {
@@ -263,6 +269,7 @@ def save_edits(
             "custom_fonts": job_custom_fonts,
             "font_css_url": font_css,
             "font_warning": font_warning,
+            "job_pinned": job_pinned,
         },
     )
 
@@ -299,9 +306,8 @@ def upload_font(
         job_data["custom_fonts"].append(detected_full)
     save_subtitle_job(job_id, job_data)
     touch_job(job_id)
+    touch_job_access(job_id)
 
-    subtitles = job_data.get("subtitles", [])
-    words = load_transcript_words(job_id)
     preview_path = OUTPUTS_DIR / f"{job_id}_preview.mp4"
     video_path = UPLOADS_DIR / job_data.get("video_filename", "")
     preview_job_id = None
@@ -317,6 +323,8 @@ def upload_font(
         font_css = google_fonts_css_url(detected_family)
     preview_token = int(preview_path.stat().st_mtime) if preview_path.exists() else None
     job_custom_fonts = job_data.get("custom_fonts") or available_local_fonts(job_id)
+    job_record = load_job(job_id)
+    job_pinned = job_record.get("pinned", False) if job_record else False
     return templates.TemplateResponse(
         "edit.html",
         {
@@ -331,6 +339,7 @@ def upload_font(
             "custom_fonts": job_custom_fonts,
             "font_css_url": font_css,
             "font_warning": None,
+            "job_pinned": job_pinned,
         },
     )
 
@@ -359,9 +368,8 @@ def delete_font(
         job_data["custom_fonts"] = custom_fonts
     save_subtitle_job(job_id, job_data)
     touch_job(job_id)
+    touch_job_access(job_id)
 
-    subtitles = job_data.get("subtitles", [])
-    words = load_transcript_words(job_id)
     preview_path = OUTPUTS_DIR / f"{job_id}_preview.mp4"
     video_path = UPLOADS_DIR / job_data.get("video_filename", "")
     preview_job_id = None
@@ -373,6 +381,8 @@ def delete_font(
         preview_job_id = preview_job["job_id"]
 
     job_custom_fonts = job_data.get("custom_fonts") or available_local_fonts(job_id)
+    job_record = load_job(job_id)
+    job_pinned = job_record.get("pinned", False) if job_record else False
     preview_token = int(preview_path.stat().st_mtime) if preview_path.exists() else None
     return templates.TemplateResponse(
         "edit.html",
@@ -388,5 +398,6 @@ def delete_font(
             "custom_fonts": job_custom_fonts,
             "font_css_url": None,
             "font_warning": None,
+            "job_pinned": job_pinned,
         },
     )

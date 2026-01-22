@@ -13,6 +13,11 @@
   const saveButton = document.getElementById("save-button");
   const jobStatus = document.getElementById("job-status");
   const previewJob = document.getElementById("preview-job");
+  const editorJob = document.getElementById("editor-job");
+  const pinForm = document.getElementById("pin-form");
+  const pinCheckbox = document.getElementById("pin-checkbox");
+  const pinSubmit = document.getElementById("pin-submit");
+  const pinStatus = document.getElementById("pin-status");
   const fontLicenseConfirm = document.getElementById("font-license-confirm");
   const fontUploadButton = document.getElementById("font-upload-button");
   const fontInput = document.getElementById("font-input");
@@ -59,12 +64,29 @@
     };
   };
 
+  const touchEditorJob = (jobId, locked) => {
+    if (!jobId) {
+      return;
+    }
+    const formData = new FormData();
+    if (locked !== null && locked !== undefined) {
+      formData.append("locked", locked ? "on" : "off");
+    }
+    fetch(`/jobs/${jobId}/touch`, { method: "POST", body: formData }).catch((error) => {
+      console.error(error);
+    });
+  };
+
   const startPreviewPolling = (jobId) => {
     if (!jobId) {
       return;
     }
     if (status) {
       status.textContent = "Rendering preview...";
+    }
+    if (saveButton) {
+      saveButton.disabled = true;
+      saveButton.textContent = "Rendering preview...";
     }
     pollJob(
       jobId,
@@ -83,10 +105,18 @@
             status.textContent = "";
           }, 1800);
         }
+        if (saveButton) {
+          saveButton.disabled = false;
+          saveButton.textContent = saveButton.dataset.originalText || "Save edits";
+        }
       },
       (job) => {
         if (status) {
           status.textContent = job.error ? `Preview failed: ${job.error}` : "Preview failed.";
+        }
+        if (saveButton) {
+          saveButton.disabled = false;
+          saveButton.textContent = saveButton.dataset.originalText || "Save edits";
         }
       }
     );
@@ -185,6 +215,9 @@
 
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
+    if (saveButton && saveButton.disabled) {
+      return;
+    }
     hiddenInput.value = JSON.stringify(collectSubtitles());
     if (saveButton) {
       saveButton.disabled = true;
@@ -242,9 +275,14 @@
         jobStatus.dataset.jobId = updatedJobStatus.dataset.jobId || "";
       }
       const updatedPreviewJob = doc.getElementById("preview-job");
+      let queuedPreviewJob = false;
       if (updatedPreviewJob && previewJob) {
         previewJob.dataset.jobId = updatedPreviewJob.dataset.jobId || "";
         if (previewJob.dataset.jobId) {
+          if (saveButton) {
+            saveButton.textContent = "Rendering preview...";
+          }
+          queuedPreviewJob = true;
           startPreviewPolling(previewJob.dataset.jobId);
         }
       }
@@ -260,7 +298,7 @@
     } catch (error) {
       console.error(error);
     }
-    if (saveButton) {
+    if (saveButton && !queuedPreviewJob) {
       saveButton.disabled = false;
       saveButton.textContent = saveButton.dataset.originalText || "Save edits";
     }
@@ -349,6 +387,10 @@
   );
 
   if (jobStatus && jobStatus.dataset.jobId) {
+    if (saveButton) {
+      saveButton.disabled = true;
+      saveButton.textContent = "Processing...";
+    }
     pollJob(
       jobStatus.dataset.jobId,
       () => {
@@ -356,11 +398,57 @@
       },
       (job) => {
         jobStatus.textContent = job.error ? `Processing failed: ${job.error}` : "Processing failed.";
+        if (saveButton) {
+          saveButton.disabled = false;
+          saveButton.textContent = saveButton.dataset.originalText || "Save edits";
+        }
       }
     );
   }
 
   if (previewJob && previewJob.dataset.jobId) {
     startPreviewPolling(previewJob.dataset.jobId);
+  }
+
+  if (pinForm && pinCheckbox && pinSubmit) {
+    const togglePinButton = () => {
+      pinSubmit.disabled = false;
+      if (pinStatus) {
+        pinStatus.style.display = "none";
+      }
+    };
+    pinCheckbox.addEventListener("change", togglePinButton);
+    pinSubmit.addEventListener("click", async () => {
+      pinSubmit.disabled = true;
+      const formData = new FormData(pinForm);
+      try {
+        const response = await fetch(pinForm.action, { method: "POST", body: formData });
+        if (!response.ok) {
+          throw new Error("Pin update failed");
+        }
+        if (pinStatus) {
+          pinStatus.style.display = "inline";
+          setTimeout(() => {
+            pinStatus.style.display = "none";
+          }, 1800);
+        }
+      } catch (error) {
+        console.error(error);
+        pinSubmit.disabled = false;
+      }
+    });
+  }
+
+  if (editorJob && editorJob.dataset.jobId) {
+    const editorJobId = editorJob.dataset.jobId;
+    touchEditorJob(editorJobId, true);
+    setInterval(() => {
+      touchEditorJob(editorJobId, null);
+    }, 60000);
+    window.addEventListener("beforeunload", () => {
+      const formData = new FormData();
+      formData.append("locked", "off");
+      navigator.sendBeacon(`/jobs/${editorJobId}/touch`, formData);
+    });
   }
 })();

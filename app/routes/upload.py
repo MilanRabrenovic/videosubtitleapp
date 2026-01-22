@@ -18,7 +18,7 @@ from app.config import (
     UPLOADS_DIR,
 )
 from app.services.cleanup import cleanup_storage
-from app.services.jobs import create_job
+from app.services.jobs import create_job, list_recent_jobs, cleanup_jobs
 from app.services.video import validate_video_file
 
 router = APIRouter()
@@ -28,7 +28,19 @@ templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 @router.get("/upload")
 def upload_form(request: Request) -> Any:
     """Render the upload form."""
-    return templates.TemplateResponse("upload.html", {"request": request})
+    recent = []
+    for job in list_recent_jobs():
+        if job.get("type") != "transcription":
+            continue
+        recent.append(
+            {
+                "job_id": job.get("job_id"),
+                "title": (job.get("input", {}) or {}).get("options", {}).get("title") or "Untitled",
+                "status": job.get("status"),
+                "last_accessed_at": job.get("last_accessed_at"),
+            }
+        )
+    return templates.TemplateResponse("upload.html", {"request": request, "recent_jobs": recent})
 
 
 @router.post("/upload")
@@ -53,6 +65,7 @@ def handle_upload(
                 break
             handle.write(chunk)
     cleanup_storage(MAX_STORAGE_BYTES)
+    cleanup_jobs()
 
     try:
         validate_video_file(upload_path, MAX_UPLOAD_BYTES, MAX_VIDEO_SECONDS)

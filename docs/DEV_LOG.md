@@ -124,3 +124,10 @@
 - Implemented: Save edits now always queues a fresh preview job so the UI doesn’t lag one edit behind.
 - Implemented: UI polling wired to preview job IDs returned by save, so updates appear without page refresh.
 - Next action: Review multi-user throughput and decide on worker concurrency limits.
+
+## 2026-01-22
+- Implemented: Job lifecycle fields (last_accessed_at, pinned, locked, expires_at) with access tracking.
+- Implemented: Recent jobs list on upload page and `/jobs/recent` endpoint.
+- Implemented: Conservative cleanup rules (skip pinned/locked, honor expires_at, delete in batches).
+- Implemented: Pin toggle in editor and editor lock heartbeats.
+- Next action: Add auth/ownership so recent jobs are scoped per user.

@@ -4,6 +4,9 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Upload Video</title>
+  <style>
+    .inline-form { display: inline; margin-left: 8px; }
+  </style>
 </head>
 <body>
   <main>
@@ -36,6 +39,26 @@
       <button id="upload-submit" type="submit">Upload &amp; Generate Subtitles</button>
     </form>
     <p id="upload-status" aria-live="polite"></p>
+
+    {% if recent_jobs %}
+      <section>
+        <h2>Recent jobs</h2>
+        <ul>
+          {% for job in recent_jobs %}
+            <li>
+              <a href="/edit/{{ job.job_id }}">{{ job.title }}</a>
+              ({{ job.status }})
+              {% if job.last_accessed_at %}
+                — last opened {{ job.last_accessed_at }}
+              {% endif %}
+              <form action="/jobs/{{ job.job_id }}/delete" method="post" class="inline-form" data-job-delete>
+                <button type="submit">Delete</button>
+              </form>
+            </li>
+          {% endfor %}
+        </ul>
+      </section>
+    {% endif %}
   </main>
   <script>
     const form = document.getElementById("upload-form");
@@ -47,6 +70,34 @@
         status.textContent = "Transcribing video. This may take a minute...";
       });
     }
+    document.querySelectorAll("[data-job-delete]").forEach((deleteForm) => {
+      deleteForm.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        const confirmed = window.confirm("Delete this job and its outputs?");
+        if (!confirmed) {
+          return;
+        }
+        const button = deleteForm.querySelector("button");
+        if (button) {
+          button.disabled = true;
+        }
+        try {
+          const response = await fetch(deleteForm.action, { method: "POST" });
+          if (!response.ok) {
+            throw new Error("Delete failed");
+          }
+          const listItem = deleteForm.closest("li");
+          if (listItem) {
+            listItem.remove();
+          }
+        } catch (error) {
+          console.error(error);
+          if (button) {
+            button.disabled = false;
+          }
+        }
+      });
+    });
   </script>
 </body>
 </html>

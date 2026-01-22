@@ -53,6 +53,14 @@
     <h1>Edit Subtitles</h1>
     <p><strong>Job:</strong> {{ job.title }}</p>
     <p><strong>Video file:</strong> {{ job.video_filename }}</p>
+    <form action="/jobs/{{ job.job_id }}/pin" method="post" class="actions" id="pin-form">
+      <label>
+        <input type="checkbox" name="pinned" id="pin-checkbox" {% if job_pinned %}checked{% endif %} />
+        Pin this job (prevent cleanup)
+      </label>
+      <button type="button" id="pin-submit">Save</button>
+      <span id="pin-status" class="status" style="display: none;">Pin saved</span>
+    </form>
 
     {% if saved %}
       <p class="status">Changes saved.</p>
@@ -275,6 +283,7 @@
     <p id="karaoke-export-status" class="status" style="display: none;"></p>
     <p><em>Tip:</em> Save edits before exporting.</p>
     <span id="preview-job" data-job-id="{{ preview_job_id or '' }}" hidden></span>
+    <span id="editor-job" data-job-id="{{ job.job_id }}" hidden></span>
   </main>
 </body>
 </html>

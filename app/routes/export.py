@@ -7,7 +7,7 @@ from fastapi.responses import FileResponse
 
 from app.config import OUTPUTS_DIR, UPLOADS_DIR
 from app.services.cleanup import touch_job
-from app.services.jobs import create_job, find_active_job
+from app.services.jobs import create_job, find_active_job, touch_job_access
 from app.services.subtitles import load_subtitle_job, subtitles_to_srt, subtitles_to_vtt
 
 router = APIRouter()
@@ -19,6 +19,7 @@ def export_subtitles(request: Request, job_id: str, format: str = Form("srt")) -
     job_data = load_subtitle_job(job_id)
     if not job_data:
         raise HTTPException(status_code=404, detail="Subtitle job not found")
+    touch_job_access(job_id)
 
     format = format.lower().strip()
     if format not in {"srt", "vtt"}:
@@ -45,6 +46,7 @@ def export_video(request: Request, job_id: str) -> Any:
     job_data = load_subtitle_job(job_id)
     if not job_data:
         raise HTTPException(status_code=404, detail="Subtitle job not found")
+    touch_job_access(job_id)
 
     existing = find_active_job(
         "export",
