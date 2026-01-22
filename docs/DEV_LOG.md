@@ -137,3 +137,10 @@
 - Implemented: Whisper/FFmpeg failures now map to user-friendly messages and hints.
 - Implemented: UI now shows clean failure copy during processing, preview, and export.
 - Next action: Add retry UX for failed jobs and scope errors per user.
+
+## 2026-01-22
+- Implemented: Step-level job timeline (upload, transcribe, preview_render, export_standard, export_karaoke).
+- Implemented: Job failures now record the failing step and expose it in status polling.
+- Implemented: Minimal UI copy now includes “Failed during …” without exposing timestamps.
+- Not tracked: user behavior analytics, transcripts, or media content.
+- Next action: Add retry UX or support tooling for step-level diagnostics.

@@ -18,7 +18,7 @@ from app.config import (
     UPLOADS_DIR,
 )
 from app.services.cleanup import cleanup_storage
-from app.services.jobs import create_job, list_recent_jobs, cleanup_jobs
+from app.services.jobs import cleanup_jobs, complete_step, create_job, list_recent_jobs, start_step
 from app.services.video import validate_video_file
 
 router = APIRouter()
@@ -82,5 +82,7 @@ def handle_upload(
         },
     }
     create_job("transcription", job_input, job_id=job_id)
+    start_step(job_id, "upload")
+    complete_step(job_id, "upload")
 
     return RedirectResponse(url=f"/edit/{job_id}", status_code=303)

@@ -79,6 +79,7 @@ def create_job(job_type: str, input_data: Dict[str, Any], job_id: Optional[str] 
         "pinned": False,
         "locked": False,
         "expires_at": _expires_at_iso(now),
+        "steps": [],
         "input": input_data,
         "output": {"subtitle_path": None, "video_path": None},
     }
@@ -106,6 +107,9 @@ def load_job(job_id: str) -> Optional[Dict[str, Any]]:
     if "expires_at" not in data:
         data["expires_at"] = _expires_at_iso(data.get("created_at"))
         changed = True
+    if "steps" not in data:
+        data["steps"] = []
+        changed = True
     if changed:
         _atomic_write(_job_path(job_id), data)
     return data
@@ -132,6 +136,107 @@ def touch_job_access(job_id: str, locked: Optional[bool] = None) -> Optional[Dic
     if locked is not None:
         updates["locked"] = locked
     return update_job(job_id, updates)
+
+
+def start_step(job_id: str, step_name: str) -> None:
+    """Mark a step as running, idempotent for repeats."""
+    job = load_job(job_id)
+    if not job:
+        return
+    steps = job.get("steps", [])
+    if steps and steps[-1].get("name") == step_name and steps[-1].get("status") == "running":
+        return
+    steps.append(
+        {
+            "name": step_name,
+            "status": "running",
+            "started_at": _now_iso(),
+            "ended_at": None,
+        }
+    )
+    update_job(job_id, {"steps": steps})
+
+
+def complete_step(job_id: str, step_name: str) -> None:
+    """Mark a step as completed, idempotent for repeats."""
+    job = load_job(job_id)
+    if not job:
+        return
+    steps = job.get("steps", [])
+    target = None
+    for step in reversed(steps):
+        if step.get("name") == step_name and step.get("status") in {"running", "pending"}:
+            target = step
+            break
+    if target is None:
+        steps.append(
+            {
+                "name": step_name,
+                "status": "completed",
+                "started_at": _now_iso(),
+                "ended_at": _now_iso(),
+            }
+        )
+    else:
+        target["status"] = "completed"
+        target["ended_at"] = _now_iso()
+    update_job(job_id, {"steps": steps})
+
+
+def fail_step(job_id: str, step_name: str, error_code: str) -> None:
+    """Mark a step as failed, idempotent for repeats."""
+    job = load_job(job_id)
+    if not job:
+        return
+    steps = job.get("steps", [])
+    target = None
+    for step in reversed(steps):
+        if step.get("name") == step_name and step.get("status") in {"running", "pending"}:
+            target = step
+            break
+    if target is None:
+        steps.append(
+            {
+                "name": step_name,
+                "status": "failed",
+                "started_at": _now_iso(),
+                "ended_at": _now_iso(),
+                "error_code": error_code,
+            }
+        )
+    else:
+        target["status"] = "failed"
+        target["ended_at"] = _now_iso()
+        target["error_code"] = error_code
+    update_job(job_id, {"steps": steps})
+
+
+def fail_running_step(job_id: str, error_code: str) -> None:
+    """Fail the most recent running step if present."""
+    job = load_job(job_id)
+    if not job:
+        return
+    steps = job.get("steps", [])
+    target = None
+    for step in reversed(steps):
+        if step.get("status") == "running":
+            target = step
+            break
+    if not target:
+        return
+    target["status"] = "failed"
+    target["ended_at"] = _now_iso()
+    target["error_code"] = error_code
+    update_job(job_id, {"steps": steps})
+
+
+def last_failed_step(job: Dict[str, Any]) -> Optional[str]:
+    """Return the last failed step name for a job."""
+    steps = job.get("steps", [])
+    for step in reversed(steps):
+        if step.get("status") == "failed":
+            return step.get("name")
+    return None
 
 
 def update_job_status(job_id: str, status: str, error: Optional[str] = None) -> Optional[Dict[str, Any]]:
@@ -305,6 +410,7 @@ def _worker_loop() -> None:
                     "message": "Something went wrong while processing this job.",
                     "hint": "Try again or contact support if this keeps happening.",
                 }
+            fail_running_step(job_id, payload.get("code", "UNKNOWN"))
             update_job(job_id, {"status": "failed", "error": payload})
         else:
             update_job(job_id, {"status": "completed", "output": output, "error": None})

@@ -72,6 +72,9 @@
     {% elif processing_job_error %}
       <div id="job-status" class="status">
         <strong>Something went wrong</strong><br />
+        {% if processing_job_step %}
+          Failed during {{ processing_job_step }}.<br />
+        {% endif %}
         {{ processing_job_error.message if processing_job_error.message else processing_job_error }}
         {% if processing_job_error.hint %}
           <br /><span>{{ processing_job_error.hint }}</span>

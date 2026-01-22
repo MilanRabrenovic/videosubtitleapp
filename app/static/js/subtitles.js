@@ -39,6 +39,12 @@
     return `${message}${hint}`;
   };
 
+  const formatJobFailure = (job, fallback) => {
+    const step = job && job.failed_step ? `Failed during ${job.failed_step}. ` : "";
+    const message = formatJobError(job);
+    return `${step}${message || fallback}`;
+  };
+
   const pollJob = (jobId, onComplete, onError) => {
     if (!jobId) {
       return null;
@@ -124,7 +130,7 @@
       },
       (job) => {
         if (status) {
-          status.textContent = `Preview failed: ${formatJobError(job)}`;
+          status.textContent = `Preview failed: ${formatJobFailure(job, "Preview failed.")}`;
         }
         if (saveButton) {
           saveButton.disabled = false;
@@ -369,7 +375,7 @@
           button.disabled = false;
         },
         (job) => {
-          statusEl.textContent = formatJobError(job);
+          statusEl.textContent = formatJobFailure(job, "Video export failed.");
           button.disabled = false;
         }
       );
@@ -409,7 +415,7 @@
         window.location.reload();
       },
       (job) => {
-        jobStatus.textContent = `Processing failed: ${formatJobError(job)}`;
+        jobStatus.textContent = `Processing failed: ${formatJobFailure(job, "Processing failed.")}`;
         if (saveButton) {
           saveButton.disabled = false;
           saveButton.textContent = saveButton.dataset.originalText || "Save edits";

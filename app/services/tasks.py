@@ -7,6 +7,7 @@ from typing import Any, Dict
 
 from app.config import OUTPUTS_DIR, UPLOADS_DIR
 from app.services.fonts import ensure_font_downloaded, font_dir_for_name
+from app.services.jobs import complete_step, fail_step, start_step
 from app.services.subtitles import (
     build_karaoke_lines,
     default_style,
@@ -47,8 +48,16 @@ def run_transcription_job(job: Dict[str, Any]) -> Dict[str, Any]:
     title = options.get("title") or video_path.name
     video_filename = options.get("video_filename") or video_path.name
 
-    segments, words = transcribe_video(video_path, language=language)
-    subtitles = whisper_segments_to_subtitles(segments)
+    start_step(job_id, "transcribe")
+    try:
+        segments, words = transcribe_video(video_path, language=language)
+        subtitles = whisper_segments_to_subtitles(segments)
+    except Exception as exc:  # noqa: BLE001
+        error_payload = getattr(exc, "error_payload", {"code": "UNKNOWN"})
+        fail_step(job_id, "transcribe", error_payload.get("code", "UNKNOWN"))
+        raise
+    else:
+        complete_step(job_id, "transcribe")
     video_width, video_height = get_video_dimensions(video_path)
     style = default_style()
     style["play_res_x"] = video_width
@@ -73,13 +82,21 @@ def run_transcription_job(job: Dict[str, Any]) -> Dict[str, Any]:
     srt_path.write_text(subtitles_to_srt(job_data["subtitles"]), encoding="utf-8")
 
     preview_ass_path, preview_path = _preview_paths(job_id)
-    karaoke_lines = build_karaoke_lines(words, job_data["subtitles"])
-    render_style = _render_style(job_id, job_data["style"])
-    generate_karaoke_ass(karaoke_lines, preview_ass_path, render_style)
-    fonts_dir = ensure_font_downloaded(job_data["style"].get("font_family")) or font_dir_for_name(
-        job_data["style"].get("font_family"), job_id
-    )
-    burn_in_ass(video_path, preview_ass_path, preview_path, fonts_dir)
+    start_step(job_id, "preview_render")
+    try:
+        karaoke_lines = build_karaoke_lines(words, job_data["subtitles"])
+        render_style = _render_style(job_id, job_data["style"])
+        generate_karaoke_ass(karaoke_lines, preview_ass_path, render_style)
+        fonts_dir = ensure_font_downloaded(job_data["style"].get("font_family")) or font_dir_for_name(
+            job_data["style"].get("font_family"), job_id
+        )
+        burn_in_ass(video_path, preview_ass_path, preview_path, fonts_dir)
+    except Exception as exc:  # noqa: BLE001
+        error_payload = getattr(exc, "error_payload", {"code": "UNKNOWN"})
+        fail_step(job_id, "preview_render", error_payload.get("code", "UNKNOWN"))
+        raise
+    else:
+        complete_step(job_id, "preview_render")
 
     return {
         "subtitle_path": str(OUTPUTS_DIR / f"{job_id}.json"),
@@ -101,15 +118,23 @@ def run_preview_job(job: Dict[str, Any]) -> Dict[str, Any]:
     words = load_transcript_words(job_id)
     preview_ass_path, preview_path = _preview_paths(job_id)
     render_style = _render_style(job_id, job_data.get("style", {}))
-    if words:
-        karaoke_lines = build_karaoke_lines(words, job_data.get("subtitles", []))
-        generate_karaoke_ass(karaoke_lines, preview_ass_path, render_style)
+    start_step(job_id, "preview_render")
+    try:
+        if words:
+            karaoke_lines = build_karaoke_lines(words, job_data.get("subtitles", []))
+            generate_karaoke_ass(karaoke_lines, preview_ass_path, render_style)
+        else:
+            generate_ass_from_subtitles(job_data.get("subtitles", []), preview_ass_path, render_style)
+        fonts_dir = ensure_font_downloaded(render_style.get("font_family")) or font_dir_for_name(
+            render_style.get("font_family"), job_id
+        )
+        burn_in_ass(video_path, preview_ass_path, preview_path, fonts_dir)
+    except Exception as exc:  # noqa: BLE001
+        error_payload = getattr(exc, "error_payload", {"code": "UNKNOWN"})
+        fail_step(job_id, "preview_render", error_payload.get("code", "UNKNOWN"))
+        raise
     else:
-        generate_ass_from_subtitles(job_data.get("subtitles", []), preview_ass_path, render_style)
-    fonts_dir = ensure_font_downloaded(render_style.get("font_family")) or font_dir_for_name(
-        render_style.get("font_family"), job_id
-    )
-    burn_in_ass(video_path, preview_ass_path, preview_path, fonts_dir)
+        complete_step(job_id, "preview_render")
     return {"subtitle_path": str(OUTPUTS_DIR / f"{job_id}.json"), "video_path": str(preview_path)}
 
 
@@ -129,7 +154,10 @@ def run_export_job(job: Dict[str, Any]) -> Dict[str, Any]:
     subtitles = job_data.get("subtitles", [])
     words = load_transcript_words(job_id)
     if job.get("type") == "karaoke_export":
+        step_name = "export_karaoke"
         if not words:
+            error_payload = {"code": "INVALID_MEDIA"}
+            fail_step(job_id, step_name, error_payload.get("code", "UNKNOWN"))
             raise RuntimeError("Transcript words not found")
         ass_path = OUTPUTS_DIR / f"{job_id}_karaoke.ass"
         karaoke_lines = build_karaoke_lines(words, subtitles)
@@ -139,10 +167,19 @@ def run_export_job(job: Dict[str, Any]) -> Dict[str, Any]:
         ass_path = OUTPUTS_DIR / f"{job_id}.ass"
         generate_ass_from_subtitles(subtitles, ass_path, render_style)
         output_path = OUTPUTS_DIR / f"{job_id}_subtitled.mp4"
+        step_name = "export_standard"
     fonts_dir = ensure_font_downloaded(render_style.get("font_family")) or font_dir_for_name(
         render_style.get("font_family"), job_id
     )
-    burn_in_ass(video_path, ass_path, output_path, fonts_dir)
+    start_step(job_id, step_name)
+    try:
+        burn_in_ass(video_path, ass_path, output_path, fonts_dir)
+    except Exception as exc:  # noqa: BLE001
+        error_payload = getattr(exc, "error_payload", {"code": "UNKNOWN"})
+        fail_step(job_id, step_name, error_payload.get("code", "UNKNOWN"))
+        raise
+    else:
+        complete_step(job_id, step_name)
     return {"subtitle_path": str(OUTPUTS_DIR / f"{job_id}.json"), "video_path": str(output_path)}
 
 

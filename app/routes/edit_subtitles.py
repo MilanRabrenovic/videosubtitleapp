@@ -8,7 +8,7 @@ from fastapi.templating import Jinja2Templates
 
 from app.config import OUTPUTS_DIR, TEMPLATES_DIR, UPLOADS_DIR
 from app.services.cleanup import touch_job
-from app.services.jobs import create_job, load_job, touch_job_access
+from app.services.jobs import create_job, last_failed_step, load_job, touch_job_access
 from app.services.fonts import (
     available_local_fonts,
     available_local_font_variants,
@@ -47,6 +47,7 @@ def edit_page(request: Request, job_id: str) -> Any:
     job_data = load_subtitle_job(job_id)
     job_status = None
     job_error = None
+    job_failed_step = None
     job_record = load_job(job_id)
     job_pinned = job_record.get("pinned", False) if job_record else False
     if not job_data:
@@ -63,6 +64,7 @@ def edit_page(request: Request, job_id: str) -> Any:
         }
         job_status = job_record.get("status")
         job_error = job_record.get("error")
+        job_failed_step = last_failed_step(job_record) if job_record else None
     else:
         touch_job(job_id)
         touch_job_access(job_id, locked=True)
@@ -105,6 +107,7 @@ def edit_page(request: Request, job_id: str) -> Any:
             "processing_job_id": job_id if job_status in {"queued", "running"} else None,
             "processing_job_status": job_status,
             "processing_job_error": job_error,
+            "processing_job_step": job_failed_step,
             "job_pinned": job_pinned,
         },
     )

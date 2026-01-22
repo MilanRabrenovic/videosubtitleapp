@@ -6,7 +6,7 @@ from typing import Any, Dict
 from fastapi import APIRouter, Form, HTTPException
 
 from app.config import OUTPUTS_DIR
-from app.services.jobs import delete_job, list_recent_jobs, load_job, touch_job_access, update_job
+from app.services.jobs import delete_job, last_failed_step, list_recent_jobs, load_job, touch_job_access, update_job
 
 router = APIRouter()
 
@@ -34,6 +34,7 @@ def job_status(job_id: str) -> Dict[str, Any]:
         "type": job.get("type"),
         "status": job.get("status"),
         "error": job.get("error"),
+        "failed_step": last_failed_step(job),
         "last_accessed_at": job.get("last_accessed_at"),
         "pinned": job.get("pinned"),
         "locked": job.get("locked"),

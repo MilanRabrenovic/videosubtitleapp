@@ -72,6 +72,15 @@ Manual retries keep behavior predictable and avoid repeated failures on bad inpu
 ## Why hints are advisory
 Hints guide users without making guarantees about their specific media or environment.
 
+## Why step-level analytics are file-backed
+Keeping step timelines inside job JSON avoids new infrastructure while improving support visibility.
+
+## Why this is not a full analytics system
+We only track job processing steps and outcomes, not user behavior or content.
+
+## Why no third-party services were added
+Local logging keeps the app self-contained and avoids external dependencies for v1.
+
 ## Tradeoffs accepted for simplicity
 - No authentication or multi-user support.
 - Local filesystem storage only.
