@@ -328,7 +328,7 @@
           <p id="edit-status" class="text-sm text-amber-700"></p>
         </form>
       </section>
-      <aside class="lg:sticky lg:top-6">
+      <aside class="lg:sticky lg:top-6 self-start">
         <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
           <h2 class="text-lg font-semibold">Preview</h2>
           <video id="preview-video" controls class="mt-4 w-full max-w-[520px] rounded-xl border border-slate-200">
@@ -340,32 +340,34 @@
           Your browser does not support the video tag.
           </video>
         </div>
+
+        <div class="mt-4 flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          <div class="text-xs font-semibold uppercase tracking-[0.25em] text-slate-500">Export</div>
+          <form action="/export/{{ job.job_id }}/subtitles" method="post">
+            <input type="hidden" name="format" value="srt" />
+            <button type="submit" data-export="srt" class="w-full rounded-lg border border-slate-200 px-4 py-2 text-sm text-slate-700 hover:bg-slate-100">
+              Download subtitles (SRT)
+            </button>
+          </form>
+          <form action="/export/{{ job.job_id }}/subtitles" method="post">
+            <input type="hidden" name="format" value="vtt" />
+            <button type="submit" class="w-full rounded-lg border border-slate-200 px-4 py-2 text-sm text-slate-700 hover:bg-slate-100">
+              Download subtitles (VTT)
+            </button>
+          </form>
+          <form action="/export/{{ job.job_id }}/video-karaoke" method="post">
+            <button type="submit" data-export="video-karaoke" class="w-full rounded-lg bg-amber-400 px-4 py-2 text-sm font-semibold text-slate-900 hover:bg-amber-300">
+              Export video with word highlight
+            </button>
+          </form>
+          <p id="export-status" class="text-sm text-amber-700" style="display: none;"></p>
+          <p id="video-export-status" class="text-sm text-amber-700" style="display: none;"></p>
+          <p id="karaoke-export-status" class="text-sm text-amber-700" style="display: none;"></p>
+          <p class="text-xs text-slate-500"><em>Tip:</em> Save edits before exporting.</p>
+        </div>
       </aside>
     </div>
 
-    <div class="flex flex-wrap items-center gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-      <form action="/export/{{ job.job_id }}/subtitles" method="post">
-        <input type="hidden" name="format" value="srt" />
-        <button type="submit" data-export="srt" class="rounded-lg border border-slate-200 px-4 py-2 text-sm text-slate-700 hover:bg-slate-100">
-          Download subtitles (SRT)
-        </button>
-      </form>
-      <form action="/export/{{ job.job_id }}/subtitles" method="post">
-        <input type="hidden" name="format" value="vtt" />
-        <button type="submit" class="rounded-lg border border-slate-200 px-4 py-2 text-sm text-slate-700 hover:bg-slate-100">
-          Download subtitles (VTT)
-        </button>
-      </form>
-      <form action="/export/{{ job.job_id }}/video-karaoke" method="post">
-        <button type="submit" data-export="video-karaoke" class="rounded-lg bg-amber-400 px-4 py-2 text-sm font-semibold text-slate-900 hover:bg-amber-300">
-          Export video with word highlight
-        </button>
-      </form>
-    </div>
-    <p id="export-status" class="text-sm text-amber-700" style="display: none;"></p>
-    <p id="video-export-status" class="text-sm text-amber-700" style="display: none;"></p>
-    <p id="karaoke-export-status" class="text-sm text-amber-700" style="display: none;"></p>
-    <p class="text-sm text-slate-500"><em>Tip:</em> Save edits before exporting.</p>
     <span id="preview-job" data-job-id="{{ preview_job_id or '' }}" hidden></span>
     <span id="editor-job" data-job-id="{{ job.job_id }}" hidden></span>
   </main>

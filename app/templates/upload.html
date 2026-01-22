@@ -23,33 +23,33 @@
   </script>
   <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body class="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-800 text-slate-100 font-display">
+<body class="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-100 text-slate-900 font-display">
   <main class="mx-auto flex w-full max-w-6xl flex-col gap-10 px-6 py-12">
     <header class="space-y-3">
-      <p class="text-sm uppercase tracking-[0.3em] text-amber-300/80">Subtitle Studio</p>
-      <h1 class="text-4xl font-semibold tracking-tight md:text-5xl">Upload a video, fix the words, export fast.</h1>
-      <p class="max-w-2xl text-lg text-slate-300">
+      <p class="text-sm uppercase tracking-[0.3em] text-amber-600/80">Subtitle Studio</p>
+      <h1 class="text-4xl font-semibold tracking-tight text-slate-900 md:text-5xl">Upload a video, fix the words, export fast.</h1>
+      <p class="max-w-2xl text-lg text-slate-600">
         Generate subtitles with Whisper, edit them in plain text, and export burned-in captions without leaving the page.
       </p>
     </header>
 
-    <div class="grid gap-8 lg:grid-cols-[1.2fr_0.8fr]">
-      <section class="rounded-2xl border border-white/10 bg-slate-900/60 p-6 shadow-2xl shadow-black/40">
-        <form id="upload-form" action="/upload" method="post" enctype="multipart/form-data" class="space-y-5">
-          <label class="block space-y-2 text-sm font-medium text-slate-200">
+    <div class="grid gap-8 lg:grid-cols-2">
+      <section class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+        <form id="upload-form" action="/upload" method="post" enctype="multipart/form-data" class="grid gap-6 md:grid-cols-2">
+          <label class="block space-y-2 text-sm font-medium text-slate-700">
             Video title (optional)
             <input
               type="text"
               name="title"
               placeholder="Project name"
-              class="w-full rounded-lg border border-white/10 bg-slate-950/70 px-4 py-3 text-base text-slate-100 placeholder:text-slate-500 focus:border-amber-300/60 focus:outline-none focus:ring-2 focus:ring-amber-300/40"
+              class="w-full rounded-lg border border-slate-200 bg-white px-4 py-3 text-base text-slate-900 placeholder:text-slate-400 focus:border-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-200"
             />
           </label>
-          <label class="block space-y-2 text-sm font-medium text-slate-200">
+          <label class="block space-y-2 text-sm font-medium text-slate-700">
             Language
             <select
               name="language"
-              class="w-full rounded-lg border border-white/10 bg-slate-950/70 px-4 py-3 text-base text-slate-100 focus:border-amber-300/60 focus:outline-none focus:ring-2 focus:ring-amber-300/40"
+              class="w-full rounded-lg border border-slate-200 bg-white px-4 py-3 text-base text-slate-900 focus:border-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-200"
             >
               <option value="">Auto-detect</option>
               <option value="en">English</option>
@@ -59,42 +59,76 @@
               <option value="fi">Finnish</option>
             </select>
           </label>
-          <label class="block space-y-2 text-sm font-medium text-slate-200">
-            Video file
-            <input
-              type="file"
-              name="video"
-              accept="video/*"
-              required
-              class="w-full rounded-lg border border-dashed border-white/20 bg-slate-950/40 px-4 py-3 text-sm text-slate-200 file:mr-4 file:rounded-md file:border-0 file:bg-amber-300/90 file:px-3 file:py-2 file:text-sm file:font-semibold file:text-slate-900 hover:file:bg-amber-300"
-            />
-          </label>
-          <button
-            id="upload-submit"
-            type="submit"
-            class="inline-flex w-full items-center justify-center rounded-lg bg-amber-300 px-5 py-3 text-sm font-semibold text-slate-900 transition hover:bg-amber-200 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            Upload &amp; Generate Subtitles
-          </button>
+          <div class="md:col-span-2">
+            <label class="block text-sm font-medium text-slate-700">Video file</label>
+            <label
+              id="drop-zone"
+              class="mt-2 flex min-h-[180px] cursor-pointer flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-6 py-6 text-center text-sm text-slate-600 transition hover:border-amber-300 hover:bg-amber-50"
+            >
+              <input
+                id="video-input"
+                type="file"
+                name="video"
+                accept="video/*"
+                required
+                class="sr-only"
+              />
+              <div class="flex h-12 w-12 items-center justify-center rounded-full bg-amber-100 text-amber-600">
+                <svg viewBox="0 0 24 24" class="h-6 w-6" fill="none" stroke="currentColor" stroke-width="1.5">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M7 16V8m0 0 5-5 5 5M7 8h10a4 4 0 014 4v4a4 4 0 01-4 4H7a4 4 0 01-4-4v-4a4 4 0 014-4z" />
+                </svg>
+              </div>
+              <div class="space-y-1">
+                <p class="text-base font-semibold text-slate-800">Drop your video here</p>
+                <p class="text-sm text-slate-500">or click to browse</p>
+              </div>
+              <p id="file-name" class="text-xs text-slate-500"></p>
+            </label>
+          </div>
+          <div class="flex flex-wrap items-center justify-center gap-4 md:col-span-2">
+            <button
+              id="upload-submit"
+              type="submit"
+              class="inline-flex w-full items-center justify-center rounded-lg bg-amber-400 px-8 py-3 text-sm font-semibold text-slate-900 transition hover:bg-amber-300 disabled:cursor-not-allowed disabled:opacity-60 md:w-auto"
+            >
+              Upload &amp; Generate Subtitles
+            </button>
+            <p id="upload-status" aria-live="polite" class="text-sm text-amber-700"></p>
+          </div>
         </form>
-        <p id="upload-status" aria-live="polite" class="mt-4 text-sm text-amber-200/90"></p>
       </section>
 
       {% if recent_jobs %}
-        <section class="rounded-2xl border border-white/10 bg-slate-900/40 p-6">
-          <h2 class="text-lg font-semibold text-slate-100">My recent jobs</h2>
-          <ul class="mt-4 space-y-3 text-sm text-slate-300">
+        <section class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+          <h2 class="text-lg font-semibold text-slate-900">My recent jobs</h2>
+          <ul class="mt-4 space-y-3 text-sm text-slate-600">
             {% for job in recent_jobs %}
-              <li class="rounded-xl border border-white/5 bg-slate-950/50 p-4">
-                <a href="/edit/{{ job.job_id }}" class="text-base font-semibold text-amber-200 hover:text-amber-100">
-                  {{ job.title }}
-                </a>
-                <div class="mt-2 flex flex-wrap items-center gap-2 text-xs text-slate-400">
-                  <span class="rounded-full border border-white/10 px-2 py-1 uppercase tracking-wide">{{ job.status }}</span>
-                  {% if job.last_accessed_at %}
-                    <span>Last opened {{ job.last_accessed_at }}</span>
-                  {% endif %}
-                  <span class="text-slate-500">· {{ job.job_id_short }}</span>
+              <li class="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                <div class="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <a
+                      href="/edit/{{ job.job_id }}"
+                      class="block max-w-full break-all text-base font-semibold text-amber-700 hover:text-amber-600"
+                      title="{{ job.title }}"
+                    >
+                      {{ job.title }}
+                    </a>
+                    <div class="mt-2 flex flex-wrap items-center gap-2 text-xs text-slate-500">
+                      <span class="rounded-full border border-slate-200 px-2 py-1 uppercase tracking-wide">{{ job.status }}</span>
+                      {% if job.last_accessed_at %}
+                        <span>Last opened {{ job.last_accessed_at }}</span>
+                      {% endif %}
+                      <span class="text-slate-400">· {{ job.job_id_short }}</span>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    class="delete-job rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100"
+                    data-job-id="{{ job.job_id }}"
+                  >
+                    Delete
+                  </button>
+                  <span class="delete-status text-xs text-amber-700"></span>
                 </div>
               </li>
             {% endfor %}
@@ -107,12 +141,90 @@
     const form = document.getElementById("upload-form");
     const submit = document.getElementById("upload-submit");
     const status = document.getElementById("upload-status");
+    const dropZone = document.getElementById("drop-zone");
+    const fileInput = document.getElementById("video-input");
+    const fileName = document.getElementById("file-name");
     if (form && submit && status) {
       form.addEventListener("submit", () => {
         submit.disabled = true;
         status.textContent = "Transcribing video. This may take a minute...";
       });
     }
+    if (fileInput && fileName) {
+      fileInput.addEventListener("change", () => {
+        const file = fileInput.files && fileInput.files[0];
+        fileName.textContent = file ? file.name : "";
+      });
+    }
+    if (dropZone && fileInput) {
+      const activate = () => dropZone.classList.add("border-amber-400", "bg-amber-50");
+      const deactivate = () => dropZone.classList.remove("border-amber-400", "bg-amber-50");
+      dropZone.addEventListener("dragenter", (event) => {
+        event.preventDefault();
+        activate();
+      });
+      dropZone.addEventListener("dragover", (event) => {
+        event.preventDefault();
+        activate();
+      });
+      dropZone.addEventListener("dragleave", () => {
+        deactivate();
+      });
+      dropZone.addEventListener("drop", (event) => {
+        event.preventDefault();
+        deactivate();
+        if (event.dataTransfer && event.dataTransfer.files.length) {
+          const droppedFiles = event.dataTransfer.files;
+          if (window.DataTransfer) {
+            const transfer = new DataTransfer();
+            transfer.items.add(droppedFiles[0]);
+            fileInput.files = transfer.files;
+          } else {
+            fileInput.files = droppedFiles;
+          }
+          const file = droppedFiles[0];
+          fileName.textContent = file ? file.name : "";
+          fileInput.dispatchEvent(new Event("change", { bubbles: true }));
+        }
+      });
+    }
+    const deleteButtons = document.querySelectorAll(".delete-job");
+    deleteButtons.forEach((button) => {
+      const statusEl = button.parentElement && button.parentElement.querySelector(".delete-status");
+      button.addEventListener("click", async () => {
+        const jobId = button.dataset.jobId;
+        if (!jobId) {
+          return;
+        }
+        if (!window.confirm("Delete this job and its files?")) {
+          return;
+        }
+        button.disabled = true;
+        button.textContent = "Deleting...";
+        if (statusEl) {
+          statusEl.textContent = "";
+        }
+        try {
+          const response = await fetch(`/jobs/${jobId}/delete`, { method: "POST" });
+          if (!response.ok) {
+            const payload = await response.json().catch(() => ({}));
+            const detail = payload && payload.detail ? payload.detail : "Delete failed";
+            throw new Error(detail);
+          }
+          const card = button.closest("li");
+          if (card) {
+            card.remove();
+          }
+        } catch (error) {
+          console.error(error);
+          button.disabled = false;
+          button.textContent = "Delete";
+          if (statusEl) {
+            statusEl.textContent = error.message || "Delete failed";
+          }
+        }
+      });
+    });
   </script>
 </body>
 </html>
