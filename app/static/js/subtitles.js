@@ -289,9 +289,20 @@
       bar.style.left = `${left}%`;
       bar.style.width = `${width}%`;
       bar.dataset.index = block.dataset.index || "";
+      const textValue = block.querySelector(".text")?.value || "";
+      const wordCount = textValue.trim() ? textValue.trim().split(/\s+/).length : 0;
+      let separators = "";
+      if (wordCount > 1 && width > 1) {
+        const maxSeparators = Math.min(wordCount - 1, 30);
+        for (let i = 1; i <= maxSeparators; i += 1) {
+          const leftPos = (i / wordCount) * 100;
+          separators += `<span class="absolute inset-y-1 w-px bg-slate-500/20" style="left:${leftPos}%"></span>`;
+        }
+      }
       bar.innerHTML =
         "<span class='handle-left absolute left-0 top-0 h-full w-px cursor-ew-resize bg-slate-500/60'></span>" +
-        "<span class='handle-right absolute right-0 top-0 h-full w-px cursor-ew-resize bg-slate-500/60'></span>";
+        "<span class='handle-right absolute right-0 top-0 h-full w-px cursor-ew-resize bg-slate-500/60'></span>" +
+        separators;
       overlay.appendChild(bar);
 
       const onPointerDown = (event, mode) => {

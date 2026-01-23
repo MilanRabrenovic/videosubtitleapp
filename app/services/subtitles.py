@@ -764,7 +764,11 @@ def _split_token_for_alignment(token: str) -> tuple[List[str], List[str]]:
     return display_parts, match_parts
 
 
-def build_karaoke_lines(words: List[Dict[str, Any]], subtitles: List[Dict[str, Any]]) -> List[List[Dict[str, Any]]]:
+def build_karaoke_lines(
+    words: List[Dict[str, Any]],
+    subtitles: List[Dict[str, Any]],
+    manual_groups: Optional[set[int]] = None,
+) -> List[List[Dict[str, Any]]]:
     """Align word timings to subtitle text, returning word lines per subtitle block."""
     if not subtitles:
         return []
@@ -790,17 +794,33 @@ def build_karaoke_lines(words: List[Dict[str, Any]], subtitles: List[Dict[str, A
             continue
 
         block_words: List[Dict[str, Any]] = []
-        while index < total_words:
-            word = words[index]
-            word_start = float(word.get("start", 0.0))
-            word_end = float(word.get("end", word_start))
-            if word_end < block_start:
+        group_id = block.get("group_id")
+        manual_mode = manual_groups is not None and group_id in manual_groups
+        if manual_mode:
+            while index < total_words:
+                word = words[index]
+                word_start = float(word.get("start", 0.0))
+                word_end = float(word.get("end", word_start))
+                if word_end < block_start:
+                    index += 1
+                    continue
+                if word_start > block_end:
+                    break
                 index += 1
-                continue
-            if word_start > block_end:
-                break
-            block_words.append(word)
-            index += 1
+        else:
+            while index < total_words:
+                word = words[index]
+                word_start = float(word.get("start", 0.0))
+                word_end = float(word.get("end", word_start))
+                if word_end < block_start:
+                    index += 1
+                    continue
+                if word_start > block_end:
+                    break
+                block_words.append(word)
+                index += 1
+        if manual_mode:
+            block_words = []
 
         raw_tokens = block_text.split()
         if not raw_tokens:
@@ -892,10 +912,13 @@ def _split_text_segments(text: str) -> List[str]:
 
 
 def apply_manual_breaks(
-    subtitles: List[Dict[str, Any]], words: Optional[List[Dict[str, Any]]]
+    subtitles: List[Dict[str, Any]],
+    words: Optional[List[Dict[str, Any]]],
+    base_lines: Optional[List[List[Dict[str, Any]]]] = None,
 ) -> tuple[List[Dict[str, Any]], List[List[Dict[str, Any]]]]:
     """Apply manual line breaks and return updated subtitles and karaoke lines."""
-    base_lines = build_karaoke_lines(words, subtitles) if words else [[] for _ in subtitles]
+    if base_lines is None:
+        base_lines = build_karaoke_lines(words, subtitles) if words else [[] for _ in subtitles]
     new_subtitles: List[Dict[str, Any]] = []
     new_lines: List[List[Dict[str, Any]]] = []
     group_counter = 0
@@ -916,8 +939,7 @@ def apply_manual_breaks(
                     "group_id": group_counter,
                 }
             )
-            if line_words:
-                new_lines.append(line_words)
+            new_lines.append(line_words or [])
             group_counter += 1
             continue
 

@@ -73,8 +73,8 @@ def run_transcription_job(job: Dict[str, Any]) -> Dict[str, Any]:
         "video_duration": video_duration,
         "waveform_image": f"{job_id}_waveform.png",
     }
-
-    karaoke_lines = build_karaoke_lines(words, job_data["subtitles"])
+    manual_groups = set(job_data.get("manual_groups", []))
+    karaoke_lines = build_karaoke_lines(words, job_data["subtitles"], manual_groups)
     group_ids = list(range(len(job_data["subtitles"])))
     job_data["subtitles"] = split_subtitles_by_word_timings(
         karaoke_lines, job_data["style"]["max_words_per_line"], group_ids
@@ -94,7 +94,8 @@ def run_transcription_job(job: Dict[str, Any]) -> Dict[str, Any]:
     preview_ass_path, preview_path = _preview_paths(job_id)
     start_step(job_id, "preview_render")
     try:
-        karaoke_lines = build_karaoke_lines(words, job_data["subtitles"])
+        manual_groups = set(job_data.get("manual_groups", []))
+        karaoke_lines = build_karaoke_lines(words, job_data["subtitles"], manual_groups)
         render_style = _render_style(job_id, job_data["style"])
         generate_karaoke_ass(karaoke_lines, preview_ass_path, render_style)
         fonts_dir = ensure_font_downloaded(job_data["style"].get("font_family")) or font_dir_for_name(
@@ -131,7 +132,8 @@ def run_preview_job(job: Dict[str, Any]) -> Dict[str, Any]:
     start_step(job_id, "preview_render")
     try:
         if words:
-            karaoke_lines = build_karaoke_lines(words, job_data.get("subtitles", []))
+            manual_groups = set(job_data.get("manual_groups", []))
+            karaoke_lines = build_karaoke_lines(words, job_data.get("subtitles", []), manual_groups)
             generate_karaoke_ass(karaoke_lines, preview_ass_path, render_style)
         else:
             generate_ass_from_subtitles(job_data.get("subtitles", []), preview_ass_path, render_style)
@@ -177,7 +179,8 @@ def run_export_job(job: Dict[str, Any]) -> Dict[str, Any]:
             fail_step(job_id, step_name, error_payload.get("code", "UNKNOWN"))
             raise RuntimeError("Transcript words not found")
         ass_path = OUTPUTS_DIR / f"{job_id}_karaoke.ass"
-        karaoke_lines = build_karaoke_lines(words, subtitles)
+        manual_groups = set(job_data.get("manual_groups", []))
+        karaoke_lines = build_karaoke_lines(words, subtitles, manual_groups)
         generate_karaoke_ass(karaoke_lines, ass_path, render_style)
         output_path = OUTPUTS_DIR / f"{job_id}_karaoke.mp4"
         download_name = f"{base_name}.mp4"

@@ -26,12 +26,14 @@ from app.services.fonts import (
 )
 from app.services.subtitles import (
     apply_manual_breaks,
+    build_karaoke_lines,
     default_style,
     load_subtitle_job,
     load_transcript_words,
     merge_subtitles_by_group,
     normalize_style,
     save_subtitle_job,
+    srt_timestamp_to_seconds,
     split_subtitles_by_word_timings,
     split_subtitles_by_words,
     subtitles_to_srt,
@@ -224,14 +226,64 @@ def save_edits(
         style["font_bold"] = desired_weight >= 600
         style["font_italic"] = desired_italic
     words = load_transcript_words(job_id)
-    merged_subtitles = merge_subtitles_by_group(subtitles)
-    manual_subtitles, manual_lines = apply_manual_breaks(merged_subtitles, words)
-    group_ids = [block.get("group_id") for block in manual_subtitles]
-    subtitles_split = split_subtitles_by_word_timings(
-        manual_lines, style["max_words_per_line"], group_ids
+    previous_blocks = job_data.get("subtitles", [])
+
+    def _group_blocks(blocks: list[dict[str, Any]]) -> dict[int | None, list[dict[str, Any]]]:
+        grouped: dict[int | None, list[dict[str, Any]]] = {}
+        for block in blocks:
+            grouped.setdefault(block.get("group_id"), []).append(block)
+        for group_id, group_blocks in grouped.items():
+            grouped[group_id] = sorted(
+                group_blocks,
+                key=lambda b: srt_timestamp_to_seconds(str(b.get("start", "00:00:00,000"))),
+            )
+        return grouped
+
+    current_grouped = _group_blocks(subtitles)
+    previous_grouped = _group_blocks(previous_blocks)
+    manual_groups: set[int | None] = set(job_data.get("manual_groups", []))
+    for group_id, group_blocks in current_grouped.items():
+        previous_group = previous_grouped.get(group_id)
+        if not previous_group:
+            continue
+        if len(group_blocks) != len(previous_group):
+            continue
+        for index, block in enumerate(group_blocks):
+            prev_block = previous_group[index]
+            start_new = srt_timestamp_to_seconds(str(block.get("start", "00:00:00,000")))
+            end_new = srt_timestamp_to_seconds(str(block.get("end", "00:00:00,000")))
+            start_prev = srt_timestamp_to_seconds(str(prev_block.get("start", "00:00:00,000")))
+            end_prev = srt_timestamp_to_seconds(str(prev_block.get("end", "00:00:00,000")))
+            if abs(start_new - start_prev) > 0.001 or abs(end_new - end_prev) > 0.001:
+                manual_groups.add(group_id)
+                break
+
+    manual_blocks = [block for block in subtitles if block.get("group_id") in manual_groups]
+    auto_blocks = [block for block in subtitles if block.get("group_id") not in manual_groups]
+
+    auto_subtitles: list[dict[str, Any]] = []
+    if auto_blocks:
+        merged_subtitles = merge_subtitles_by_group(auto_blocks)
+        base_lines = build_karaoke_lines(words, merged_subtitles) if words else [[] for _ in merged_subtitles]
+        manual_subtitles, manual_lines = apply_manual_breaks(
+            merged_subtitles, words, base_lines=base_lines
+        )
+        group_ids = [block.get("group_id") for block in manual_subtitles]
+        subtitles_split = split_subtitles_by_word_timings(
+            manual_lines, style["max_words_per_line"], group_ids
+        )
+        auto_subtitles = subtitles_split or split_subtitles_by_words(
+            manual_subtitles, style["max_words_per_line"]
+        )
+
+    subtitles = sorted(
+        manual_blocks + auto_subtitles,
+        key=lambda b: srt_timestamp_to_seconds(str(b.get("start", "00:00:00,000"))),
     )
-    subtitles = subtitles_split or split_subtitles_by_words(manual_subtitles, style["max_words_per_line"])
     job_data["subtitles"] = subtitles
+    job_data["manual_groups"] = sorted(
+        {group_id for group_id in manual_groups if group_id is not None}
+    )
     job_data["style"] = style
     job_data.setdefault("custom_fonts", [])
     save_subtitle_job(job_id, job_data)
