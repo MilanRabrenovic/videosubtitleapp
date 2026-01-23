@@ -3,6 +3,7 @@
 ## Near-term (Launch hardening)
 ### Infrastructure & Scaling
 - Keep 1 worker for reliability; avoid multi-process until shared queue exists.
+- Single worker queue means jobs run sequentially; add multi-worker support when usage grows.
 - Add Redis + RQ to support ~5–20 concurrent users without duplicate jobs.
 - Add worker concurrency controls and resource limits per job.
 
@@ -22,6 +23,7 @@
 
 ### Security & Ownership
 - Add real auth/ownership so jobs, pins, and fonts are per user.
+- Session-only ownership is not secure isolation; add auth when moving beyond internal use.
 - Restrict access to outputs/uploads to job owners.
 
 ### UX & Product
