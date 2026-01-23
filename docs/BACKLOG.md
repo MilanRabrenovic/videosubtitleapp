@@ -11,6 +11,7 @@
 - Add health checks + basic monitoring/alerts (job failures, disk usage, worker status).
 - Add per-job logs (store ffmpeg/whisper stderr for support).
 - Add safe storage policies (retention per user + cleanup that respects active edits).
+- Add proxy-level rate limits + hard upload caps (nginx/caddy) on deploy.
 
 ### P2 — nice to have
 - Add progress estimates for transcription/export.

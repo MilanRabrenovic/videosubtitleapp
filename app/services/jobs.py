@@ -21,6 +21,10 @@ from app.config import (
     JOB_RETENTION_DAYS,
     JOB_PINNED_RETENTION_DAYS,
     JOB_WORKER_COUNT,
+    JOB_TIMEOUT_EXPORT,
+    JOB_TIMEOUT_KARAOKE,
+    JOB_TIMEOUT_PREVIEW,
+    JOB_TIMEOUT_TRANSCRIBE,
     REDIS_URL,
 )
 from app.config import OUTPUTS_DIR
@@ -52,6 +56,19 @@ def _get_rq_queue():
     _redis_conn = redis.from_url(REDIS_URL)
     _redis_queue = RqQueue(JOB_QUEUE_NAME, connection=_redis_conn)
     return _redis_queue
+
+
+def _job_timeout(job: Dict[str, Any]) -> int | None:
+    job_type = job.get("type")
+    if job_type == "transcription":
+        return JOB_TIMEOUT_TRANSCRIBE
+    if job_type == "preview":
+        return JOB_TIMEOUT_PREVIEW
+    if job_type == "export":
+        return JOB_TIMEOUT_EXPORT
+    if job_type == "karaoke_export":
+        return JOB_TIMEOUT_KARAOKE
+    return None
 
 
 def _utcnow() -> datetime:
@@ -289,6 +306,9 @@ def enqueue_job(job_id: str) -> None:
         queue = _get_rq_queue()
         if queue is None:
             return
+        job_payload = load_job(job_id)
+        if not job_payload:
+            return
         try:
             existing = queue.fetch_job(job_id)
             if existing and existing.get_status() in {"queued", "started", "deferred"}:
@@ -301,6 +321,7 @@ def enqueue_job(job_id: str) -> None:
                 job_id,
                 job_id=job_id,
                 retry=None,
+                job_timeout=_job_timeout(job_payload),
             )
         except Exception:
             return

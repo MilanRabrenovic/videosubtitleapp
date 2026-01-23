@@ -173,3 +173,8 @@
 - Implemented: Redis + RQ queue integration (optional) with job rehydration on startup.
 - Implemented: Single-process fallback still works when REDIS_URL is not set.
 - Next action: Add proxy-level limits and worker monitoring for production.
+
+## 2026-01-23
+- Implemented: Per-job timeouts for Redis workers (transcribe/preview/export) via RQ job_timeout.
+- Note: Local in-process worker cannot hard-kill long jobs; Redis workers enforce timeouts.
+- Next action: Add monitoring + job log capture for production support.

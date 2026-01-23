@@ -54,6 +54,9 @@ One worker keeps CPU usage predictable and avoids overload on small servers; con
 ## Why Redis + RQ for optional multi-worker
 RQ is lightweight, file-friendly, and integrates cleanly with our existing job JSON state. It enables parallel jobs without refactoring the core flow.
 
+## Why timeouts are enforced in Redis workers
+RQ can terminate long-running jobs safely; the in-process worker cannot hard-kill tasks without extra infrastructure.
+
 ## Why jobs are retained for a fixed window
 Job JSON files are kept for a limited time to balance reliability with storage limits.
 
