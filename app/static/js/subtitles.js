@@ -18,6 +18,7 @@
   const jobStatus = document.getElementById("job-status");
   const previewJob = document.getElementById("preview-job");
   const editorJob = document.getElementById("editor-job");
+  const timelineReset = document.getElementById("timeline-reset");
   const pinForm = document.getElementById("pin-form");
   const pinCheckbox = document.getElementById("pin-checkbox");
   const pinStatus = document.getElementById("pin-status");
@@ -36,6 +37,8 @@
   let isDirty = false;
   let saveTimeoutId = null;
   let toastTimer = null;
+  let timelineBaseline = null;
+  let timelineDirty = false;
 
   const setProcessingState = (isProcessing) => {
     if (saveButton) {
@@ -315,6 +318,7 @@
         const length = endSeconds - startSeconds;
         const startX = event.clientX;
         const onMove = (moveEvent) => {
+          markTimelineDirty();
           const delta = moveEvent.clientX - startX;
           const deltaSeconds = (delta / timelineWidth) * duration;
           let nextStart = startSeconds;
@@ -452,6 +456,23 @@
     });
   };
 
+  const captureTimelineBaseline = () => {
+    timelineBaseline = collectSubtitles();
+    timelineDirty = false;
+    if (timelineReset) {
+      timelineReset.classList.add("hidden");
+      timelineReset.disabled = true;
+    }
+  };
+
+  const markTimelineDirty = () => {
+    timelineDirty = true;
+    if (timelineReset) {
+      timelineReset.classList.remove("hidden");
+      timelineReset.disabled = false;
+    }
+  };
+
   const markDirty = () => {
     if (exportStatus) {
       exportStatus.style.display = "none";
@@ -554,6 +575,7 @@
         }
       }
       isDirty = false;
+      captureTimelineBaseline();
     } catch (error) {
       console.error(error);
       showToast(error.message || "Save failed. Please try again.", error.message?.includes("Too many") ? "warning" : "error", 3200);
@@ -569,6 +591,7 @@
   isDirty = false;
   updateBlockDurations();
   renderTimeline();
+  captureTimelineBaseline();
 
   if (previewVideo) {
     let rafId = null;
@@ -608,6 +631,34 @@
       const targetTime = (x / rect.width) * duration;
       previewVideo.currentTime = targetTime;
       updatePlayhead();
+    });
+  }
+
+  if (timelineReset) {
+    timelineReset.addEventListener("click", () => {
+      if (!timelineBaseline || !timelineBaseline.length) {
+        return;
+      }
+      const blocks = subtitleList.querySelectorAll(".subtitle-block");
+      if (blocks.length !== timelineBaseline.length) {
+        captureTimelineBaseline();
+        return;
+      }
+      blocks.forEach((block, index) => {
+        const baseline = timelineBaseline[index];
+        if (!baseline) {
+          return;
+        }
+        block.querySelector(".start").value = baseline.start;
+        block.querySelector(".end").value = baseline.end;
+      });
+      hiddenInput.value = JSON.stringify(collectSubtitles());
+      markDirty();
+      updateBlockDurations();
+      renderTimeline();
+      timelineDirty = false;
+      timelineReset.classList.add("hidden");
+      timelineReset.disabled = true;
     });
   }
 

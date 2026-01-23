@@ -474,9 +474,19 @@
             <div class="rounded-xl border border-slate-200 bg-white p-4">
               <div class="flex flex-wrap items-center justify-between gap-3">
                 <p class="text-xs font-semibold uppercase tracking-[0.25em] text-slate-500">Timeline</p>
-                {% if job.video_duration %}
-                  <span class="text-xs text-slate-400">{{ "%.2f"|format(job.video_duration) }}s total</span>
-                {% endif %}
+                <div class="flex items-center gap-3 text-xs text-slate-400">
+                  {% if job.video_duration %}
+                    <span>{{ "%.2f"|format(job.video_duration) }}s total</span>
+                  {% endif %}
+                  <button
+                    type="button"
+                    id="timeline-reset"
+                    class="hidden rounded-md border border-slate-200 px-2 py-1 text-[11px] font-semibold text-slate-600 hover:bg-slate-100 disabled:opacity-60"
+                    {% if processing_job_error %}disabled{% endif %}
+                  >
+                    Reset timeline
+                  </button>
+                </div>
               </div>
               {% if waveform_available and job.video_duration %}
                 <div
