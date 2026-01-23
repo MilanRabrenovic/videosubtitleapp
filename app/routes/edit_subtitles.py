@@ -73,10 +73,14 @@ def edit_page(request: Request, job_id: str) -> Any:
     for index, block in enumerate(job_data["subtitles"]):
         block.setdefault("group_id", index)
     job_data.setdefault("custom_fonts", [])
+    job_data.setdefault("video_duration", 0)
+    job_data.setdefault("waveform_image", f"{job_id}_waveform.png")
 
     preview_path = OUTPUTS_DIR / f"{job_id}_preview.mp4"
+    waveform_path = OUTPUTS_DIR / f"{job_id}_waveform.png"
     preview_job_id = None
     preview_token = int(preview_path.stat().st_mtime) if preview_path.exists() else None
+    waveform_token = int(waveform_path.stat().st_mtime) if waveform_path.exists() else None
     font_css = None
     font_family = job_data["style"].get("font_family")
     font_warning = None
@@ -98,6 +102,8 @@ def edit_page(request: Request, job_id: str) -> Any:
             "job": job_data,
             "preview_available": preview_path.exists(),
             "preview_token": preview_token,
+            "waveform_available": waveform_path.exists(),
+            "waveform_token": waveform_token,
             "preview_job_id": preview_job_id,
             "google_fonts": google_font_choices(),
             "system_fonts": system_font_choices(),
@@ -234,6 +240,7 @@ def save_edits(
     touch_job(job_id)
     touch_job_access(job_id, locked=False)
     preview_path = OUTPUTS_DIR / f"{job_id}_preview.mp4"
+    waveform_path = OUTPUTS_DIR / f"{job_id}_waveform.png"
     video_path = UPLOADS_DIR / job_data.get("video_filename", "")
     preview_job_id = None
     if video_path.exists():
@@ -257,6 +264,7 @@ def save_edits(
                 f"{font_family.replace(' ', '-')}/."
             )
     preview_token = int(preview_path.stat().st_mtime) if preview_path.exists() else None
+    waveform_token = int(waveform_path.stat().st_mtime) if waveform_path.exists() else None
     job_custom_fonts = job_data.get("custom_fonts") or available_local_fonts(job_id)
     job_record = load_job(job_id)
     job_pinned = job_record.get("pinned", False) if job_record else False
@@ -268,6 +276,8 @@ def save_edits(
             "saved": True,
             "preview_available": preview_path.exists(),
             "preview_token": preview_token,
+            "waveform_available": waveform_path.exists(),
+            "waveform_token": waveform_token,
             "preview_job_id": preview_job_id,
             "google_fonts": google_font_choices(),
             "system_fonts": system_font_choices(),
@@ -314,6 +324,7 @@ def upload_font(
     touch_job_access(job_id)
 
     preview_path = OUTPUTS_DIR / f"{job_id}_preview.mp4"
+    waveform_path = OUTPUTS_DIR / f"{job_id}_waveform.png"
     video_path = UPLOADS_DIR / job_data.get("video_filename", "")
     preview_job_id = None
     if video_path.exists():
@@ -329,6 +340,7 @@ def upload_font(
     if is_google_font(detected_family):
         font_css = google_fonts_css_url(detected_family)
     preview_token = int(preview_path.stat().st_mtime) if preview_path.exists() else None
+    waveform_token = int(waveform_path.stat().st_mtime) if waveform_path.exists() else None
     job_custom_fonts = job_data.get("custom_fonts") or available_local_fonts(job_id)
     job_record = load_job(job_id)
     job_pinned = job_record.get("pinned", False) if job_record else False
@@ -340,6 +352,8 @@ def upload_font(
             "saved": True,
             "preview_available": preview_path.exists(),
             "preview_token": preview_token,
+            "waveform_available": waveform_path.exists(),
+            "waveform_token": waveform_token,
             "preview_job_id": preview_job_id,
             "google_fonts": google_font_choices(),
             "system_fonts": system_font_choices(),
@@ -378,6 +392,7 @@ def delete_font(
     touch_job_access(job_id)
 
     preview_path = OUTPUTS_DIR / f"{job_id}_preview.mp4"
+    waveform_path = OUTPUTS_DIR / f"{job_id}_waveform.png"
     video_path = UPLOADS_DIR / job_data.get("video_filename", "")
     preview_job_id = None
     if video_path.exists():
@@ -393,6 +408,7 @@ def delete_font(
     job_record = load_job(job_id)
     job_pinned = job_record.get("pinned", False) if job_record else False
     preview_token = int(preview_path.stat().st_mtime) if preview_path.exists() else None
+    waveform_token = int(waveform_path.stat().st_mtime) if waveform_path.exists() else None
     return templates.TemplateResponse(
         "edit.html",
         {
@@ -401,6 +417,8 @@ def delete_font(
             "saved": True,
             "preview_available": preview_path.exists(),
             "preview_token": preview_token,
+            "waveform_available": waveform_path.exists(),
+            "waveform_token": waveform_token,
             "preview_job_id": preview_job_id,
             "google_fonts": google_font_choices(),
             "system_fonts": system_font_choices(),

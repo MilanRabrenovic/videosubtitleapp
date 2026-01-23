@@ -11,21 +11,83 @@
   const exportVideoStatus = document.getElementById("video-export-status");
   const previewVideo = document.getElementById("preview-video");
   const saveButton = document.getElementById("save-button");
+  const exportForms = document.querySelectorAll("form[action^='/export/']");
+  const fontUploadButton = document.getElementById("font-upload-button");
+  const pinSubmit = document.getElementById("pin-submit");
+  const subtitleInputs = form ? form.querySelectorAll("input, select, textarea, button") : [];
   const jobStatus = document.getElementById("job-status");
   const previewJob = document.getElementById("preview-job");
   const editorJob = document.getElementById("editor-job");
   const pinForm = document.getElementById("pin-form");
   const pinCheckbox = document.getElementById("pin-checkbox");
-  const pinSubmit = document.getElementById("pin-submit");
   const pinStatus = document.getElementById("pin-status");
+  const toast = document.getElementById("toast");
+  const toastClasses = {
+    info: "bg-slate-900/90 text-white border border-slate-700/60",
+    success: "bg-emerald-50 text-emerald-900 border border-emerald-200",
+    error: "bg-rose-50 text-rose-900 border border-rose-200",
+    warning: "bg-amber-50 text-amber-900 border border-amber-200",
+  };
   const fontLicenseConfirm = document.getElementById("font-license-confirm");
-  const fontUploadButton = document.getElementById("font-upload-button");
   const fontInput = document.getElementById("font-input");
   const fontValue = document.getElementById("font-value");
   const fontOptions = document.getElementById("font-options");
   const timestampPattern = /^\d{2}:\d{2}:\d{2},\d{3}$/;
   let isDirty = false;
   let saveTimeoutId = null;
+  let toastTimer = null;
+
+  const setProcessingState = (isProcessing) => {
+    if (saveButton) {
+      saveButton.disabled = isProcessing;
+    }
+    exportForms.forEach((formEl) => {
+      const button = formEl.querySelector("button");
+      if (button) {
+        button.disabled = isProcessing;
+      }
+    });
+    if (fontUploadButton) {
+      fontUploadButton.disabled = isProcessing || !fontLicenseConfirm?.checked;
+    }
+    if (pinSubmit) {
+      pinSubmit.disabled = isProcessing;
+    }
+    subtitleInputs.forEach((el) => {
+      if (el === saveButton) {
+        return;
+      }
+      if (el === fontUploadButton) {
+        return;
+      }
+      if (el === pinSubmit) {
+        return;
+      }
+      if (el.type === "hidden") {
+        return;
+      }
+      el.disabled = isProcessing;
+    });
+  };
+
+  const showToast = (message, type = "info", timeout = 2200) => {
+    if (!toast) {
+      return;
+    }
+    const base =
+      "pointer-events-none fixed bottom-6 left-1/2 z-50 w-[calc(100%-2rem)] max-w-xl -translate-x-1/2 rounded-xl px-4 py-3 text-center text-sm font-medium shadow-lg backdrop-blur";
+    toast.className = `${base} ${toastClasses[type] || toastClasses.info}`;
+    toast.textContent = message;
+    toast.classList.remove("hidden");
+    if (toastTimer) {
+      clearTimeout(toastTimer);
+    }
+    if (timeout > 0) {
+      toastTimer = setTimeout(() => {
+        toast.classList.add("hidden");
+      }, timeout);
+    }
+  };
 
   const formatJobError = (job) => {
     if (!job || !job.error) {
@@ -99,9 +161,7 @@
     if (!jobId) {
       return;
     }
-    if (status) {
-      status.textContent = "Rendering preview...";
-    }
+    showToast("Rendering preview...", "info", 2400);
     if (saveButton) {
       saveButton.disabled = true;
       saveButton.textContent = "Rendering preview...";
@@ -117,21 +177,14 @@
             previewVideo.load();
           }
         }
-        if (status) {
-          status.textContent = "Preview updated.";
-          setTimeout(() => {
-            status.textContent = "";
-          }, 1800);
-        }
+        showToast("Preview updated.", "success");
         if (saveButton) {
           saveButton.disabled = false;
           saveButton.textContent = saveButton.dataset.originalText || "Save edits";
         }
       },
       (job) => {
-        if (status) {
-          status.textContent = `Preview failed: ${formatJobFailure(job, "Preview failed.")}`;
-        }
+        showToast(formatJobFailure(job, "Preview failed."), "error", 3200);
         if (saveButton) {
           saveButton.disabled = false;
           saveButton.textContent = saveButton.dataset.originalText || "Save edits";
@@ -147,6 +200,148 @@
       const end = block.querySelector(".end").value.trim();
       return !timestampPattern.test(start) || !timestampPattern.test(end);
     });
+  };
+
+  const parseTimestamp = (value) => {
+    if (!timestampPattern.test(value)) {
+      return null;
+    }
+    const [hours, minutes, secondsMs] = value.split(":");
+    const [seconds, millis] = secondsMs.split(",");
+    return (
+      Number(hours) * 3600 +
+      Number(minutes) * 60 +
+      Number(seconds) +
+      Number(millis) / 1000
+    );
+  };
+
+  const formatTimestamp = (totalSeconds) => {
+    const safe = Math.max(0, totalSeconds || 0);
+    const hours = Math.floor(safe / 3600);
+    const minutes = Math.floor((safe % 3600) / 60);
+    const seconds = Math.floor(safe % 60);
+    const millis = Math.floor((safe - Math.floor(safe)) * 1000);
+    const pad = (value, size) => String(value).padStart(size, "0");
+    return `${pad(hours, 2)}:${pad(minutes, 2)}:${pad(seconds, 2)},${pad(millis, 3)}`;
+  };
+
+  const updateBlockDurations = () => {
+    const blocks = subtitleList.querySelectorAll(".subtitle-block");
+    blocks.forEach((block) => {
+      const holder = block.querySelector(".block-duration");
+      if (!holder) {
+        return;
+      }
+      const start = block.querySelector(".start").value.trim();
+      const end = block.querySelector(".end").value.trim();
+      const startSeconds = parseTimestamp(start);
+      const endSeconds = parseTimestamp(end);
+      if (startSeconds === null || endSeconds === null || endSeconds < startSeconds) {
+        holder.textContent = "--";
+        return;
+      }
+      const duration = endSeconds - startSeconds;
+      holder.textContent = `${duration.toFixed(2)}s`;
+    });
+  };
+
+  const updatePlayhead = () => {
+    const timeline = document.getElementById("timeline");
+    const playhead = document.getElementById("timeline-playhead");
+    if (!timeline || !playhead || !previewVideo) {
+      return;
+    }
+    const duration = Number(timeline.dataset.duration || 0);
+    if (!duration) {
+      return;
+    }
+    const progress = Math.max(0, Math.min(1, previewVideo.currentTime / duration));
+    playhead.style.left = `${progress * 100}%`;
+  };
+
+  const renderTimeline = () => {
+    const timeline = document.getElementById("timeline");
+    const overlay = document.getElementById("timeline-overlay");
+    if (!timeline || !overlay) {
+      return;
+    }
+    const duration = Number(timeline.dataset.duration || 0);
+    if (!duration || Number.isNaN(duration)) {
+      return;
+    }
+    const timelineWidth = timeline.clientWidth;
+    overlay.innerHTML = "";
+    const blocks = subtitleList.querySelectorAll(".subtitle-block");
+    blocks.forEach((block) => {
+      const startValue = block.querySelector(".start").value.trim();
+      const endValue = block.querySelector(".end").value.trim();
+      const start = parseTimestamp(startValue);
+      const end = parseTimestamp(endValue);
+      if (start === null || end === null || end <= start) {
+        return;
+      }
+      const left = (start / duration) * 100;
+      const width = ((end - start) / duration) * 100;
+      const bar = document.createElement("div");
+      bar.className =
+        "timeline-block absolute top-3 h-4 rounded-sm border border-slate-300/40 bg-slate-200/35";
+      bar.style.left = `${left}%`;
+      bar.style.width = `${width}%`;
+      bar.dataset.index = block.dataset.index || "";
+      bar.innerHTML =
+        "<span class='handle-left absolute left-0 top-0 h-full w-px cursor-ew-resize bg-slate-500/60'></span>" +
+        "<span class='handle-right absolute right-0 top-0 h-full w-px cursor-ew-resize bg-slate-500/60'></span>";
+      overlay.appendChild(bar);
+
+      const onPointerDown = (event, mode) => {
+        event.preventDefault();
+        const startSeconds = parseTimestamp(block.querySelector(".start").value.trim()) || 0;
+        const endSeconds = parseTimestamp(block.querySelector(".end").value.trim()) || startSeconds + 0.1;
+        const length = endSeconds - startSeconds;
+        const startX = event.clientX;
+        const onMove = (moveEvent) => {
+          const delta = moveEvent.clientX - startX;
+          const deltaSeconds = (delta / timelineWidth) * duration;
+          let nextStart = startSeconds;
+          let nextEnd = endSeconds;
+          if (mode === "move") {
+            nextStart = Math.max(0, Math.min(duration - length, startSeconds + deltaSeconds));
+            nextEnd = nextStart + length;
+          } else if (mode === "start") {
+            nextStart = Math.max(0, Math.min(endSeconds - 0.05, startSeconds + deltaSeconds));
+          } else if (mode === "end") {
+            nextEnd = Math.min(duration, Math.max(startSeconds + 0.05, endSeconds + deltaSeconds));
+          }
+          block.querySelector(".start").value = formatTimestamp(nextStart);
+          block.querySelector(".end").value = formatTimestamp(nextEnd);
+          hiddenInput.value = JSON.stringify(collectSubtitles());
+          markDirty();
+          updateBlockDurations();
+          const newLeft = (nextStart / duration) * 100;
+          const newWidth = ((nextEnd - nextStart) / duration) * 100;
+          bar.style.left = `${newLeft}%`;
+          bar.style.width = `${newWidth}%`;
+        };
+        const onUp = () => {
+          document.removeEventListener("pointermove", onMove);
+          document.removeEventListener("pointerup", onUp);
+        };
+        document.addEventListener("pointermove", onMove);
+        document.addEventListener("pointerup", onUp);
+      };
+
+      bar.addEventListener("pointerdown", (event) => {
+        if (event.target.classList.contains("handle-left")) {
+          onPointerDown(event, "start");
+        } else if (event.target.classList.contains("handle-right")) {
+          onPointerDown(event, "end");
+        } else {
+          onPointerDown(event, "move");
+        }
+      });
+    });
+    updatePlayhead();
   };
 
   if (!form || !subtitleList || !hiddenInput) {
@@ -189,6 +384,39 @@
     });
   }
 
+  const colorInputs = document.querySelectorAll(".color-input");
+  if (colorInputs.length) {
+    const updateColor = (key, value) => {
+      const dot = document.querySelector(`.color-dot[data-color-key="${key}"]`);
+      const hex = document.querySelector(`.color-hex[data-color-key="${key}"]`);
+      if (dot) {
+        dot.style.backgroundColor = value;
+      }
+      if (hex) {
+        hex.textContent = value;
+      }
+    };
+    colorInputs.forEach((input) => {
+      const key = input.dataset.colorKey;
+      if (!key) {
+        return;
+      }
+      input.addEventListener("change", () => {
+        updateColor(key, input.value);
+      });
+    });
+    const triggers = document.querySelectorAll(".color-trigger");
+    triggers.forEach((trigger) => {
+      trigger.addEventListener("click", () => {
+        const key = trigger.dataset.colorKey;
+        const input = document.querySelector(`.color-input[data-color-key="${key}"]`);
+        if (input) {
+          input.click();
+        }
+      });
+    });
+  }
+
   if (fontLicenseConfirm && fontUploadButton) {
     const toggleFontUpload = () => {
       fontUploadButton.disabled = !fontLicenseConfirm.checked;
@@ -211,9 +439,6 @@
   };
 
   const markDirty = () => {
-    if (status) {
-      status.textContent = "Unsaved changes";
-    }
     if (exportStatus) {
       exportStatus.style.display = "none";
     }
@@ -229,6 +454,8 @@
   subtitleList.addEventListener("input", () => {
     hiddenInput.value = JSON.stringify(collectSubtitles());
     markDirty();
+    updateBlockDurations();
+    renderTimeline();
   });
 
   form.addEventListener("submit", async (event) => {
@@ -242,8 +469,8 @@
       saveButton.dataset.originalText = saveButton.dataset.originalText || saveButton.textContent;
       saveButton.textContent = "Saving...";
     }
-    if (timestampHint) {
-      timestampHint.style.display = hasInvalidTimestamps() ? "block" : "none";
+    if (hasInvalidTimestamps()) {
+      showToast("One or more timestamps look invalid (expected HH:MM:SS,mmm).", "warning", 3200);
     }
     try {
       const response = await fetch(form.action, { method: "POST", body: new FormData(form) });
@@ -251,20 +478,14 @@
         throw new Error("Save failed");
       }
       const html = await response.text();
-      if (saveStatus) {
-        saveStatus.style.display = "inline";
-        if (saveTimeoutId) {
-          clearTimeout(saveTimeoutId);
-        }
-        saveTimeoutId = setTimeout(() => {
-          saveStatus.style.display = "none";
-        }, 1800);
-      }
+      showToast("Subtitles saved.", "success");
       const parser = new DOMParser();
       const doc = parser.parseFromString(html, "text/html");
       const updatedList = doc.getElementById("subtitle-list");
       if (updatedList) {
         subtitleList.innerHTML = updatedList.innerHTML;
+        updateBlockDurations();
+        renderTimeline();
       }
       const updatedForm = doc.getElementById("subtitle-form");
       if (updatedForm && form) {
@@ -315,6 +536,7 @@
       isDirty = false;
     } catch (error) {
       console.error(error);
+      showToast("Save failed. Please try again.", "error", 3200);
     }
     if (saveButton && !queuedPreviewJob) {
       saveButton.disabled = false;
@@ -325,13 +547,58 @@
   // Initialize hidden input with current values.
   hiddenInput.value = JSON.stringify(collectSubtitles());
   isDirty = false;
+  updateBlockDurations();
+  renderTimeline();
+
+  if (previewVideo) {
+    let rafId = null;
+    const tick = () => {
+      updatePlayhead();
+      rafId = requestAnimationFrame(tick);
+    };
+    const startTick = () => {
+      if (rafId !== null) {
+        return;
+      }
+      rafId = requestAnimationFrame(tick);
+    };
+    const stopTick = () => {
+      if (rafId === null) {
+        return;
+      }
+      cancelAnimationFrame(rafId);
+      rafId = null;
+    };
+    previewVideo.addEventListener("play", startTick);
+    previewVideo.addEventListener("pause", stopTick);
+    previewVideo.addEventListener("ended", stopTick);
+    previewVideo.addEventListener("seeked", updatePlayhead);
+    previewVideo.addEventListener("loadedmetadata", updatePlayhead);
+  }
+
+  const timeline = document.getElementById("timeline");
+  if (timeline && previewVideo) {
+    timeline.addEventListener("click", (event) => {
+      const rect = timeline.getBoundingClientRect();
+      const duration = Number(timeline.dataset.duration || 0);
+      if (!duration) {
+        return;
+      }
+      const x = Math.min(Math.max(event.clientX - rect.left, 0), rect.width);
+      const targetTime = (x / rect.width) * duration;
+      previewVideo.currentTime = targetTime;
+      updatePlayhead();
+    });
+  }
 
   if (exportSrtButton && exportStatus) {
     exportSrtButton.addEventListener("click", () => {
-      exportStatus.textContent = isDirty
-        ? "SRT export may not include unsaved changes."
-        : "SRT exported from latest edits.";
-      exportStatus.style.display = "block";
+      showToast(
+        isDirty
+          ? "SRT export may not include unsaved changes."
+          : "SRT exported from latest edits.",
+        isDirty ? "warning" : "success"
+      );
     });
   }
 
@@ -344,8 +611,7 @@
       return;
     }
     button.disabled = true;
-    statusEl.textContent = startText;
-    statusEl.style.display = "block";
+    showToast(startText, "info", 2600);
     try {
       const response = await fetch(form.action, { method: "POST", body: new FormData(form) });
       if (!response.ok) {
@@ -363,7 +629,7 @@
           const downloadName =
             job.output && job.output.download_name ? job.output.download_name : fallbackName;
           if (!url) {
-            statusEl.textContent = "Video exported, but file was not found.";
+            showToast("Video exported, but file was not found.", "warning", 3200);
             button.disabled = false;
             return;
           }
@@ -373,17 +639,17 @@
           document.body.appendChild(link);
           link.click();
           link.remove();
-          statusEl.textContent = "Video exported.";
+          showToast("Video exported.", "success");
           button.disabled = false;
         },
         (job) => {
-          statusEl.textContent = formatJobFailure(job, "Video export failed.");
+          showToast(formatJobFailure(job, "Video export failed."), "error", 3600);
           button.disabled = false;
         }
       );
     } catch (error) {
       console.error(error);
-      statusEl.textContent = "Video export failed.";
+      showToast("Video export failed.", "error", 3600);
     }
   };
 
@@ -411,19 +677,26 @@
       saveButton.disabled = true;
       saveButton.textContent = "Processing...";
     }
+    setProcessingState(true);
+    if (jobStatus.textContent.trim()) {
+      showToast(jobStatus.textContent.trim(), "info", 0);
+    }
     pollJob(
       jobStatus.dataset.jobId,
       () => {
         window.location.reload();
       },
       (job) => {
-        jobStatus.textContent = `Processing failed: ${formatJobFailure(job, "Processing failed.")}`;
+        showToast(formatJobFailure(job, "Processing failed."), "error", 3600);
+        setProcessingState(false);
         if (saveButton) {
           saveButton.disabled = false;
           saveButton.textContent = saveButton.dataset.originalText || "Save edits";
         }
       }
     );
+  } else if (jobStatus && jobStatus.textContent.trim()) {
+    showToast(jobStatus.textContent.trim(), "error", 3600);
   }
 
   if (previewJob && previewJob.dataset.jobId) {
@@ -446,15 +719,11 @@
         if (!response.ok) {
           throw new Error("Pin update failed");
         }
-        if (pinStatus) {
-          pinStatus.style.display = "inline";
-          setTimeout(() => {
-            pinStatus.style.display = "none";
-          }, 1800);
-        }
+        showToast("Pin saved.", "success");
       } catch (error) {
         console.error(error);
         pinSubmit.disabled = false;
+        showToast("Pin update failed.", "error", 3200);
       }
     });
   }

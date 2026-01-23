@@ -4,13 +4,41 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Export Video</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap"
+    rel="stylesheet"
+  />
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            display: ["Space Grotesk", "ui-sans-serif", "system-ui"],
+          },
+        },
+      },
+    };
+  </script>
+  <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body>
-  <main>
-    <h1>Export Video</h1>
-    <p><strong>Job:</strong> {{ job.title }}</p>
-    <p>{{ message }}</p>
-    <p><a href="/edit/{{ job.job_id }}">Back to editing</a></p>
+<body class="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-800 text-slate-100 font-display">
+  <main class="mx-auto flex w-full max-w-3xl flex-col gap-6 px-6 py-12">
+    <header class="space-y-2">
+      <p class="text-sm uppercase tracking-[0.3em] text-amber-300/80">Export</p>
+      <h1 class="text-3xl font-semibold tracking-tight">Export Video</h1>
+      <p class="text-sm text-slate-300"><strong class="text-slate-100">Job:</strong> {{ job.title }}</p>
+    </header>
+    <div class="rounded-2xl border border-white/10 bg-slate-900/60 p-6 text-slate-200">
+      <p>{{ message }}</p>
+    </div>
+    <a
+      href="/edit/{{ job.job_id }}"
+      class="inline-flex w-fit items-center rounded-lg border border-white/10 px-4 py-2 text-sm text-slate-200 hover:bg-slate-900/60"
+    >
+      Back to editing
+    </a>
   </main>
 </body>
 </html>

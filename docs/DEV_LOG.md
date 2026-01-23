@@ -150,3 +150,10 @@
 - Implemented: “My recent jobs” list now shows only jobs from the current browser session.
 - Implemented: Jobs now store owner_session_id; legacy jobs remain unowned.
 - Next action: Add real auth and owner-scoped job access once accounts exist.
+
+## 2026-01-23
+- Implemented: Tailwind-based UI refresh (light theme), reorganized subtitle styling controls, sticky preview + export panel.
+- Implemented: Drag-and-drop upload zone with centered CTA; recent-jobs delete buttons with confirmation and toast feedback.
+- Implemented: Bottom-center toast system for all user messages (save/export/preview/pin/upload).
+- Implemented: Karaoke alignment improvements for hyphenated tokens and better word-duration fidelity.
+- Next action: Validate highlight timing on long words across more clips and refine alignment if needed.

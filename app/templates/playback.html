@@ -4,26 +4,44 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Playback Transcript</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap"
+    rel="stylesheet"
+  />
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            display: ["Space Grotesk", "ui-sans-serif", "system-ui"],
+          },
+        },
+      },
+    };
+  </script>
+  <script src="https://cdn.tailwindcss.com"></script>
   <style>
-    body { font-family: Arial, sans-serif; margin: 24px; }
-    .transcript { line-height: 1.8; }
-    .transcript span { padding: 2px 4px; border-radius: 4px; }
-    .transcript .active { background: #f6e58d; }
+    .transcript .active { background: rgba(251, 191, 36, 0.75); }
   </style>
 </head>
-<body>
-  <main>
-    <h1>Playback Transcript</h1>
-    <p><strong>Job:</strong> {{ job.title }}</p>
+<body class="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-800 text-slate-100 font-display">
+  <main class="mx-auto flex w-full max-w-4xl flex-col gap-8 px-6 py-10">
+    <header class="space-y-2">
+      <p class="text-sm uppercase tracking-[0.3em] text-amber-300/80">Playback</p>
+      <h1 class="text-3xl font-semibold tracking-tight">Transcript playback</h1>
+      <p class="text-sm text-slate-300"><strong class="text-slate-100">Job:</strong> {{ job.title }}</p>
+    </header>
 
-    <video id="playback-video" controls width="480">
+    <video id="playback-video" controls class="w-full max-w-2xl rounded-2xl border border-white/10 bg-slate-900/60">
       <source src="/uploads/{{ job.video_filename }}" type="video/mp4" />
       Your browser does not support the video tag.
     </video>
 
-    <p class="transcript" id="transcript-line">
+    <p class="transcript flex flex-wrap gap-2 text-lg leading-relaxed text-slate-100" id="transcript-line">
       {% for word in words %}
-        <span data-start="{{ word.start }}" data-end="{{ word.end }}">{{ word.word }}</span>
+        <span class="rounded-md px-2 py-1" data-start="{{ word.start }}" data-end="{{ word.end }}">{{ word.word }}</span>
       {% endfor %}
     </p>
   </main>

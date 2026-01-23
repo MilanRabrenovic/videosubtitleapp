@@ -87,6 +87,9 @@ Session cookies provide lightweight isolation without collecting identity data.
 ## Why this is temporary
 Session-based ownership prevents accidental cross-user access but is not a substitute for authentication.
 
+## Why Tailwind CDN for styling
+Using Tailwind via CDN keeps styling fast to iterate without a build pipeline; it can be replaced later with a compiled setup.
+
 ## Tradeoffs accepted for simplicity
 - No authentication or multi-user support.
 - Local filesystem storage only.

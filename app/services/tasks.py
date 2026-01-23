@@ -24,7 +24,7 @@ from app.services.subtitles import (
 )
 from app.services.transcription import transcribe_video
 import re
-from app.services.video import burn_in_ass, get_video_dimensions
+from app.services.video import burn_in_ass, generate_waveform, get_video_dimensions, get_video_duration
 
 
 def _render_style(job_id: str, style: Dict[str, Any]) -> Dict[str, Any]:
@@ -60,6 +60,7 @@ def run_transcription_job(job: Dict[str, Any]) -> Dict[str, Any]:
     else:
         complete_step(job_id, "transcribe")
     video_width, video_height = get_video_dimensions(video_path)
+    video_duration = get_video_duration(video_path) or 0
     style = default_style()
     style["play_res_x"] = video_width
     style["play_res_y"] = video_height
@@ -69,6 +70,8 @@ def run_transcription_job(job: Dict[str, Any]) -> Dict[str, Any]:
         "video_filename": video_filename,
         "subtitles": subtitles,
         "style": style,
+        "video_duration": video_duration,
+        "waveform_image": f"{job_id}_waveform.png",
     }
 
     karaoke_lines = build_karaoke_lines(words, job_data["subtitles"])
@@ -81,6 +84,12 @@ def run_transcription_job(job: Dict[str, Any]) -> Dict[str, Any]:
     save_transcript_words(job_id, words)
     srt_path = OUTPUTS_DIR / f"{job_id}.srt"
     srt_path.write_text(subtitles_to_srt(job_data["subtitles"]), encoding="utf-8")
+
+    waveform_path = OUTPUTS_DIR / f"{job_id}_waveform.png"
+    try:
+        generate_waveform(video_path, waveform_path)
+    except Exception:
+        pass
 
     preview_ass_path, preview_path = _preview_paths(job_id)
     start_step(job_id, "preview_render")
