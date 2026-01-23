@@ -28,9 +28,12 @@ templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 @router.get("/upload")
 def upload_form(request: Request) -> Any:
     """Render the upload form."""
+    user = getattr(request.state, "user", None)
+    if not user:
+        return RedirectResponse(url="/login", status_code=303)
     session_id = getattr(request.state, "session_id", None)
     recent = []
-    for job in list_recent_jobs(owner_session_id=session_id):
+    for job in list_recent_jobs(owner_user_id=user["id"], owner_session_id=session_id):
         if job.get("type") != "transcription":
             continue
         recent.append(
@@ -54,6 +57,9 @@ def handle_upload(
     language: str = Form(""),
 ) -> Any:
     """Accept an uploaded video and create a subtitle job."""
+    user = getattr(request.state, "user", None)
+    if not user:
+        return RedirectResponse(url="/login", status_code=303)
     job_id = uuid.uuid4().hex
     extension = Path(video.filename).suffix.lower()
     if extension not in ALLOWED_VIDEO_EXTENSIONS:
@@ -85,7 +91,13 @@ def handle_upload(
         },
     }
     session_id = getattr(request.state, "session_id", None)
-    create_job("transcription", job_input, job_id=job_id, owner_session_id=session_id)
+    create_job(
+        "transcription",
+        job_input,
+        job_id=job_id,
+        owner_session_id=session_id,
+        owner_user_id=user["id"],
+    )
     start_step(job_id, "upload")
     complete_step(job_id, "upload")
 

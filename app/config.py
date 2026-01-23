@@ -23,6 +23,9 @@ JOB_LOCK_TTL_MINUTES = 30
 JOB_RECENT_LIMIT = 8
 JOB_CLEANUP_BATCH = 5
 SESSION_COOKIE_NAME = "subtitle_session_id"
+AUTH_COOKIE_NAME = "subtitle_auth"
+AUTH_SESSION_DAYS = 30
+AUTH_DB_PATH = BASE_DIR / "data" / "auth.db"
 
 
 def ensure_directories() -> None:
@@ -31,3 +34,4 @@ def ensure_directories() -> None:
     OUTPUTS_DIR.mkdir(parents=True, exist_ok=True)
     FONTS_DIR.mkdir(parents=True, exist_ok=True)
     JOBS_DIR.mkdir(parents=True, exist_ok=True)
+    AUTH_DB_PATH.parent.mkdir(parents=True, exist_ok=True)

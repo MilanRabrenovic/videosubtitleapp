@@ -3,19 +3,41 @@
 from typing import Any
 
 from fastapi import APIRouter, Form, HTTPException, Request
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, RedirectResponse
 
 from app.config import OUTPUTS_DIR, UPLOADS_DIR
 from app.services.cleanup import touch_job
-from app.services.jobs import create_job, find_active_job, touch_job_access
+from app.services.jobs import create_job, find_active_job, load_job, touch_job_access, update_job
 from app.services.subtitles import load_subtitle_job, subtitles_to_srt, subtitles_to_vtt
 
 router = APIRouter()
 
 
+def _require_user(request: Request):
+    user = getattr(request.state, "user", None)
+    if not user:
+        return None
+    return user
+
+
+def _ensure_owner(job_id: str, user_id: int) -> bool:
+    job_record = load_job(job_id)
+    if not job_record:
+        return False
+    if job_record.get("owner_user_id") is None:
+        update_job(job_id, {"owner_user_id": int(user_id)})
+        job_record["owner_user_id"] = int(user_id)
+    return job_record.get("owner_user_id") == int(user_id)
+
+
 @router.post("/export/{job_id}/subtitles")
 def export_subtitles(request: Request, job_id: str, format: str = Form("srt")) -> Any:
     """Export subtitles in SRT or VTT format."""
+    user = _require_user(request)
+    if not user:
+        return RedirectResponse(url="/login", status_code=303)
+    if not _ensure_owner(job_id, user["id"]):
+        raise HTTPException(status_code=403, detail="Access denied")
     job_data = load_subtitle_job(job_id)
     if not job_data:
         raise HTTPException(status_code=404, detail="Subtitle job not found")
@@ -43,6 +65,11 @@ def export_subtitles(request: Request, job_id: str, format: str = Form("srt")) -
 @router.post("/export/{job_id}/video")
 def export_video(request: Request, job_id: str) -> Any:
     """Export a video with burned-in subtitles."""
+    user = _require_user(request)
+    if not user:
+        return RedirectResponse(url="/login", status_code=303)
+    if not _ensure_owner(job_id, user["id"]):
+        raise HTTPException(status_code=403, detail="Access denied")
     job_data = load_subtitle_job(job_id)
     if not job_data:
         raise HTTPException(status_code=404, detail="Subtitle job not found")
@@ -60,6 +87,7 @@ def export_video(request: Request, job_id: str) -> Any:
         "export",
         {"video_path": str(UPLOADS_DIR / job_data.get("video_filename", "")), "options": {"subtitle_job_id": job_id}},
         owner_session_id=session_id,
+        owner_user_id=user["id"],
     )
     return {"job_id": export_job["job_id"], "status": export_job["status"]}
 
@@ -67,6 +95,11 @@ def export_video(request: Request, job_id: str) -> Any:
 @router.post("/export/{job_id}/video-karaoke")
 def export_video_karaoke(request: Request, job_id: str) -> Any:
     """Export a video with burned-in karaoke word highlighting."""
+    user = _require_user(request)
+    if not user:
+        return RedirectResponse(url="/login", status_code=303)
+    if not _ensure_owner(job_id, user["id"]):
+        raise HTTPException(status_code=403, detail="Access denied")
     job_data = load_subtitle_job(job_id)
     if not job_data:
         raise HTTPException(status_code=404, detail="Subtitle job not found")
@@ -83,5 +116,6 @@ def export_video_karaoke(request: Request, job_id: str) -> Any:
         "karaoke_export",
         {"video_path": str(UPLOADS_DIR / job_data.get("video_filename", "")), "options": {"subtitle_job_id": job_id}},
         owner_session_id=session_id,
+        owner_user_id=user["id"],
     )
     return {"job_id": export_job["job_id"], "status": export_job["status"]}

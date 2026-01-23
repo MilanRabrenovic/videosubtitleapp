@@ -157,3 +157,9 @@
 - Implemented: Bottom-center toast system for all user messages (save/export/preview/pin/upload).
 - Implemented: Karaoke alignment improvements for hyphenated tokens and better word-duration fidelity.
 - Next action: Validate highlight timing on long words across more clips and refine alignment if needed.
+
+## 2026-01-23
+- Implemented: SQLite-backed auth (signup/login/logout) with secure session cookies and password hashing.
+- Implemented: Project ownership enforced by user_id across edit/export/playback/jobs routes.
+- Implemented: Protected media endpoints for uploads/outputs and removed direct static access.
+- Next action: Add rate limiting and proxy-level upload caps before public launch.

@@ -68,6 +68,7 @@ def create_job(
     input_data: Dict[str, Any],
     job_id: Optional[str] = None,
     owner_session_id: Optional[str] = None,
+    owner_user_id: Optional[int] = None,
 ) -> Dict[str, Any]:
     """Create a queued job and persist it."""
     job_id = job_id or uuid.uuid4().hex
@@ -86,6 +87,7 @@ def create_job(
         "expires_at": _expires_at_iso(now),
         "steps": [],
         "owner_session_id": owner_session_id,
+        "owner_user_id": owner_user_id,
         "input": input_data,
         "output": {"subtitle_path": None, "video_path": None},
     }
@@ -118,6 +120,9 @@ def load_job(job_id: str) -> Optional[Dict[str, Any]]:
         changed = True
     if "owner_session_id" not in data:
         data["owner_session_id"] = None
+        changed = True
+    if "owner_user_id" not in data:
+        data["owner_user_id"] = None
         changed = True
     if changed:
         _atomic_write(_job_path(job_id), data)
@@ -295,7 +300,11 @@ def _is_locked(job: Dict[str, Any]) -> bool:
     return _utcnow() - last_accessed <= timedelta(minutes=JOB_LOCK_TTL_MINUTES)
 
 
-def list_recent_jobs(limit: Optional[int] = None, owner_session_id: Optional[str] = None) -> list[Dict[str, Any]]:
+def list_recent_jobs(
+    limit: Optional[int] = None,
+    owner_session_id: Optional[str] = None,
+    owner_user_id: Optional[int] = None,
+) -> list[Dict[str, Any]]:
     """Return recent jobs sorted by last access."""
     limit = limit or JOB_RECENT_LIMIT
     now = _utcnow()
@@ -304,7 +313,13 @@ def list_recent_jobs(limit: Optional[int] = None, owner_session_id: Optional[str
         expires_at = _parse_iso(job.get("expires_at"))
         if expires_at and expires_at <= now:
             continue
-        if owner_session_id and job.get("owner_session_id") != owner_session_id:
+        if owner_user_id is not None:
+            if job.get("owner_user_id") != owner_user_id:
+                if owner_session_id and job.get("owner_session_id") == owner_session_id and job.get("owner_user_id") is None:
+                    pass
+                else:
+                    continue
+        elif owner_session_id and job.get("owner_session_id") != owner_session_id:
             continue
         jobs.append(job)
     jobs.sort(

@@ -5,10 +5,11 @@ from typing import Any
 
 from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
 from fastapi.templating import Jinja2Templates
+from fastapi.responses import RedirectResponse
 
 from app.config import OUTPUTS_DIR, TEMPLATES_DIR, UPLOADS_DIR
 from app.services.cleanup import touch_job
-from app.services.jobs import create_job, last_failed_step, load_job, touch_job_access
+from app.services.jobs import create_job, last_failed_step, load_job, touch_job_access, update_job
 from app.services.fonts import (
     available_local_fonts,
     available_local_font_variants,
@@ -40,12 +41,34 @@ from app.services.subtitles import (
 )
 
 router = APIRouter()
+
+
+def _require_user(request: Request):
+    user = getattr(request.state, "user", None)
+    if not user:
+        return None
+    return user
+
+
+def _ensure_owner(job_id: str, user_id: int) -> bool:
+    job_record = load_job(job_id)
+    if not job_record:
+        return False
+    if job_record.get("owner_user_id") is None:
+        update_job(job_id, {"owner_user_id": int(user_id)})
+        job_record["owner_user_id"] = int(user_id)
+    return job_record.get("owner_user_id") == int(user_id)
 templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 
 
 @router.get("/edit/{job_id}")
 def edit_page(request: Request, job_id: str) -> Any:
     """Render the subtitle editing UI."""
+    user = _require_user(request)
+    if not user:
+        return RedirectResponse(url="/login", status_code=303)
+    if not _ensure_owner(job_id, user["id"]):
+        raise HTTPException(status_code=403, detail="Access denied")
     job_data = load_subtitle_job(job_id)
     job_status = None
     job_error = None
@@ -146,6 +169,11 @@ def save_edits(
     style_font_style: str = Form(None),
 ) -> Any:
     """Persist edited subtitles without reprocessing the video."""
+    user = _require_user(request)
+    if not user:
+        return RedirectResponse(url="/login", status_code=303)
+    if not _ensure_owner(job_id, user["id"]):
+        raise HTTPException(status_code=403, detail="Access denied")
     job_data = load_subtitle_job(job_id)
     if not job_data:
         raise HTTPException(status_code=404, detail="Subtitle job not found")
@@ -297,6 +325,7 @@ def save_edits(
             "preview",
             {"video_path": str(video_path), "options": {"subtitle_job_id": job_id}},
             owner_session_id=session_id,
+            owner_user_id=int(user["id"]),
         )
         preview_job_id = preview_job["job_id"]
 
@@ -346,6 +375,11 @@ def upload_font(
     font_license_confirm: str = Form(None),
 ) -> Any:
     """Upload a custom font file for ASS rendering."""
+    user = _require_user(request)
+    if not user:
+        return RedirectResponse(url="/login", status_code=303)
+    if not _ensure_owner(job_id, user["id"]):
+        raise HTTPException(status_code=403, detail="Access denied")
     job_data = load_subtitle_job(job_id)
     if not job_data:
         raise HTTPException(status_code=404, detail="Subtitle job not found")
@@ -381,6 +415,7 @@ def upload_font(
             "preview",
             {"video_path": str(video_path), "options": {"subtitle_job_id": job_id}},
             owner_session_id=session_id,
+            owner_user_id=int(user["id"]),
         )
         preview_job_id = preview_job["job_id"]
 
@@ -420,6 +455,11 @@ def delete_font(
     font_family: str = Form(""),
 ) -> Any:
     """Delete an uploaded font family and reset to default."""
+    user = _require_user(request)
+    if not user:
+        return RedirectResponse(url="/login", status_code=303)
+    if not _ensure_owner(job_id, user["id"]):
+        raise HTTPException(status_code=403, detail="Access denied")
     job_data = load_subtitle_job(job_id)
     if not job_data:
         raise HTTPException(status_code=404, detail="Subtitle job not found")
@@ -449,6 +489,7 @@ def delete_font(
             "preview",
             {"video_path": str(video_path), "options": {"subtitle_job_id": job_id}},
             owner_session_id=session_id,
+            owner_user_id=int(user["id"]),
         )
         preview_job_id = preview_job["job_id"]
 

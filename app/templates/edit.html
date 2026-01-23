@@ -81,7 +81,14 @@
 <body class="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-100 text-slate-900 font-display">
   <main class="mx-auto flex w-full max-w-7xl flex-col gap-8 px-6 py-10">
     <header class="space-y-3">
-      <p class="text-sm uppercase tracking-[0.3em] text-amber-600/80">Subtitle Studio</p>
+      <div class="flex flex-wrap items-center justify-between gap-4">
+        <p class="text-sm uppercase tracking-[0.3em] text-amber-600/80">Subtitle Studio</p>
+        <form action="/logout" method="post">
+          <button type="submit" class="rounded-lg border border-slate-200 px-4 py-2 text-sm text-slate-600 hover:bg-slate-100">
+            Log out
+          </button>
+        </form>
+      </div>
       <h1 class="text-3xl font-semibold tracking-tight md:text-4xl">Edit subtitles</h1>
       <div class="flex flex-wrap items-center gap-4 text-sm text-slate-600">
         <span><strong class="text-slate-900">Project:</strong> {{ job.title }}</span>
@@ -183,7 +190,7 @@
                       <button type="button" class="font-option w-full rounded-md px-2 py-1 text-left text-slate-700 hover:bg-slate-100" data-value="{{ font_name }}">{{ font_name }}</button>
                     {% endfor %}
                     {% if custom_fonts %}
-                      <div class="font-group px-2 pb-1 pt-3 text-xs uppercase tracking-wide text-slate-500">Custom (This Job)</div>
+                      <div class="font-group px-2 pb-1 pt-3 text-xs uppercase tracking-wide text-slate-500">Custom (This Project)</div>
                       {% for font_name in custom_fonts %}
                         <button type="button" class="font-option w-full rounded-md px-2 py-1 text-left text-slate-700 hover:bg-slate-100" data-value="{{ font_name }}">{{ font_name }}</button>
                       {% endfor %}
@@ -415,7 +422,7 @@
                   class="relative mt-4 overflow-hidden rounded-xl border border-slate-200 bg-gradient-to-b from-slate-50 via-white to-slate-50"
                 >
                   <img
-                    src="/outputs/{{ job.waveform_image or job.job_id ~ '_waveform.png' }}{% if waveform_token %}?v={{ waveform_token }}{% endif %}"
+                    src="/media/outputs/{{ job.job_id }}/{{ job.waveform_image or job.job_id ~ '_waveform.png' }}{% if waveform_token %}?v={{ waveform_token }}{% endif %}"
                     alt="Waveform"
                     class="h-24 w-full object-cover opacity-100"
                   />
@@ -487,9 +494,9 @@
           <h2 class="text-lg font-semibold">Preview</h2>
           <video id="preview-video" controls class="mt-4 w-full max-w-[520px] rounded-xl border border-slate-200">
           {% if preview_available %}
-            <source src="/outputs/{{ job.job_id }}_preview.mp4{% if preview_token %}?v={{ preview_token }}{% endif %}" type="video/mp4" />
+            <source src="/media/outputs/{{ job.job_id }}/{{ job.job_id }}_preview.mp4{% if preview_token %}?v={{ preview_token }}{% endif %}" type="video/mp4" />
           {% else %}
-            <source src="/uploads/{{ job.video_filename }}" type="video/mp4" />
+            <source src="/media/uploads/{{ job.job_id }}/{{ job.video_filename }}" type="video/mp4" />
           {% endif %}
           Your browser does not support the video tag.
           </video>

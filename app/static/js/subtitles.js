@@ -171,7 +171,7 @@
       () => {
         if (previewVideo) {
           const source = previewVideo.querySelector("source");
-          if (source && source.src.includes("/outputs/")) {
+          if (source && source.src.includes("/media/outputs/")) {
             const cacheBuster = `v=${Date.now()}`;
             source.src = source.src.split("?")[0] + "?" + cacheBuster;
             previewVideo.load();
@@ -540,7 +540,7 @@
       }
       if (previewVideo) {
         const source = previewVideo.querySelector("source");
-        if (source && source.src.includes("/outputs/")) {
+        if (source && source.src.includes("/media/outputs/")) {
           const cacheBuster = `v=${Date.now()}`;
           source.src = source.src.split("?")[0] + "?" + cacheBuster;
           previewVideo.load();
