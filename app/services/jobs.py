@@ -426,6 +426,25 @@ def delete_job(job_id: str) -> bool:
     return True
 
 
+def retry_job(job_id: str) -> Optional[Dict[str, Any]]:
+    """Re-queue a failed job with the same inputs."""
+    job = load_job(job_id)
+    if not job:
+        return None
+    if job.get("status") != "failed":
+        return job
+    updates = {
+        "status": "queued",
+        "error": None,
+        "steps": [],
+        "log_path": None,
+    }
+    updated = update_job(job_id, updates)
+    if updated:
+        enqueue_job(job_id)
+    return updated
+
+
 def cleanup_jobs() -> None:
     """Remove old job files to limit disk usage."""
     if JOB_MAX_AGE_HOURS <= 0:

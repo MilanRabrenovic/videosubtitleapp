@@ -6,7 +6,15 @@ from typing import Any, Dict
 from fastapi import APIRouter, Form, HTTPException, Request
 
 from app.config import OUTPUTS_DIR
-from app.services.jobs import delete_job, last_failed_step, list_recent_jobs, load_job, touch_job_access, update_job
+from app.services.jobs import (
+    delete_job,
+    last_failed_step,
+    list_recent_jobs,
+    load_job,
+    retry_job,
+    touch_job_access,
+    update_job,
+)
 
 router = APIRouter()
 
@@ -135,3 +143,15 @@ def delete_job_route(request: Request, job_id: str) -> Dict[str, Any]:
     if not delete_job(job_id):
         raise HTTPException(status_code=400, detail="Unable to delete job")
     return {"job_id": job_id, "deleted": True}
+
+
+@router.post("/jobs/{job_id}/retry")
+def retry_job_route(request: Request, job_id: str) -> Dict[str, Any]:
+    user = _require_user(request)
+    job = _ensure_owner(job_id, user["id"])
+    if job.get("status") != "failed":
+        raise HTTPException(status_code=400, detail="Only failed jobs can be retried")
+    updated = retry_job(job_id)
+    if not updated:
+        raise HTTPException(status_code=400, detail="Unable to retry job")
+    return {"job_id": job_id, "status": updated.get("status")}

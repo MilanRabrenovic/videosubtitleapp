@@ -792,6 +792,34 @@
   const errorPanelHint = document.getElementById("error-panel-hint");
   const errorPanelId = document.getElementById("error-panel-id");
   const copyErrorPanelId = document.getElementById("copy-error-panel-id");
+  const errorPanelRetry = document.getElementById("error-panel-retry");
+  const retryProcessing = document.getElementById("retry-processing");
+
+  const retryJob = async (jobId, button) => {
+    if (!jobId) {
+      return;
+    }
+    if (button) {
+      button.disabled = true;
+    }
+    try {
+      const response = await fetch(`/jobs/${jobId}/retry`, { method: "POST" });
+      if (!response.ok) {
+        throw new Error("Retry failed");
+      }
+      showToast("Retry started.", "info", 2400);
+      setProcessingState(true);
+      setTimeout(() => {
+        window.location.reload();
+      }, 600);
+    } catch (error) {
+      console.error(error);
+      showToast("Retry failed. Please try again.", "error", 2600);
+      if (button) {
+        button.disabled = false;
+      }
+    }
+  };
 
   const showErrorPanel = (job) => {
     if (!errorPanel || !job) {
@@ -809,6 +837,7 @@
     if (errorPanelId) {
       errorPanelId.value = job.job_id || "";
     }
+    errorPanel.dataset.jobId = job.job_id || "";
     errorPanel.classList.remove("hidden");
   };
 
@@ -821,6 +850,20 @@
         console.error(error);
         showToast("Copy failed. Select the ID manually.", "warning", 2400);
       }
+    });
+  }
+
+  if (retryProcessing) {
+    retryProcessing.addEventListener("click", () => {
+      const jobId = retryProcessing.dataset.jobId;
+      retryJob(jobId, retryProcessing);
+    });
+  }
+
+  if (errorPanelRetry) {
+    errorPanelRetry.addEventListener("click", () => {
+      const jobId = errorPanel?.dataset.jobId;
+      retryJob(jobId, errorPanelRetry);
     });
   }
 })();

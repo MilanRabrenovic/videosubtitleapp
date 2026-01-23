@@ -183,3 +183,8 @@
 - Implemented: Per-job log files stored in outputs/job-logs/{job_id}.log.
 - Implemented: Job JSON now records log_path for support/debugging.
 - Next action: Add a small admin/support endpoint or UI link to fetch logs safely.
+
+## 2026-01-23
+- Implemented: `/health` and `/ready` endpoints for basic readiness checks.
+- Ready check verifies storage directories and Redis connectivity (if enabled).
+- Next action: Add admin log viewer or support tooling for failed jobs.

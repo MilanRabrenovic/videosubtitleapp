@@ -17,7 +17,7 @@ from app.config import (
     SESSION_COOKIE_NAME,
     ensure_directories,
 )
-from app.routes import auth, edit_subtitles, export, jobs, media, playback, upload
+from app.routes import auth, edit_subtitles, export, health, jobs, media, playback, upload
 from app.services.cleanup import cleanup_storage
 from app.services.auth import get_auth_context, init_auth_db
 from app.services.jobs import start_workers
@@ -36,6 +36,7 @@ app.include_router(export.router)
 app.include_router(playback.router)
 app.include_router(jobs.router)
 app.include_router(media.router)
+app.include_router(health.router)
 
 @app.middleware("http")
 async def session_middleware(request, call_next):

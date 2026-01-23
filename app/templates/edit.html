@@ -154,11 +154,19 @@
             >
               Copy
             </button>
+            <button
+              type="button"
+              id="retry-processing"
+              data-job-id="{{ processing_job_id }}"
+              class="rounded-md border border-slate-200 px-2 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-100"
+            >
+              Retry
+            </button>
           </div>
         {% endif %}
       </div>
       <p class="text-sm text-slate-500">
-        This project failed to process. Upload a new video to try again.
+        This project failed to process. You can retry or upload a new video.
       </p>
     {% endif %}
     <div
@@ -182,6 +190,13 @@
           class="rounded-md border border-rose-200 px-2 py-1 text-[11px] font-semibold text-rose-700 hover:bg-rose-100"
         >
           Copy
+        </button>
+        <button
+          type="button"
+          id="error-panel-retry"
+          class="rounded-md border border-rose-200 px-2 py-1 text-[11px] font-semibold text-rose-700 hover:bg-rose-100"
+        >
+          Retry
         </button>
       </div>
     </div>
