@@ -300,8 +300,10 @@
         }
       }
       bar.innerHTML =
-        "<span class='handle-left absolute left-0 top-0 h-full w-px cursor-ew-resize bg-slate-500/60'></span>" +
-        "<span class='handle-right absolute right-0 top-0 h-full w-px cursor-ew-resize bg-slate-500/60'></span>" +
+        "<span class='handle-left absolute top-0 h-full cursor-ew-resize' style='left:-4px;width:8px;'></span>" +
+        "<span class='handle-right absolute top-0 h-full cursor-ew-resize' style='right:-4px;width:8px;'></span>" +
+        "<span class='handle-left absolute left-0 top-0 h-full w-px bg-slate-500/60 pointer-events-none'></span>" +
+        "<span class='handle-right absolute right-0 top-0 h-full w-px bg-slate-500/60 pointer-events-none'></span>" +
         separators;
       overlay.appendChild(bar);
 
