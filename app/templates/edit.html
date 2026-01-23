@@ -97,13 +97,14 @@
       id="pin-form"
     >
       <label class="flex items-center gap-2 text-sm text-slate-700">
-        <input type="checkbox" name="pinned" id="pin-checkbox" class="checkbox" {% if job_pinned %}checked{% endif %} />
+        <input type="checkbox" name="pinned" id="pin-checkbox" class="checkbox" {% if job_pinned %}checked{% endif %} {% if processing_job_id %}disabled{% endif %} />
         Pin this job (prevent cleanup)
       </label>
       <button
         type="button"
         id="pin-submit"
         class="rounded-lg border border-slate-200 bg-slate-100 px-4 py-2 text-sm font-semibold text-slate-800 hover:bg-slate-200"
+        {% if processing_job_id %}disabled{% endif %}
       >
         Save
       </button>
@@ -151,7 +152,7 @@
         />
       </label>
       <label class="flex items-center gap-2 text-sm text-slate-700">
-        <input type="checkbox" name="font_license_confirm" id="font-license-confirm" class="checkbox" />
+        <input type="checkbox" name="font_license_confirm" id="font-license-confirm" class="checkbox" {% if processing_job_id %}disabled{% endif %} />
         I have the right to use this font
       </label>
       <button
@@ -159,6 +160,7 @@
         id="font-upload-button"
         class="rounded-lg bg-amber-400 px-4 py-2 text-sm font-semibold text-slate-900 disabled:cursor-not-allowed disabled:opacity-60"
         disabled
+        {% if processing_job_id %}disabled{% endif %}
       >
         Upload font
       </button>
@@ -422,6 +424,7 @@
               type="submit"
               id="save-button"
               class="rounded-lg bg-amber-400 px-5 py-2 text-sm font-semibold text-slate-900 hover:bg-amber-300 disabled:cursor-not-allowed disabled:opacity-60"
+              {% if processing_job_id %}disabled{% endif %}
             >
               Save edits
             </button>
@@ -450,18 +453,18 @@
           <div class="text-xs font-semibold uppercase tracking-[0.25em] text-slate-500">Export</div>
           <form action="/export/{{ job.job_id }}/subtitles" method="post">
             <input type="hidden" name="format" value="srt" />
-            <button type="submit" data-export="srt" class="w-full rounded-lg border border-slate-200 px-4 py-2 text-sm text-slate-700 hover:bg-slate-100">
+            <button type="submit" data-export="srt" class="w-full rounded-lg border border-slate-200 px-4 py-2 text-sm text-slate-700 hover:bg-slate-100" {% if processing_job_id %}disabled{% endif %}>
               Download subtitles (SRT)
             </button>
           </form>
           <form action="/export/{{ job.job_id }}/subtitles" method="post">
             <input type="hidden" name="format" value="vtt" />
-            <button type="submit" class="w-full rounded-lg border border-slate-200 px-4 py-2 text-sm text-slate-700 hover:bg-slate-100">
+            <button type="submit" class="w-full rounded-lg border border-slate-200 px-4 py-2 text-sm text-slate-700 hover:bg-slate-100" {% if processing_job_id %}disabled{% endif %}>
               Download subtitles (VTT)
             </button>
           </form>
           <form action="/export/{{ job.job_id }}/video-karaoke" method="post">
-            <button type="submit" data-export="video-karaoke" class="w-full rounded-lg bg-amber-400 px-4 py-2 text-sm font-semibold text-slate-900 hover:bg-amber-300">
+            <button type="submit" data-export="video-karaoke" class="w-full rounded-lg bg-amber-400 px-4 py-2 text-sm font-semibold text-slate-900 hover:bg-amber-300" {% if processing_job_id %}disabled{% endif %}>
               Export video with word highlight
             </button>
           </form>

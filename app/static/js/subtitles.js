@@ -11,12 +11,15 @@
   const exportVideoStatus = document.getElementById("video-export-status");
   const previewVideo = document.getElementById("preview-video");
   const saveButton = document.getElementById("save-button");
+  const exportForms = document.querySelectorAll("form[action^='/export/']");
+  const fontUploadButton = document.getElementById("font-upload-button");
+  const pinSubmit = document.getElementById("pin-submit");
+  const subtitleInputs = form ? form.querySelectorAll("input, select, textarea, button") : [];
   const jobStatus = document.getElementById("job-status");
   const previewJob = document.getElementById("preview-job");
   const editorJob = document.getElementById("editor-job");
   const pinForm = document.getElementById("pin-form");
   const pinCheckbox = document.getElementById("pin-checkbox");
-  const pinSubmit = document.getElementById("pin-submit");
   const pinStatus = document.getElementById("pin-status");
   const toast = document.getElementById("toast");
   const toastClasses = {
@@ -26,7 +29,6 @@
     warning: "bg-amber-50 text-amber-900 border border-amber-200",
   };
   const fontLicenseConfirm = document.getElementById("font-license-confirm");
-  const fontUploadButton = document.getElementById("font-upload-button");
   const fontInput = document.getElementById("font-input");
   const fontValue = document.getElementById("font-value");
   const fontOptions = document.getElementById("font-options");
@@ -34,6 +36,39 @@
   let isDirty = false;
   let saveTimeoutId = null;
   let toastTimer = null;
+
+  const setProcessingState = (isProcessing) => {
+    if (saveButton) {
+      saveButton.disabled = isProcessing;
+    }
+    exportForms.forEach((formEl) => {
+      const button = formEl.querySelector("button");
+      if (button) {
+        button.disabled = isProcessing;
+      }
+    });
+    if (fontUploadButton) {
+      fontUploadButton.disabled = isProcessing || !fontLicenseConfirm?.checked;
+    }
+    if (pinSubmit) {
+      pinSubmit.disabled = isProcessing;
+    }
+    subtitleInputs.forEach((el) => {
+      if (el === saveButton) {
+        return;
+      }
+      if (el === fontUploadButton) {
+        return;
+      }
+      if (el === pinSubmit) {
+        return;
+      }
+      if (el.type === "hidden") {
+        return;
+      }
+      el.disabled = isProcessing;
+    });
+  };
 
   const showToast = (message, type = "info", timeout = 2200) => {
     if (!toast) {
@@ -490,6 +525,7 @@
       saveButton.disabled = true;
       saveButton.textContent = "Processing...";
     }
+    setProcessingState(true);
     if (jobStatus.textContent.trim()) {
       showToast(jobStatus.textContent.trim(), "info", 0);
     }
@@ -500,6 +536,7 @@
       },
       (job) => {
         showToast(formatJobFailure(job, "Processing failed."), "error", 3600);
+        setProcessingState(false);
         if (saveButton) {
           saveButton.disabled = false;
           saveButton.textContent = saveButton.dataset.originalText || "Save edits";
