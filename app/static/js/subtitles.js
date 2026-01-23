@@ -19,6 +19,8 @@
   const previewJob = document.getElementById("preview-job");
   const editorJob = document.getElementById("editor-job");
   const timelineReset = document.getElementById("timeline-reset");
+  const saveBar = document.getElementById("save-bar");
+  const saveBarButton = document.getElementById("save-bar-button");
   const pinForm = document.getElementById("pin-form");
   const pinCheckbox = document.getElementById("pin-checkbox");
   const pinStatus = document.getElementById("pin-status");
@@ -43,6 +45,9 @@
   const setProcessingState = (isProcessing) => {
     if (saveButton) {
       saveButton.disabled = isProcessing;
+    }
+    if (saveBarButton) {
+      saveBarButton.disabled = isProcessing;
     }
     exportForms.forEach((formEl) => {
       const button = formEl.querySelector("button");
@@ -484,6 +489,10 @@
       exportVideoStatus.style.display = "none";
     }
     isDirty = true;
+    if (saveBar) {
+      saveBar.classList.remove("hidden");
+      saveBar.classList.add("flex");
+    }
   };
 
   subtitleList.addEventListener("input", () => {
@@ -575,15 +584,19 @@
         }
       }
       isDirty = false;
+      if (saveBar) {
+        saveBar.classList.add("hidden");
+        saveBar.classList.remove("flex");
+      }
       captureTimelineBaseline();
     } catch (error) {
       console.error(error);
       showToast(error.message || "Save failed. Please try again.", error.message?.includes("Too many") ? "warning" : "error", 3200);
     }
-    if (saveButton && !queuedPreviewJob) {
-      saveButton.disabled = false;
-      saveButton.textContent = saveButton.dataset.originalText || "Save edits";
-    }
+  if (saveButton && !queuedPreviewJob) {
+    saveButton.disabled = false;
+    saveButton.textContent = saveButton.dataset.originalText || "Save edits";
+  }
   });
 
   // Initialize hidden input with current values.
@@ -592,6 +605,10 @@
   updateBlockDurations();
   renderTimeline();
   captureTimelineBaseline();
+  if (saveBar) {
+    saveBar.classList.add("hidden");
+    saveBar.classList.remove("flex");
+  }
 
   if (previewVideo) {
     let rafId = null;
@@ -659,6 +676,14 @@
       timelineDirty = false;
       timelineReset.classList.add("hidden");
       timelineReset.disabled = true;
+    });
+  }
+
+  if (saveBarButton && saveButton) {
+    saveBarButton.addEventListener("click", () => {
+      if (!saveButton.disabled) {
+        saveButton.click();
+      }
     });
   }
 
