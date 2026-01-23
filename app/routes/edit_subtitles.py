@@ -167,14 +167,10 @@ def save_edits(
         "text_color": style_text_color or style_defaults["text_color"],
         "highlight_color": style_highlight_color or style_defaults["highlight_color"],
         "outline_color": style_outline_color or style_defaults["outline_color"],
-        "outline_enabled": style_outline_enabled == "on"
-        if style_outline_enabled is not None
-        else style_defaults["outline_enabled"],
+        "outline_enabled": style_outline_enabled == "on" if style_outline_enabled is not None else False,
         "outline_size": style_outline_size if style_outline_size is not None else style_defaults["outline_size"],
         "background_color": style_background_color or style_defaults["background_color"],
-        "background_enabled": style_background_enabled == "on"
-        if style_background_enabled is not None
-        else style_defaults["background_enabled"],
+        "background_enabled": style_background_enabled == "on" if style_background_enabled is not None else False,
         "background_opacity": style_background_opacity
         if style_background_opacity is not None
         else style_defaults["background_opacity"],

@@ -40,6 +40,7 @@ def upload_form(request: Request) -> Any:
                 "title": (job.get("input", {}) or {}).get("options", {}).get("title") or "Untitled",
                 "status": job.get("status"),
                 "last_accessed_at": job.get("last_accessed_at"),
+                "pinned": bool(job.get("pinned")),
             }
         )
     return templates.TemplateResponse("upload.html", {"request": request, "recent_jobs": recent})

@@ -84,7 +84,7 @@
       <p class="text-sm uppercase tracking-[0.3em] text-amber-600/80">Subtitle Studio</p>
       <h1 class="text-3xl font-semibold tracking-tight md:text-4xl">Edit subtitles</h1>
       <div class="flex flex-wrap items-center gap-4 text-sm text-slate-600">
-        <span><strong class="text-slate-900">Job:</strong> {{ job.title }}</span>
+        <span><strong class="text-slate-900">Project:</strong> {{ job.title }}</span>
         <span class="text-slate-300">·</span>
         <span><strong class="text-slate-900">Video:</strong> {{ job.video_filename }}</span>
       </div>
@@ -98,7 +98,7 @@
     >
       <label class="flex items-center gap-2 text-sm text-slate-700">
         <input type="checkbox" name="pinned" id="pin-checkbox" class="checkbox" {% if job_pinned %}checked{% endif %} {% if processing_job_id %}disabled{% endif %} />
-        Pin this job (prevent cleanup)
+        Keep beyond 30 days
       </label>
       <button
         type="button"
