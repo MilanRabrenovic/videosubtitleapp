@@ -19,7 +19,7 @@ from app.config import (
 )
 from app.services.cleanup import cleanup_storage
 from app.services.jobs import cleanup_jobs, complete_step, create_job, list_recent_jobs, start_step
-from app.services.video import validate_video_file
+from app.services.video import get_video_duration, validate_video_file
 
 router = APIRouter()
 templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
@@ -82,12 +82,14 @@ def handle_upload(
         upload_path.unlink(missing_ok=True)
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
+    duration = get_video_duration(upload_path)
     job_input = {
         "video_path": str(upload_path),
         "options": {
             "title": title.strip() or video.filename,
             "video_filename": safe_name,
             "language": language.strip().lower() or None,
+            "video_duration": duration,
         },
     }
     session_id = getattr(request.state, "session_id", None)

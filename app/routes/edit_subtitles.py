@@ -7,7 +7,7 @@ from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
 from fastapi.templating import Jinja2Templates
 from fastapi.responses import RedirectResponse
 
-from app.config import OUTPUTS_DIR, TEMPLATES_DIR, UPLOADS_DIR
+from app.config import LONG_VIDEO_WARNING_SECONDS, OUTPUTS_DIR, TEMPLATES_DIR, UPLOADS_DIR
 from app.services.cleanup import touch_job
 from app.services.jobs import create_job, last_failed_step, load_job, touch_job_access, update_job
 from app.services.fonts import (
@@ -98,6 +98,9 @@ def edit_page(request: Request, job_id: str) -> Any:
     for index, block in enumerate(job_data["subtitles"]):
         block.setdefault("group_id", index)
     job_data.setdefault("custom_fonts", [])
+    if "video_duration" not in job_data:
+        options = job_record.get("input", {}).get("options", {}) if job_record else {}
+        job_data["video_duration"] = options.get("video_duration") or 0
     job_data.setdefault("video_duration", 0)
     job_data.setdefault("waveform_image", f"{job_id}_waveform.png")
 
@@ -140,6 +143,9 @@ def edit_page(request: Request, job_id: str) -> Any:
             "processing_job_error": job_error,
             "processing_job_step": job_failed_step,
             "job_pinned": job_pinned,
+            "long_video_warning": bool(
+                job_data.get("video_duration", 0) and job_data["video_duration"] > LONG_VIDEO_WARNING_SECONDS
+            ),
         },
     )
 

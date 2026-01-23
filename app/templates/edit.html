@@ -83,11 +83,19 @@
     <header class="space-y-3">
       <div class="flex flex-wrap items-center justify-between gap-4">
         <p class="text-sm uppercase tracking-[0.3em] text-amber-600/80">Subtitle Studio</p>
-        <form action="/logout" method="post">
-          <button type="submit" class="rounded-lg border border-slate-200 px-4 py-2 text-sm text-slate-600 hover:bg-slate-100">
-            Log out
-          </button>
-        </form>
+        <div class="flex flex-wrap items-center gap-3">
+          <a
+            href="/upload"
+            class="rounded-lg border border-slate-200 px-4 py-2 text-sm text-slate-700 hover:bg-slate-100"
+          >
+            Back to upload
+          </a>
+          <form action="/logout" method="post">
+            <button type="submit" class="rounded-lg border border-slate-200 px-4 py-2 text-sm text-slate-600 hover:bg-slate-100">
+              Log out
+            </button>
+          </form>
+        </div>
       </div>
       <h1 class="text-3xl font-semibold tracking-tight md:text-4xl">Edit subtitles</h1>
       <div class="flex flex-wrap items-center gap-4 text-sm text-slate-600">
@@ -202,6 +210,15 @@
     </div>
     {% if font_warning %}
       <p class="hidden text-sm text-amber-700">{{ font_warning }}</p>
+    {% endif %}
+    {% if long_video_warning %}
+      <div class="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 shadow-sm">
+        <strong class="block text-amber-900">Long video detected</strong>
+        <span class="block">
+          This video is about {{ (job.video_duration / 60) | round(1) }} minutes. Transcription may take a while.
+        </span>
+      </div>
+      <span id="long-video-warning" data-duration="{{ job.video_duration }}" hidden></span>
     {% endif %}
     <form
       id="font-upload-form"
@@ -516,7 +533,7 @@
                 </p>
               </div>
             <div class="text-xs uppercase tracking-[0.25em] text-slate-400">
-              {{ job.subtitles | length }} blocks
+              <span id="block-count">{{ job.subtitles | length }}</span> blocks
             </div>
           </div>
           <div id="subtitle-list" class="mt-4 space-y-4">
@@ -524,7 +541,16 @@
               <div class="subtitle-block rounded-xl border border-slate-200 bg-white p-4 shadow-sm" data-index="{{ loop.index0 }}" data-group="{{ block.group_id }}">
                 <div class="mb-3 flex items-center justify-between text-xs uppercase tracking-[0.2em] text-slate-400">
                   <span>Block {{ loop.index }}</span>
-                  <span class="block-duration text-slate-500" data-start="{{ block.start }}" data-end="{{ block.end }}">--</span>
+                  <div class="flex items-center gap-3">
+                    <span class="block-duration text-slate-500" data-start="{{ block.start }}" data-end="{{ block.end }}">--</span>
+                    <button
+                      type="button"
+                      class="delete-block rounded-md border border-slate-200 px-2 py-1 text-[11px] font-semibold text-slate-500 hover:bg-slate-100"
+                      {% if processing_job_id or processing_job_error %}disabled{% endif %}
+                    >
+                      Delete
+                    </button>
+                  </div>
                 </div>
                 <div class="grid gap-3 md:grid-cols-2">
                   <label class="flex flex-col gap-2 text-sm font-medium text-slate-700">

@@ -21,6 +21,7 @@
   const timelineReset = document.getElementById("timeline-reset");
   const saveBar = document.getElementById("save-bar");
   const saveBarButton = document.getElementById("save-bar-button");
+  const blockCount = document.getElementById("block-count");
   const pinForm = document.getElementById("pin-form");
   const pinCheckbox = document.getElementById("pin-checkbox");
   const pinStatus = document.getElementById("pin-status");
@@ -35,6 +36,7 @@
   const fontInput = document.getElementById("font-input");
   const fontValue = document.getElementById("font-value");
   const fontOptions = document.getElementById("font-options");
+  const longVideoWarning = document.getElementById("long-video-warning");
   const timestampPattern = /^\d{2}:\d{2}:\d{2},\d{3}$/;
   let isDirty = false;
   let saveTimeoutId = null;
@@ -95,6 +97,21 @@
         toast.classList.add("hidden");
       }, timeout);
     }
+  };
+
+  const formatDuration = (seconds) => {
+    if (!Number.isFinite(seconds) || seconds <= 0) {
+      return "";
+    }
+    const total = Math.round(seconds);
+    const mins = Math.floor(total / 60);
+    const hrs = Math.floor(mins / 60);
+    const mm = String(mins % 60).padStart(2, "0");
+    const ss = String(total % 60).padStart(2, "0");
+    if (hrs > 0) {
+      return `${hrs}:${mm}:${ss}`;
+    }
+    return `${mins}:${ss}`;
   };
 
   const formatJobError = (job) => {
@@ -237,6 +254,9 @@
 
   const updateBlockDurations = () => {
     const blocks = subtitleList.querySelectorAll(".subtitle-block");
+    if (blockCount) {
+      blockCount.textContent = String(blocks.length);
+    }
     blocks.forEach((block) => {
       const holder = block.querySelector(".block-duration");
       if (!holder) {
@@ -502,6 +522,22 @@
     renderTimeline();
   });
 
+  subtitleList.addEventListener("click", (event) => {
+    const button = event.target.closest(".delete-block");
+    if (!button) {
+      return;
+    }
+    const block = button.closest(".subtitle-block");
+    if (!block) {
+      return;
+    }
+    block.remove();
+    hiddenInput.value = JSON.stringify(collectSubtitles());
+    markDirty();
+    updateBlockDurations();
+    renderTimeline();
+  });
+
   const styleControls = form.querySelectorAll(
     "input[name^='style_'], select[name^='style_']"
   );
@@ -622,6 +658,12 @@
   if (saveBar) {
     saveBar.classList.add("hidden");
     saveBar.classList.remove("flex");
+  }
+  if (longVideoWarning) {
+    const duration = Number(longVideoWarning.dataset.duration || 0);
+    const pretty = formatDuration(duration);
+    const suffix = pretty ? ` (${pretty})` : "";
+    showToast(`Long video${suffix}. Transcription may take a while.`, "warning", 5000);
   }
 
   if (previewVideo) {
