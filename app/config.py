@@ -38,6 +38,7 @@ JOB_TIMEOUT_TRANSCRIBE = 1800
 JOB_TIMEOUT_PREVIEW = 600
 JOB_TIMEOUT_EXPORT = 1800
 JOB_TIMEOUT_KARAOKE = 1800
+JOB_LOG_DIR = OUTPUTS_DIR / "job-logs"
 
 
 def ensure_directories() -> None:
@@ -47,3 +48,4 @@ def ensure_directories() -> None:
     FONTS_DIR.mkdir(parents=True, exist_ok=True)
     JOBS_DIR.mkdir(parents=True, exist_ok=True)
     AUTH_DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+    JOB_LOG_DIR.mkdir(parents=True, exist_ok=True)

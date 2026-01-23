@@ -183,11 +183,12 @@
           saveButton.textContent = saveButton.dataset.originalText || "Save edits";
         }
       },
-      (job) => {
-        showToast(formatJobFailure(job, "Preview failed."), "error", 3200);
-        if (saveButton) {
-          saveButton.disabled = false;
-          saveButton.textContent = saveButton.dataset.originalText || "Save edits";
+        (job) => {
+          showToast(formatJobFailure(job, "Preview failed."), "error", 3200);
+          showErrorPanel(job);
+          if (saveButton) {
+            saveButton.disabled = false;
+            saveButton.textContent = saveButton.dataset.originalText || "Save edits";
         }
       }
     );
@@ -669,6 +670,7 @@
         },
         (job) => {
           showToast(formatJobFailure(job, "Video export failed."), "error", 3600);
+          showErrorPanel(job);
           button.disabled = false;
         }
       );
@@ -717,6 +719,7 @@
       },
       (job) => {
         showToast(formatJobFailure(job, "Processing failed."), "error", 3600);
+        showErrorPanel(job);
         setProcessingState(false);
         if (saveButton) {
           saveButton.disabled = false;
@@ -767,6 +770,57 @@
       const formData = new FormData();
       formData.append("locked", "off");
       navigator.sendBeacon(`/jobs/${editorJobId}/touch`, formData);
+    });
+  }
+
+  const copyErrorButton = document.getElementById("copy-error-id");
+  const errorJobInput = document.getElementById("error-job-id");
+  if (copyErrorButton && errorJobInput) {
+    copyErrorButton.addEventListener("click", async () => {
+      try {
+        await navigator.clipboard.writeText(errorJobInput.value);
+        showToast("Error ID copied.", "success", 1600);
+      } catch (error) {
+        console.error(error);
+        showToast("Copy failed. Select the ID manually.", "warning", 2400);
+      }
+    });
+  }
+
+  const errorPanel = document.getElementById("error-panel");
+  const errorPanelMessage = document.getElementById("error-panel-message");
+  const errorPanelHint = document.getElementById("error-panel-hint");
+  const errorPanelId = document.getElementById("error-panel-id");
+  const copyErrorPanelId = document.getElementById("copy-error-panel-id");
+
+  const showErrorPanel = (job) => {
+    if (!errorPanel || !job) {
+      return;
+    }
+    const message = job.error && job.error.message ? job.error.message : "Something went wrong.";
+    const hint = job.error && job.error.hint ? job.error.hint : "";
+    if (errorPanelMessage) {
+      const step = job.failed_step ? `Failed during ${job.failed_step}. ` : "";
+      errorPanelMessage.textContent = step + message;
+    }
+    if (errorPanelHint) {
+      errorPanelHint.textContent = hint;
+    }
+    if (errorPanelId) {
+      errorPanelId.value = job.job_id || "";
+    }
+    errorPanel.classList.remove("hidden");
+  };
+
+  if (copyErrorPanelId && errorPanelId) {
+    copyErrorPanelId.addEventListener("click", async () => {
+      try {
+        await navigator.clipboard.writeText(errorPanelId.value);
+        showToast("Error ID copied.", "success", 1600);
+      } catch (error) {
+        console.error(error);
+        showToast("Copy failed. Select the ID manually.", "warning", 2400);
+      }
     });
   }
 })();

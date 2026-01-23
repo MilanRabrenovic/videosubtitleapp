@@ -178,3 +178,8 @@
 - Implemented: Per-job timeouts for Redis workers (transcribe/preview/export) via RQ job_timeout.
 - Note: Local in-process worker cannot hard-kill long jobs; Redis workers enforce timeouts.
 - Next action: Add monitoring + job log capture for production support.
+
+## 2026-01-23
+- Implemented: Per-job log files stored in outputs/job-logs/{job_id}.log.
+- Implemented: Job JSON now records log_path for support/debugging.
+- Next action: Add a small admin/support endpoint or UI link to fetch logs safely.

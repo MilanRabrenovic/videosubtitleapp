@@ -57,6 +57,9 @@ RQ is lightweight, file-friendly, and integrates cleanly with our existing job J
 ## Why timeouts are enforced in Redis workers
 RQ can terminate long-running jobs safely; the in-process worker cannot hard-kill tasks without extra infrastructure.
 
+## Why per-job logs are stored locally
+Local log files keep support visibility without introducing external logging services.
+
 ## Why jobs are retained for a fixed window
 Job JSON files are kept for a limited time to balance reliability with storage limits.
 

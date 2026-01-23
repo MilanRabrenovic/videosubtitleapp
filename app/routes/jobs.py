@@ -57,6 +57,7 @@ def job_status(request: Request, job_id: str) -> Dict[str, Any]:
         "pinned": job.get("pinned"),
         "locked": job.get("locked"),
         "expires_at": job.get("expires_at"),
+        "log_path": job.get("log_path"),
         "output": {
             "subtitle_path": output.get("subtitle_path"),
             "video_path": output.get("video_path"),

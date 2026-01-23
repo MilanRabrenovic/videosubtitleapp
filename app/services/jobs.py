@@ -25,6 +25,7 @@ from app.config import (
     JOB_TIMEOUT_KARAOKE,
     JOB_TIMEOUT_PREVIEW,
     JOB_TIMEOUT_TRANSCRIBE,
+    JOB_LOG_DIR,
     REDIS_URL,
 )
 from app.config import OUTPUTS_DIR
@@ -486,6 +487,9 @@ def process_job(job_id: str) -> None:
     job = load_job(job_id)
     if not job:
         return
+    log_path = JOB_LOG_DIR / f"{job_id}.log"
+    job["log_path"] = str(log_path)
+    update_job(job_id, {"log_path": str(log_path)})
     update_job_status(job_id, "running")
     try:
         output = run_job(job)
@@ -499,6 +503,10 @@ def process_job(job_id: str) -> None:
             }
         fail_running_step(job_id, payload.get("code", "UNKNOWN"))
         update_job(job_id, {"status": "failed", "error": payload})
+        try:
+            log_path.write_text(str(exc), encoding="utf-8")
+        except OSError:
+            pass
     else:
         update_job(job_id, {"status": "completed", "output": output, "error": None})
 
