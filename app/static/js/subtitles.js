@@ -216,6 +216,16 @@
     );
   };
 
+  const formatTimestamp = (totalSeconds) => {
+    const safe = Math.max(0, totalSeconds || 0);
+    const hours = Math.floor(safe / 3600);
+    const minutes = Math.floor((safe % 3600) / 60);
+    const seconds = Math.floor(safe % 60);
+    const millis = Math.floor((safe - Math.floor(safe)) * 1000);
+    const pad = (value, size) => String(value).padStart(size, "0");
+    return `${pad(hours, 2)}:${pad(minutes, 2)}:${pad(seconds, 2)},${pad(millis, 3)}`;
+  };
+
   const updateBlockDurations = () => {
     const blocks = subtitleList.querySelectorAll(".subtitle-block");
     blocks.forEach((block) => {
@@ -234,6 +244,104 @@
       const duration = endSeconds - startSeconds;
       holder.textContent = `${duration.toFixed(2)}s`;
     });
+  };
+
+  const updatePlayhead = () => {
+    const timeline = document.getElementById("timeline");
+    const playhead = document.getElementById("timeline-playhead");
+    if (!timeline || !playhead || !previewVideo) {
+      return;
+    }
+    const duration = Number(timeline.dataset.duration || 0);
+    if (!duration) {
+      return;
+    }
+    const progress = Math.max(0, Math.min(1, previewVideo.currentTime / duration));
+    playhead.style.left = `${progress * 100}%`;
+  };
+
+  const renderTimeline = () => {
+    const timeline = document.getElementById("timeline");
+    const overlay = document.getElementById("timeline-overlay");
+    if (!timeline || !overlay) {
+      return;
+    }
+    const duration = Number(timeline.dataset.duration || 0);
+    if (!duration || Number.isNaN(duration)) {
+      return;
+    }
+    const timelineWidth = timeline.clientWidth;
+    overlay.innerHTML = "";
+    const blocks = subtitleList.querySelectorAll(".subtitle-block");
+    blocks.forEach((block) => {
+      const startValue = block.querySelector(".start").value.trim();
+      const endValue = block.querySelector(".end").value.trim();
+      const start = parseTimestamp(startValue);
+      const end = parseTimestamp(endValue);
+      if (start === null || end === null || end <= start) {
+        return;
+      }
+      const left = (start / duration) * 100;
+      const width = ((end - start) / duration) * 100;
+      const bar = document.createElement("div");
+      bar.className =
+        "timeline-block absolute top-3 h-4 rounded-sm border border-slate-300/40 bg-slate-200/35";
+      bar.style.left = `${left}%`;
+      bar.style.width = `${width}%`;
+      bar.dataset.index = block.dataset.index || "";
+      bar.innerHTML =
+        "<span class='handle-left absolute left-0 top-0 h-full w-px cursor-ew-resize bg-slate-500/60'></span>" +
+        "<span class='handle-right absolute right-0 top-0 h-full w-px cursor-ew-resize bg-slate-500/60'></span>";
+      overlay.appendChild(bar);
+
+      const onPointerDown = (event, mode) => {
+        event.preventDefault();
+        const startSeconds = parseTimestamp(block.querySelector(".start").value.trim()) || 0;
+        const endSeconds = parseTimestamp(block.querySelector(".end").value.trim()) || startSeconds + 0.1;
+        const length = endSeconds - startSeconds;
+        const startX = event.clientX;
+        const onMove = (moveEvent) => {
+          const delta = moveEvent.clientX - startX;
+          const deltaSeconds = (delta / timelineWidth) * duration;
+          let nextStart = startSeconds;
+          let nextEnd = endSeconds;
+          if (mode === "move") {
+            nextStart = Math.max(0, Math.min(duration - length, startSeconds + deltaSeconds));
+            nextEnd = nextStart + length;
+          } else if (mode === "start") {
+            nextStart = Math.max(0, Math.min(endSeconds - 0.05, startSeconds + deltaSeconds));
+          } else if (mode === "end") {
+            nextEnd = Math.min(duration, Math.max(startSeconds + 0.05, endSeconds + deltaSeconds));
+          }
+          block.querySelector(".start").value = formatTimestamp(nextStart);
+          block.querySelector(".end").value = formatTimestamp(nextEnd);
+          hiddenInput.value = JSON.stringify(collectSubtitles());
+          markDirty();
+          updateBlockDurations();
+          const newLeft = (nextStart / duration) * 100;
+          const newWidth = ((nextEnd - nextStart) / duration) * 100;
+          bar.style.left = `${newLeft}%`;
+          bar.style.width = `${newWidth}%`;
+        };
+        const onUp = () => {
+          document.removeEventListener("pointermove", onMove);
+          document.removeEventListener("pointerup", onUp);
+        };
+        document.addEventListener("pointermove", onMove);
+        document.addEventListener("pointerup", onUp);
+      };
+
+      bar.addEventListener("pointerdown", (event) => {
+        if (event.target.classList.contains("handle-left")) {
+          onPointerDown(event, "start");
+        } else if (event.target.classList.contains("handle-right")) {
+          onPointerDown(event, "end");
+        } else {
+          onPointerDown(event, "move");
+        }
+      });
+    });
+    updatePlayhead();
   };
 
   if (!form || !subtitleList || !hiddenInput) {
@@ -347,6 +455,7 @@
     hiddenInput.value = JSON.stringify(collectSubtitles());
     markDirty();
     updateBlockDurations();
+    renderTimeline();
   });
 
   form.addEventListener("submit", async (event) => {
@@ -376,6 +485,7 @@
       if (updatedList) {
         subtitleList.innerHTML = updatedList.innerHTML;
         updateBlockDurations();
+        renderTimeline();
       }
       const updatedForm = doc.getElementById("subtitle-form");
       if (updatedForm && form) {
@@ -438,6 +548,48 @@
   hiddenInput.value = JSON.stringify(collectSubtitles());
   isDirty = false;
   updateBlockDurations();
+  renderTimeline();
+
+  if (previewVideo) {
+    let rafId = null;
+    const tick = () => {
+      updatePlayhead();
+      rafId = requestAnimationFrame(tick);
+    };
+    const startTick = () => {
+      if (rafId !== null) {
+        return;
+      }
+      rafId = requestAnimationFrame(tick);
+    };
+    const stopTick = () => {
+      if (rafId === null) {
+        return;
+      }
+      cancelAnimationFrame(rafId);
+      rafId = null;
+    };
+    previewVideo.addEventListener("play", startTick);
+    previewVideo.addEventListener("pause", stopTick);
+    previewVideo.addEventListener("ended", stopTick);
+    previewVideo.addEventListener("seeked", updatePlayhead);
+    previewVideo.addEventListener("loadedmetadata", updatePlayhead);
+  }
+
+  const timeline = document.getElementById("timeline");
+  if (timeline && previewVideo) {
+    timeline.addEventListener("click", (event) => {
+      const rect = timeline.getBoundingClientRect();
+      const duration = Number(timeline.dataset.duration || 0);
+      if (!duration) {
+        return;
+      }
+      const x = Math.min(Math.max(event.clientX - rect.left, 0), rect.width);
+      const targetTime = (x / rect.width) * duration;
+      previewVideo.currentTime = targetTime;
+      updatePlayhead();
+    });
+  }
 
   if (exportSrtButton && exportStatus) {
     exportSrtButton.addEventListener("click", () => {

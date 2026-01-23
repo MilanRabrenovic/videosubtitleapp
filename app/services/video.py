@@ -96,6 +96,22 @@ def validate_video_file(video_path: Path, max_bytes: int, max_seconds: int) -> N
         raise ValueError("Video is too long")
 
 
+def generate_waveform(video_path: Path, output_path: Path, width: int = 1200, height: int = 200) -> None:
+    """Generate a waveform image for the video's audio track."""
+    command = [
+        "ffmpeg",
+        "-y",
+        "-i",
+        str(video_path),
+        "-filter_complex",
+        f"showwavespic=s={width}x{height}:colors=0x1f2937",
+        "-frames:v",
+        "1",
+        str(output_path),
+    ]
+    subprocess.run(command, capture_output=True, text=True, timeout=30)
+
+
 def burn_in_subtitles(video_path: Path, subtitles_path: Path, output_path: Path) -> None:
     """Burn subtitles into a video using FFmpeg."""
     filter_arg = f"subtitles=filename={_escape_filter_path(subtitles_path)}"

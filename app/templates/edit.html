@@ -93,7 +93,7 @@
     <form
       action="/jobs/{{ job.job_id }}/pin"
       method="post"
-      class="flex flex-wrap items-center gap-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"
+      class="flex flex-wrap items-center gap-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
       id="pin-form"
     >
       <label class="flex items-center gap-2 text-sm text-slate-700">
@@ -139,7 +139,7 @@
       action="/edit/{{ job.job_id }}/font-upload"
       method="post"
       enctype="multipart/form-data"
-      class="flex flex-wrap items-center gap-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"
+      class="flex flex-wrap items-center gap-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
     >
       <label class="flex flex-col gap-2 text-sm font-medium text-slate-700">
         Upload font (TTF/OTF)
@@ -175,13 +175,13 @@
     {% endif %}
 
     <div class="grid gap-8 lg:grid-cols-[1.6fr_1fr]">
-      <section class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+      <section class="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
         <form id="subtitle-form" action="/edit/{{ job.job_id }}" method="post" class="space-y-6">
           <input type="hidden" id="subtitles-json" name="subtitles_json" value="" />
 
           <fieldset class="space-y-6">
             <legend class="text-sm uppercase tracking-[0.3em] text-slate-500">Subtitle styling</legend>
-            <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+            <div class="rounded-xl border border-slate-200 bg-slate-50 p-4">
               <p class="text-xs font-semibold uppercase tracking-[0.25em] text-slate-500">Typography</p>
               <div class="mt-4 grid gap-4 lg:grid-cols-4">
               <label class="flex flex-col gap-2 text-sm font-medium text-slate-700">
@@ -243,7 +243,7 @@
               </div>
             </div>
 
-            <div class="rounded-2xl border border-slate-200 bg-white p-4">
+            <div class="rounded-xl border border-slate-200 bg-white p-4">
               <p class="text-xs font-semibold uppercase tracking-[0.25em] text-slate-500">Colors</p>
               <div class="mt-4 grid gap-4 lg:grid-cols-3">
               <div class="flex flex-col gap-2 text-sm font-medium text-slate-700">
@@ -283,7 +283,7 @@
               </div>
             </div>
 
-            <div class="rounded-2xl border border-slate-200 bg-white p-4">
+            <div class="rounded-xl border border-slate-200 bg-white p-4">
               <p class="text-xs font-semibold uppercase tracking-[0.25em] text-slate-500">Outline</p>
               <div class="mt-4 grid gap-4 lg:grid-cols-3">
                 <label class="flex items-center gap-2 text-sm font-medium text-slate-700">
@@ -314,7 +314,7 @@
               </div>
             </div>
 
-            <div class="rounded-2xl border border-slate-200 bg-white p-4">
+            <div class="rounded-xl border border-slate-200 bg-white p-4">
               <div class="flex flex-wrap items-center justify-between gap-3">
                 <p class="text-xs font-semibold uppercase tracking-[0.25em] text-slate-500">Background</p>
                 <label class="flex items-center gap-2 text-sm font-medium text-slate-700">
@@ -359,7 +359,7 @@
               </div>
             </div>
 
-            <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+            <div class="rounded-xl border border-slate-200 bg-slate-50 p-4">
               <p class="text-xs font-semibold uppercase tracking-[0.25em] text-slate-500">Layout</p>
               <div class="mt-4 grid gap-4 lg:grid-cols-3">
               <label class="flex flex-col gap-2 text-sm font-medium text-slate-700">
@@ -382,7 +382,34 @@
             </div>
           </fieldset>
 
-            <div class="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+            <div class="rounded-xl border border-slate-200 bg-white p-4">
+              <div class="flex flex-wrap items-center justify-between gap-3">
+                <p class="text-xs font-semibold uppercase tracking-[0.25em] text-slate-500">Timeline</p>
+                {% if job.video_duration %}
+                  <span class="text-xs text-slate-400">{{ "%.2f"|format(job.video_duration) }}s total</span>
+                {% endif %}
+              </div>
+              {% if waveform_available and job.video_duration %}
+                <div
+                  id="timeline"
+                  data-duration="{{ job.video_duration }}"
+                  class="relative mt-4 overflow-hidden rounded-xl border border-slate-200 bg-gradient-to-b from-slate-50 via-white to-slate-50"
+                >
+                  <img
+                    src="/outputs/{{ job.waveform_image or job.job_id ~ '_waveform.png' }}{% if waveform_token %}?v={{ waveform_token }}{% endif %}"
+                    alt="Waveform"
+                    class="h-24 w-full object-cover opacity-100"
+                  />
+                  <div id="timeline-overlay" class="absolute inset-0"></div>
+                  <div id="timeline-playhead" class="absolute inset-y-0 left-0 w-px bg-amber-400/80"></div>
+                </div>
+                <p class="mt-2 text-xs text-slate-500">Drag blocks to move or resize.</p>
+              {% else %}
+                <p class="mt-2 text-sm text-slate-500">Waveform preview unavailable.</p>
+              {% endif %}
+            </div>
+
+            <div class="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
               <div>
                 <h2 class="text-lg font-semibold text-slate-900">Subtitle blocks</h2>
                 <p class="text-sm text-slate-500">
@@ -395,7 +422,7 @@
           </div>
           <div id="subtitle-list" class="mt-4 space-y-4">
             {% for block in job.subtitles %}
-              <div class="subtitle-block rounded-2xl border border-slate-200 bg-white p-4 shadow-sm" data-index="{{ loop.index0 }}" data-group="{{ block.group_id }}">
+              <div class="subtitle-block rounded-xl border border-slate-200 bg-white p-4 shadow-sm" data-index="{{ loop.index0 }}" data-group="{{ block.group_id }}">
                 <div class="mb-3 flex items-center justify-between text-xs uppercase tracking-[0.2em] text-slate-400">
                   <span>Block {{ loop.index }}</span>
                   <span class="block-duration text-slate-500" data-start="{{ block.start }}" data-end="{{ block.end }}">--</span>
@@ -437,7 +464,7 @@
         </form>
       </section>
       <aside class="lg:sticky lg:top-6 self-start">
-        <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+        <div class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
           <h2 class="text-lg font-semibold">Preview</h2>
           <video id="preview-video" controls class="mt-4 w-full max-w-[520px] rounded-xl border border-slate-200">
           {% if preview_available %}
@@ -449,7 +476,7 @@
           </video>
         </div>
 
-        <div class="mt-4 flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+        <div class="mt-4 flex flex-col gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
           <div class="text-xs font-semibold uppercase tracking-[0.25em] text-slate-500">Export</div>
           <form action="/export/{{ job.job_id }}/subtitles" method="post">
             <input type="hidden" name="format" value="srt" />
