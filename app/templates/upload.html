@@ -189,10 +189,44 @@
       }
     };
     if (form && submit && status) {
-      form.addEventListener("submit", () => {
+      form.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        if (submit.disabled) {
+          return;
+        }
         submit.disabled = true;
         status.textContent = "Transcribing video. This may take a minute...";
         showToast("Transcribing video. This may take a minute…", "info", 0);
+        const formData = new FormData(form);
+        try {
+          const response = await fetch(form.action, { method: "POST", body: formData });
+          if (response.ok) {
+            window.location.href = response.url;
+            return;
+          }
+          let detail = "Upload failed. Please try again.";
+          try {
+            const payload = await response.json();
+            if (payload && payload.detail) {
+              detail = payload.detail;
+            }
+          } catch (_) {
+            // ignore parse errors
+          }
+          if (response.status === 413) {
+            detail = "File is too large for this upload limit.";
+          }
+          if (response.status === 429) {
+            detail = "Too many requests. Please wait a moment and try again.";
+          }
+          showToast(detail, response.status === 429 ? "warning" : "error", 3200);
+          status.textContent = detail;
+          submit.disabled = false;
+        } catch (error) {
+          showToast("Network error. Please try again.", "error", 3200);
+          status.textContent = "Network error. Please try again.";
+          submit.disabled = false;
+        }
       });
     }
     if (fileInput && fileName) {

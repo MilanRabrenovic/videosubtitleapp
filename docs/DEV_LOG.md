@@ -163,3 +163,8 @@
 - Implemented: Project ownership enforced by user_id across edit/export/playback/jobs routes.
 - Implemented: Protected media endpoints for uploads/outputs and removed direct static access.
 - Next action: Add rate limiting and proxy-level upload caps before public launch.
+
+## 2026-01-23
+- Implemented: In-app rate limiting for upload/edit/export endpoints with per-IP limits.
+- Implemented: Early request size checks for video and font uploads (reject large uploads before processing).
+- Next action: Add proxy-level limits (nginx/caddy) when deploying to production.

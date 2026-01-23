@@ -488,7 +488,13 @@
     try {
       const response = await fetch(form.action, { method: "POST", body: new FormData(form) });
       if (!response.ok) {
-        throw new Error("Save failed");
+        let detail = "Save failed. Please try again.";
+        if (response.status === 413) {
+          detail = "Request too large. Try smaller changes.";
+        } else if (response.status === 429) {
+          detail = "Too many requests. Please wait a moment and try again.";
+        }
+        throw new Error(detail);
       }
       const html = await response.text();
       showToast("Subtitles saved.", "success");
@@ -549,7 +555,7 @@
       isDirty = false;
     } catch (error) {
       console.error(error);
-      showToast("Save failed. Please try again.", "error", 3200);
+      showToast(error.message || "Save failed. Please try again.", error.message?.includes("Too many") ? "warning" : "error", 3200);
     }
     if (saveButton && !queuedPreviewJob) {
       saveButton.disabled = false;
@@ -628,7 +634,13 @@
     try {
       const response = await fetch(form.action, { method: "POST", body: new FormData(form) });
       if (!response.ok) {
-        throw new Error("Video export failed");
+        let detail = "Video export failed.";
+        if (response.status === 413) {
+          detail = "Export request too large. Please try again.";
+        } else if (response.status === 429) {
+          detail = "Too many export requests. Please wait and try again.";
+        }
+        throw new Error(detail);
       }
       const payload = await response.json();
       const jobId = payload.job_id;
@@ -662,7 +674,11 @@
       );
     } catch (error) {
       console.error(error);
-      showToast("Video export failed.", "error", 3600);
+      showToast(
+        error.message || "Video export failed.",
+        error.message?.includes("Too many") ? "warning" : "error",
+        3600
+      );
     }
   };
 
