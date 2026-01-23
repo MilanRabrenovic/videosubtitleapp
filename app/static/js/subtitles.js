@@ -502,6 +502,20 @@
     renderTimeline();
   });
 
+  const styleControls = form.querySelectorAll(
+    "input[name^='style_'], select[name^='style_']"
+  );
+  styleControls.forEach((control) => {
+    control.addEventListener("change", () => {
+      markDirty();
+    });
+    control.addEventListener("input", () => {
+      if (control.type !== "checkbox") {
+        markDirty();
+      }
+    });
+  });
+
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
     if (saveButton && saveButton.disabled) {
