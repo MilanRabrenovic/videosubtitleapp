@@ -12,6 +12,7 @@ from queue import Queue
 from typing import Any, Callable, Dict, Iterable, Optional
 
 from app.config import (
+    JOB_QUEUE_NAME,
     JOBS_DIR,
     JOB_LOCK_TTL_MINUTES,
     JOB_MAX_AGE_HOURS,
@@ -20,6 +21,7 @@ from app.config import (
     JOB_RETENTION_DAYS,
     JOB_PINNED_RETENTION_DAYS,
     JOB_WORKER_COUNT,
+    REDIS_URL,
 )
 from app.config import OUTPUTS_DIR
 
@@ -28,6 +30,28 @@ _queue_lock = threading.Lock()
 _write_lock = threading.Lock()
 _enqueued: set[str] = set()
 _workers_started = False
+_redis_queue = None
+_redis_conn = None
+
+
+def _redis_enabled() -> bool:
+    return bool(REDIS_URL)
+
+
+def _get_rq_queue():
+    global _redis_queue, _redis_conn
+    if _redis_queue is not None:
+        return _redis_queue
+    if not _redis_enabled():
+        return None
+    try:
+        import redis
+        from rq import Queue as RqQueue
+    except Exception:
+        return None
+    _redis_conn = redis.from_url(REDIS_URL)
+    _redis_queue = RqQueue(JOB_QUEUE_NAME, connection=_redis_conn)
+    return _redis_queue
 
 
 def _utcnow() -> datetime:
@@ -261,6 +285,26 @@ def update_job_status(job_id: str, status: str, error: Optional[str] = None) -> 
 
 def enqueue_job(job_id: str) -> None:
     """Queue a job for background processing."""
+    if _redis_enabled():
+        queue = _get_rq_queue()
+        if queue is None:
+            return
+        try:
+            existing = queue.fetch_job(job_id)
+            if existing and existing.get_status() in {"queued", "started", "deferred"}:
+                return
+        except Exception:
+            pass
+        try:
+            queue.enqueue(
+                "app.services.jobs.process_job",
+                job_id,
+                job_id=job_id,
+                retry=None,
+            )
+        except Exception:
+            return
+        return
     with _queue_lock:
         if job_id in _enqueued:
             return
@@ -414,32 +458,37 @@ def _rehydrate_queue() -> None:
             enqueue_job(job_id)
 
 
-def _worker_loop() -> None:
+def process_job(job_id: str) -> None:
+    """Process a job by ID (used by local worker and RQ)."""
     from app.services.tasks import run_job  # local import to avoid cycles
 
+    job = load_job(job_id)
+    if not job:
+        return
+    update_job_status(job_id, "running")
+    try:
+        output = run_job(job)
+    except Exception as exc:  # noqa: BLE001 - explicit error capture
+        payload = getattr(exc, "error_payload", None)
+        if not isinstance(payload, dict):
+            payload = {
+                "code": "UNKNOWN",
+                "message": "Something went wrong while processing this job.",
+                "hint": "Try again or contact support if this keeps happening.",
+            }
+        fail_running_step(job_id, payload.get("code", "UNKNOWN"))
+        update_job(job_id, {"status": "failed", "error": payload})
+    else:
+        update_job(job_id, {"status": "completed", "output": output, "error": None})
+
+
+def _worker_loop() -> None:
     while True:
         job_id = _queue.get()
         with _queue_lock:
             _enqueued.discard(job_id)
-        job = load_job(job_id)
-        if not job:
-            _queue.task_done()
-            continue
-        update_job_status(job_id, "running")
         try:
-            output = run_job(job)
-        except Exception as exc:  # noqa: BLE001 - explicit error capture
-            payload = getattr(exc, "error_payload", None)
-            if not isinstance(payload, dict):
-                payload = {
-                    "code": "UNKNOWN",
-                    "message": "Something went wrong while processing this job.",
-                    "hint": "Try again or contact support if this keeps happening.",
-                }
-            fail_running_step(job_id, payload.get("code", "UNKNOWN"))
-            update_job(job_id, {"status": "failed", "error": payload})
-        else:
-            update_job(job_id, {"status": "completed", "output": output, "error": None})
+            process_job(job_id)
         finally:
             _queue.task_done()
 
@@ -451,6 +500,9 @@ def start_workers() -> None:
         return
     cleanup_jobs()
     _rehydrate_queue()
+    if _redis_enabled():
+        _workers_started = True
+        return
     for _ in range(max(1, JOB_WORKER_COUNT)):
         thread = threading.Thread(target=_worker_loop, daemon=True)
         thread.start()

@@ -18,7 +18,7 @@ def _require_owner(job_id: str, request: Request) -> dict:
         raise HTTPException(status_code=401, detail="Authentication required")
     job = load_job(job_id)
     if not job:
-        raise HTTPException(status_code=404, detail="Job not found")
+        raise HTTPException(status_code=404, detail="Project not found")
     if job.get("owner_user_id") is None:
         update_job(job_id, {"owner_user_id": int(user["id"])})
     if job.get("owner_user_id") != int(user["id"]):

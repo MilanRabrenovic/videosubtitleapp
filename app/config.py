@@ -1,5 +1,6 @@
 """App configuration and filesystem paths."""
 
+import os
 from pathlib import Path
 
 # Base directory is the project root (subtitle-app).
@@ -31,6 +32,8 @@ RATE_LIMIT_WINDOW_SEC = 60
 RATE_LIMIT_UPLOAD_PER_WINDOW = 5
 RATE_LIMIT_EXPORT_PER_WINDOW = 10
 RATE_LIMIT_EDIT_PER_WINDOW = 20
+REDIS_URL = os.getenv("REDIS_URL", "")
+JOB_QUEUE_NAME = "subtitle"
 
 
 def ensure_directories() -> None:

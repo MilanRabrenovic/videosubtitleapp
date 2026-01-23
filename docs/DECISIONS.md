@@ -51,6 +51,9 @@ Transcription and exports can take minutes; background jobs prevent request time
 ## Why single-worker FIFO by default
 One worker keeps CPU usage predictable and avoids overload on small servers; concurrency can be increased later.
 
+## Why Redis + RQ for optional multi-worker
+RQ is lightweight, file-friendly, and integrates cleanly with our existing job JSON state. It enables parallel jobs without refactoring the core flow.
+
 ## Why jobs are retained for a fixed window
 Job JSON files are kept for a limited time to balance reliability with storage limits.
 

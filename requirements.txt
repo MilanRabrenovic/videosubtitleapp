@@ -6,3 +6,5 @@ openai-whisper
 fonttools
 numba==0.59.1
 llvmlite==0.42.0
+redis
+rq

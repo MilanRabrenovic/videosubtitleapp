@@ -168,3 +168,8 @@
 - Implemented: In-app rate limiting for upload/edit/export endpoints with per-IP limits.
 - Implemented: Early request size checks for video and font uploads (reject large uploads before processing).
 - Next action: Add proxy-level limits (nginx/caddy) when deploying to production.
+
+## 2026-01-23
+- Implemented: Redis + RQ queue integration (optional) with job rehydration on startup.
+- Implemented: Single-process fallback still works when REDIS_URL is not set.
+- Next action: Add proxy-level limits and worker monitoring for production.
