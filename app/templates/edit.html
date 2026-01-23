@@ -136,44 +136,18 @@
       <p class="hidden text-sm text-amber-700">{{ font_warning }}</p>
     {% endif %}
     <form
+      id="font-upload-form"
       action="/edit/{{ job.job_id }}/font-upload"
       method="post"
       enctype="multipart/form-data"
-      class="flex flex-wrap items-center gap-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
-    >
-      <label class="flex flex-col gap-2 text-sm font-medium text-slate-700">
-        Upload font (TTF/OTF)
-        <input type="hidden" name="font_family" value="{{ job.style.font_family }}" />
-        <input
-          type="file"
-          name="font_file"
-          accept=".ttf,.otf"
-          class="w-full rounded-lg border border-dashed border-slate-200 bg-slate-50 px-4 py-2 text-sm text-slate-700 file:mr-4 file:rounded-md file:border-0 file:bg-amber-400/90 file:px-3 file:py-2 file:text-sm file:font-semibold file:text-slate-900 hover:file:bg-amber-400"
-        />
-      </label>
-      <label class="flex items-center gap-2 text-sm text-slate-700">
-        <input type="checkbox" name="font_license_confirm" id="font-license-confirm" class="checkbox" {% if processing_job_id %}disabled{% endif %} />
-        I have the right to use this font
-      </label>
-      <button
-        type="submit"
-        id="font-upload-button"
-        class="rounded-lg bg-amber-400 px-4 py-2 text-sm font-semibold text-slate-900 disabled:cursor-not-allowed disabled:opacity-60"
-        disabled
-        {% if processing_job_id %}disabled{% endif %}
-      >
-        Upload font
-      </button>
-    </form>
-    {% if custom_fonts %}
-      <form action="/edit/{{ job.job_id }}/font-delete" method="post" class="flex items-center gap-3">
-        <input type="hidden" name="font_family" value="{{ job.style.font_family }}" />
-        <button type="submit" class="rounded-lg border border-slate-200 px-4 py-2 text-sm text-slate-700 hover:bg-slate-100">
-          Delete uploaded font
-        </button>
-      </form>
-    {% endif %}
-
+      class="hidden"
+    ></form>
+    <form
+      id="font-delete-form"
+      action="/edit/{{ job.job_id }}/font-delete"
+      method="post"
+      class="hidden"
+    ></form>
     <div class="grid gap-8 lg:grid-cols-[1.6fr_1fr]">
       <section class="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
         <form id="subtitle-form" action="/edit/{{ job.job_id }}" method="post" class="space-y-6">
@@ -240,6 +214,51 @@
                 Size
                 <input type="number" name="style_font_size" min="12" max="96" value="{{ job.style.font_size }}" class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900" />
               </label>
+              <div class="lg:col-span-4">
+                <div class="mt-2 space-y-4 rounded-lg border border-slate-200 bg-white px-4 py-4">
+                  <div class="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <p class="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Custom font (optional)</p>
+                      <p class="text-xs text-slate-500">Upload a TTF/OTF to use it in this project only.</p>
+                    </div>
+                    {% if custom_fonts %}
+                      <button type="submit" form="font-delete-form" class="rounded-lg border border-slate-200 px-4 py-2 text-sm text-slate-700 hover:bg-slate-100">
+                        Delete uploaded font
+                      </button>
+                    {% endif %}
+                  </div>
+                  <div class="space-y-3">
+                    <input type="hidden" name="font_family" value="{{ job.style.font_family }}" form="font-upload-form" />
+                    <input type="hidden" name="font_family" value="{{ job.style.font_family }}" form="font-delete-form" />
+                    <label class="flex flex-col gap-2 text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
+                      Choose file
+                      <input
+                        type="file"
+                        name="font_file"
+                        accept=".ttf,.otf"
+                        form="font-upload-form"
+                        class="w-full rounded-lg border border-dashed border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-700 file:mr-3 file:rounded-md file:border-0 file:bg-amber-400/90 file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-slate-900 hover:file:bg-amber-400"
+                      />
+                    </label>
+                    <div class="flex flex-wrap items-center justify-between gap-3">
+                      <label class="flex items-center gap-2 text-sm text-slate-600">
+                        <input type="checkbox" name="font_license_confirm" id="font-license-confirm" form="font-upload-form" class="checkbox" {% if processing_job_id %}disabled{% endif %} />
+                        <span>I have the right to use this font</span>
+                      </label>
+                      <button
+                        type="submit"
+                        id="font-upload-button"
+                        form="font-upload-form"
+                        class="rounded-lg bg-amber-400 px-5 py-2.5 text-sm font-semibold text-slate-900 disabled:cursor-not-allowed disabled:opacity-60"
+                        disabled
+                        {% if processing_job_id %}disabled{% endif %}
+                      >
+                        Upload font
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
               </div>
             </div>
 
