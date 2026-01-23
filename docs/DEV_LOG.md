@@ -188,3 +188,13 @@
 - Implemented: `/health` and `/ready` endpoints for basic readiness checks.
 - Ready check verifies storage directories and Redis connectivity (if enabled).
 - Next action: Add admin log viewer or support tooling for failed jobs.
+
+## 2026-01-23
+- Implemented: Manual retry for failed jobs (retry button in editor + error panel).
+- Implemented: Sticky “Unsaved changes” save bar at bottom of the viewport.
+- Implemented: Delete subtitle blocks with live block count updates.
+- Implemented: Long-video warning (10+ minutes) with inline banner and toast.
+- Implemented: Fixed-window timeline view (20s window) with waveform zoom + follow playhead.
+- Implemented: Back-to-upload button in editor header.
+- Updated: Video duration limit increased to 60 minutes.
+- Next action: Validate timeline window behavior on long videos and refine zoom math if needed.

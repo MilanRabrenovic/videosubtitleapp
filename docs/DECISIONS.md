@@ -99,6 +99,9 @@ Session IDs remain for legacy jobs and non-auth workflow glue, but ownership is 
 ## Why Tailwind CDN for styling
 Using Tailwind via CDN keeps styling fast to iterate without a build pipeline; it can be replaced later with a compiled setup.
 
+## Why we chose a fixed timeline window for long videos
+For long videos the full timeline becomes too dense to edit. A moving 20-second window keeps waveform and blocks readable while still following playback.
+
 ## Tradeoffs accepted for simplicity
 - Local filesystem storage only.
 - Minimal UI polish until the core flow is stable.

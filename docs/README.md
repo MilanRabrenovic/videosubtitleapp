@@ -10,6 +10,8 @@
 - Runs transcription/exports as background jobs with status polling.
 - Provides styling controls (font, size, colors, outline, background, position).
 - Supports curated Google Fonts, system fonts, and per-job custom font uploads.
+- Includes an interactive timeline with waveform and draggable blocks.
+- Requires login (SQLite-backed users + sessions).
 
 ## User flow (upload -> edit -> export)
 1. Upload a video from the upload page.
@@ -25,5 +27,5 @@
 ## Intentionally not included yet
 - Authentication and user accounts.
 - Databases or cloud storage.
-- Advanced editors (timelines, waveform views).
+- Advanced editors beyond the current waveform/timeline (e.g., full DAW-style tools).
 - Real-time progress tracking or WebSockets.
