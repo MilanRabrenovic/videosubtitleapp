@@ -1,5 +1,21 @@
 # Backlog
 
+## Production readiness (Go live)
+### P0 — must have
+- Add real auth + ownership (no session-only isolation).
+- Add proper job queue (Redis + RQ/Celery) and at least 2 workers.
+- Add server-side rate limiting and hard upload size limits at the proxy (nginx/caddy).
+- Add resource limits per job (CPU/RAM/timeouts) to prevent one job from stalling the app.
+
+### P1 — should have
+- Add health checks + basic monitoring/alerts (job failures, disk usage, worker status).
+- Add per-job logs (store ffmpeg/whisper stderr for support).
+- Add safe storage policies (retention per user + cleanup that respects active edits).
+
+### P2 — nice to have
+- Add progress estimates for transcription/export.
+- Add job retry UX (manual retry button, no auto retry).
+
 ## Near-term (Launch hardening)
 ### Infrastructure & Scaling
 - Keep 1 worker for reliability; avoid multi-process until shared queue exists.
