@@ -61,6 +61,18 @@ def run_transcription_job(job: Dict[str, Any]) -> Dict[str, Any]:
         complete_step(job_id, "transcribe")
     video_width, video_height = get_video_dimensions(video_path)
     video_duration = get_video_duration(video_path) or 0
+    waveform_path = OUTPUTS_DIR / f"{job_id}_waveform.png"
+    waveform_width = 1200
+    try:
+        pixels_per_second = 20
+        max_width = 30000
+        min_width = 1200
+        if video_duration > 0:
+            waveform_width = max(min_width, min(int(video_duration * pixels_per_second), max_width))
+        generate_waveform(video_path, waveform_path, width=waveform_width)
+    except Exception:
+        waveform_width = 1200
+
     style = default_style()
     style["play_res_x"] = video_width
     style["play_res_y"] = video_height
@@ -72,6 +84,7 @@ def run_transcription_job(job: Dict[str, Any]) -> Dict[str, Any]:
         "style": style,
         "video_duration": video_duration,
         "waveform_image": f"{job_id}_waveform.png",
+        "waveform_width": waveform_width,
     }
     manual_groups = set(job_data.get("manual_groups", []))
     karaoke_lines = build_karaoke_lines(words, job_data["subtitles"], manual_groups)
@@ -84,12 +97,6 @@ def run_transcription_job(job: Dict[str, Any]) -> Dict[str, Any]:
     save_transcript_words(job_id, words)
     srt_path = OUTPUTS_DIR / f"{job_id}.srt"
     srt_path.write_text(subtitles_to_srt(job_data["subtitles"]), encoding="utf-8")
-
-    waveform_path = OUTPUTS_DIR / f"{job_id}_waveform.png"
-    try:
-        generate_waveform(video_path, waveform_path)
-    except Exception:
-        pass
 
     preview_ass_path, preview_path = _preview_paths(job_id)
     start_step(job_id, "preview_render")
@@ -127,6 +134,22 @@ def run_preview_job(job: Dict[str, Any]) -> Dict[str, Any]:
     if not video_path.exists():
         raise RuntimeError("Source video not found")
     words = load_transcript_words(job_id)
+    waveform_path = OUTPUTS_DIR / f"{job_id}_waveform.png"
+    if not waveform_path.exists():
+        video_duration = job_data.get("video_duration") or get_video_duration(video_path) or 0
+        pixels_per_second = 20
+        max_width = 30000
+        min_width = 1200
+        waveform_width = max(
+            min_width,
+            min(int(video_duration * pixels_per_second), max_width),
+        )
+        try:
+            generate_waveform(video_path, waveform_path, width=waveform_width)
+            job_data["waveform_width"] = waveform_width
+            save_subtitle_job(job_id, job_data)
+        except Exception:
+            pass
     preview_ass_path, preview_path = _preview_paths(job_id)
     render_style = _render_style(job_id, job_data.get("style", {}))
     start_step(job_id, "preview_render")

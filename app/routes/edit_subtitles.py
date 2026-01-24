@@ -103,6 +103,15 @@ def edit_page(request: Request, job_id: str) -> Any:
         job_data["video_duration"] = options.get("video_duration") or 0
     job_data.setdefault("video_duration", 0)
     job_data.setdefault("waveform_image", f"{job_id}_waveform.png")
+    if not job_data.get("waveform_width") and job_data.get("video_duration"):
+        pixels_per_second = 20
+        max_width = 30000
+        min_width = 1200
+        job_data["waveform_width"] = max(
+            min_width,
+            min(int(job_data["video_duration"] * pixels_per_second), max_width),
+        )
+    job_data.setdefault("waveform_width", 1200)
 
     preview_path = OUTPUTS_DIR / f"{job_id}_preview.mp4"
     waveform_path = OUTPUTS_DIR / f"{job_id}_waveform.png"

@@ -37,6 +37,8 @@
   const fontValue = document.getElementById("font-value");
   const fontOptions = document.getElementById("font-options");
   const longVideoWarning = document.getElementById("long-video-warning");
+  const waveformImage = document.getElementById("waveform-image");
+  const TIMELINE_WINDOW_SECONDS = 30;
   const timestampPattern = /^\d{2}:\d{2}:\d{2},\d{3}$/;
   let isDirty = false;
   let saveTimeoutId = null;
@@ -97,6 +99,16 @@
         toast.classList.add("hidden");
       }, timeout);
     }
+  };
+
+  const hideToast = () => {
+    if (!toast) {
+      return;
+    }
+    if (toastTimer) {
+      clearTimeout(toastTimer);
+    }
+    toast.classList.add("hidden");
   };
 
   const formatDuration = (seconds) => {
@@ -186,7 +198,7 @@
     if (!jobId) {
       return;
     }
-    showToast("Rendering preview...", "info", 2400);
+    showToast("Rendering preview...", "info", 0);
     if (saveButton) {
       saveButton.disabled = true;
       saveButton.textContent = "Rendering preview...";
@@ -202,6 +214,7 @@
             previewVideo.load();
           }
         }
+        hideToast();
         showToast("Preview updated.", "success");
         if (saveButton) {
           saveButton.disabled = false;
@@ -209,6 +222,7 @@
         }
       },
         (job) => {
+          hideToast();
           showToast(formatJobFailure(job, "Preview failed."), "error", 3200);
           showErrorPanel(job);
           if (saveButton) {
@@ -278,28 +292,85 @@
   const updatePlayhead = () => {
     const timeline = document.getElementById("timeline");
     const playhead = document.getElementById("timeline-playhead");
-    if (!timeline || !playhead || !previewVideo) {
+    const viewport = document.getElementById("timeline-viewport");
+    if (!timeline || !playhead || !previewVideo || !viewport) {
       return;
     }
     const duration = Number(timeline.dataset.duration || 0);
     if (!duration) {
       return;
     }
-    const progress = Math.max(0, Math.min(1, previewVideo.currentTime / duration));
-    playhead.style.left = `${progress * 100}%`;
+    const viewportWidth = viewport.clientWidth;
+    if (!viewportWidth) {
+      return;
+    }
+    const windowDuration = Math.min(TIMELINE_WINDOW_SECONDS, duration);
+    const waveformWidth = Number(timeline.dataset.waveformWidth || 0);
+    const totalWidth =
+      duration <= windowDuration
+        ? viewportWidth
+        : Math.max(
+            viewportWidth,
+            waveformWidth > 0 ? waveformWidth : viewportWidth * (duration / windowDuration)
+          );
+    timeline.style.width = `${totalWidth}px`;
+    playhead.style.left = `${(previewVideo.currentTime / duration) * 100}%`;
+    updateWaveformWindow(totalWidth);
+    syncTimelineScroll(duration, windowDuration, viewportWidth, totalWidth);
+  };
+
+  const updateWaveformWindow = (totalWidth) => {
+    if (!waveformImage || !totalWidth) {
+      return;
+    }
+    waveformImage.style.width = `${totalWidth}px`;
+    waveformImage.style.transform = "translateX(0)";
+  };
+
+  const syncTimelineScroll = (duration, windowDuration, viewportWidth, totalWidth) => {
+    const viewport = document.getElementById("timeline-viewport");
+    if (!viewport || !duration || !viewportWidth || !totalWidth) {
+      return;
+    }
+    if (duration <= windowDuration) {
+      viewport.scrollLeft = 0;
+      return;
+    }
+    const targetCenter = (previewVideo.currentTime / duration) * totalWidth;
+    const desiredLeft = Math.max(0, targetCenter - viewportWidth / 2);
+    const maxScroll = Math.max(0, totalWidth - viewportWidth);
+    viewport.scrollLeft = Math.min(desiredLeft, maxScroll);
   };
 
   const renderTimeline = () => {
     const timeline = document.getElementById("timeline");
     const overlay = document.getElementById("timeline-overlay");
-    if (!timeline || !overlay) {
+    const viewport = document.getElementById("timeline-viewport");
+    if (!timeline || !overlay || !viewport) {
       return;
     }
     const duration = Number(timeline.dataset.duration || 0);
     if (!duration || Number.isNaN(duration)) {
       return;
     }
-    const timelineWidth = timeline.clientWidth;
+    const viewportWidth = viewport.clientWidth;
+    if (!viewportWidth) {
+      return;
+    }
+    const windowDuration = Math.min(TIMELINE_WINDOW_SECONDS, duration);
+    const waveformWidth = Number(timeline.dataset.waveformWidth || 0);
+    const totalWidth =
+      duration <= windowDuration
+        ? viewportWidth
+        : Math.max(
+            viewportWidth,
+            waveformWidth > 0 ? waveformWidth : viewportWidth * (duration / windowDuration)
+          );
+    timeline.style.width = `${totalWidth}px`;
+    updateWaveformWindow(totalWidth);
+    if (previewVideo) {
+      syncTimelineScroll(duration, windowDuration, viewportWidth, totalWidth);
+    }
     overlay.innerHTML = "";
     const blocks = subtitleList.querySelectorAll(".subtitle-block");
     blocks.forEach((block) => {
@@ -320,21 +391,25 @@
       bar.dataset.index = block.dataset.index || "";
       const textValue = block.querySelector(".text")?.value || "";
       const wordCount = textValue.trim() ? textValue.trim().split(/\s+/).length : 0;
-      let separators = "";
-      if (wordCount > 1 && width > 1) {
-        const maxSeparators = Math.min(wordCount - 1, 30);
-        for (let i = 1; i <= maxSeparators; i += 1) {
-          const leftPos = (i / wordCount) * 100;
-          separators += `<span class="absolute inset-y-1 w-px bg-slate-500/20" style="left:${leftPos}%"></span>`;
-        }
-      }
       bar.innerHTML =
         "<span class='handle-left absolute top-0 h-full cursor-ew-resize' style='left:-4px;width:8px;'></span>" +
         "<span class='handle-right absolute top-0 h-full cursor-ew-resize' style='right:-4px;width:8px;'></span>" +
         "<span class='handle-left absolute left-0 top-0 h-full w-px bg-slate-500/60 pointer-events-none'></span>" +
-        "<span class='handle-right absolute right-0 top-0 h-full w-px bg-slate-500/60 pointer-events-none'></span>" +
-        separators;
+        "<span class='handle-right absolute right-0 top-0 h-full w-px bg-slate-500/60 pointer-events-none'></span>";
       overlay.appendChild(bar);
+      if (wordCount > 1) {
+        const barWidth = bar.getBoundingClientRect().width;
+        if (barWidth >= 18) {
+          const maxSeparators = Math.min(wordCount - 1, 30);
+          for (let i = 1; i <= maxSeparators; i += 1) {
+            const leftPos = (i / wordCount) * barWidth;
+            const separator = document.createElement("span");
+            separator.className = "absolute inset-y-1 w-px bg-slate-500/20";
+            separator.style.left = `${leftPos}px`;
+            bar.appendChild(separator);
+          }
+        }
+      }
 
       const onPointerDown = (event, mode) => {
         event.preventDefault();
@@ -345,7 +420,7 @@
         const onMove = (moveEvent) => {
           markTimelineDirty();
           const delta = moveEvent.clientX - startX;
-          const deltaSeconds = (delta / timelineWidth) * duration;
+          const deltaSeconds = (delta / totalWidth) * duration;
           let nextStart = startSeconds;
           let nextEnd = endSeconds;
           if (mode === "move") {
@@ -655,6 +730,11 @@
   updateBlockDurations();
   renderTimeline();
   captureTimelineBaseline();
+  if (waveformImage) {
+    waveformImage.addEventListener("load", () => {
+      renderTimeline();
+    });
+  }
   if (saveBar) {
     saveBar.classList.add("hidden");
     saveBar.classList.remove("flex");
@@ -693,16 +773,30 @@
   }
 
   const timeline = document.getElementById("timeline");
-  if (timeline && previewVideo) {
-    timeline.addEventListener("click", (event) => {
-      const rect = timeline.getBoundingClientRect();
+  const timelineViewport = document.getElementById("timeline-viewport");
+  if (timelineViewport && timeline && previewVideo) {
+    timelineViewport.addEventListener("click", (event) => {
       const duration = Number(timeline.dataset.duration || 0);
       if (!duration) {
         return;
       }
+      const rect = timelineViewport.getBoundingClientRect();
       const x = Math.min(Math.max(event.clientX - rect.left, 0), rect.width);
-      const targetTime = (x / rect.width) * duration;
+      const windowDuration = Math.min(TIMELINE_WINDOW_SECONDS, duration);
+      const waveformWidth = Number(timeline.dataset.waveformWidth || 0);
+      const totalWidth =
+        duration <= windowDuration
+          ? timelineViewport.clientWidth
+          : Math.max(
+              timelineViewport.clientWidth,
+              waveformWidth > 0
+                ? waveformWidth
+                : timelineViewport.clientWidth * (duration / windowDuration)
+            );
+      const absoluteX = timelineViewport.scrollLeft + x;
+      const targetTime = (absoluteX / totalWidth) * duration;
       previewVideo.currentTime = targetTime;
+      renderTimeline();
       updatePlayhead();
     });
   }
