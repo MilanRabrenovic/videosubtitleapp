@@ -250,6 +250,46 @@
           <fieldset class="space-y-6" {% if processing_job_error %}disabled{% endif %}>
             <legend class="text-sm uppercase tracking-[0.3em] text-slate-500">Subtitle styling</legend>
             <div class="rounded-xl border border-slate-200 bg-slate-50 p-4">
+              <div class="flex flex-wrap items-center justify-between gap-3">
+                <p class="text-xs font-semibold uppercase tracking-[0.25em] text-slate-500">Presets</p>
+                <span class="text-xs text-slate-400">Quick styles for modern captions</span>
+              </div>
+              <div class="mt-4 grid gap-4 lg:grid-cols-[1.4fr_0.7fr_1fr_0.6fr]">
+                <label class="flex flex-col gap-2 text-sm font-medium text-slate-700">
+                  Preset
+                  <select id="preset-select" class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900">
+                    <option value="">Select a preset</option>
+                    {% for preset in presets %}
+                      <option value="{{ preset.id }}">{{ preset.name }}</option>
+                    {% endfor %}
+                  </select>
+                </label>
+                <button
+                  type="button"
+                  id="preset-apply"
+                  class="self-end rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100"
+                >
+                  Apply
+                </button>
+                <label class="flex flex-col gap-2 text-sm font-medium text-slate-700">
+                  Save as preset
+                  <input
+                    type="text"
+                    id="preset-name"
+                    placeholder="Preset name"
+                    class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900"
+                  />
+                </label>
+                <button
+                  type="button"
+                  id="preset-save"
+                  class="self-end rounded-lg bg-amber-400 px-4 py-2 text-sm font-semibold text-slate-900 hover:bg-amber-300"
+                >
+                  Save
+                </button>
+              </div>
+            </div>
+            <div class="rounded-xl border border-slate-200 bg-slate-50 p-4">
               <p class="text-xs font-semibold uppercase tracking-[0.25em] text-slate-500">Typography</p>
               <div class="mt-4 grid gap-4 lg:grid-cols-4">
               <label class="flex flex-col gap-2 text-sm font-medium text-slate-700">
@@ -457,7 +497,7 @@
               </div>
               <label class="flex flex-col gap-2 text-sm font-medium text-slate-700">
                 Background opacity
-                <input type="number" name="style_background_opacity" min="0" max="1" step="0.1" value="{{ job.style.background_opacity }}" class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900" />
+                <input type="number" name="style_background_opacity" min="0" max="1" step="0.01" value="{{ job.style.background_opacity }}" class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900" />
               </label>
               <label class="flex flex-col gap-2 text-sm font-medium text-slate-700">
                 Background padding
@@ -676,6 +716,7 @@
 
     <span id="preview-job" data-job-id="{{ preview_job_id or '' }}" hidden></span>
     <span id="editor-job" data-job-id="{{ job.job_id }}" hidden></span>
+    <script id="preset-data" type="application/json">{{ preset_data_json | safe }}</script>
     <div
       id="save-bar"
       class="pointer-events-none fixed inset-x-0 bottom-0 z-40 hidden justify-center px-4 pb-4"

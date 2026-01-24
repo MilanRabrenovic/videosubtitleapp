@@ -45,6 +45,11 @@
   const longVideoWarning = document.getElementById("long-video-warning");
   const waveformImage = document.getElementById("waveform-image");
   const TIMELINE_WINDOW_SECONDS = 30;
+  const presetSelect = document.getElementById("preset-select");
+  const presetApply = document.getElementById("preset-apply");
+  const presetName = document.getElementById("preset-name");
+  const presetSave = document.getElementById("preset-save");
+  const presetDataEl = document.getElementById("preset-data");
   const timestampPattern = /^\d{2}:\d{2}:\d{2},\d{3}$/;
   let isDirty = false;
   let saveTimeoutId = null;
@@ -539,18 +544,19 @@
     });
   }
 
+  const updateColor = (key, value) => {
+    const dot = document.querySelector(`.color-dot[data-color-key="${key}"]`);
+    const hex = document.querySelector(`.color-hex[data-color-key="${key}"]`);
+    if (dot) {
+      dot.style.backgroundColor = value;
+    }
+    if (hex) {
+      hex.textContent = value;
+    }
+  };
+
   const colorInputs = document.querySelectorAll(".color-input");
   if (colorInputs.length) {
-    const updateColor = (key, value) => {
-      const dot = document.querySelector(`.color-dot[data-color-key="${key}"]`);
-      const hex = document.querySelector(`.color-hex[data-color-key="${key}"]`);
-      if (dot) {
-        dot.style.backgroundColor = value;
-      }
-      if (hex) {
-        hex.textContent = value;
-      }
-    };
     colorInputs.forEach((input) => {
       const key = input.dataset.colorKey;
       if (!key) {
@@ -578,6 +584,165 @@
     };
     fontLicenseConfirm.addEventListener("change", toggleFontUpload);
     toggleFontUpload();
+  }
+
+  const presetMap = (() => {
+    if (!presetDataEl) {
+      return {};
+    }
+    try {
+      return JSON.parse(presetDataEl.textContent || "{}");
+    } catch (error) {
+      console.error(error);
+      return {};
+    }
+  })();
+
+  const setFieldValue = (selector, value) => {
+    const field = form.querySelector(selector);
+    if (!field || value === undefined || value === null) {
+      return;
+    }
+    if (field.type === "checkbox") {
+      field.checked = Boolean(value);
+      field.dispatchEvent(new Event("change", { bubbles: true }));
+    } else {
+      field.value = value;
+      field.dispatchEvent(new Event("input", { bubbles: true }));
+      field.dispatchEvent(new Event("change", { bubbles: true }));
+    }
+  };
+
+  const applyPresetStyle = (style) => {
+    if (!style) {
+      return;
+    }
+    if (fontInput && fontValue && style.font_family) {
+      fontInput.value = style.font_family;
+      fontValue.value = style.font_family;
+      fontInput.dispatchEvent(new Event("input", { bubbles: true }));
+    }
+    setFieldValue("[name=\"style_font_weight\"]", style.font_weight);
+    setFieldValue("[name=\"style_font_style\"]", style.font_style);
+    setFieldValue("[name=\"style_font_size\"]", style.font_size);
+    setFieldValue("[name=\"style_text_color\"]", style.text_color);
+    setFieldValue("[name=\"style_highlight_color\"]", style.highlight_color);
+    setFieldValue("[name=\"style_outline_color\"]", style.outline_color);
+    setFieldValue("[name=\"style_outline_enabled\"]", style.outline_enabled);
+    setFieldValue("[name=\"style_outline_size\"]", style.outline_size);
+    setFieldValue("[name=\"style_background_color\"]", style.background_color);
+    setFieldValue("[name=\"style_background_enabled\"]", style.background_enabled);
+    setFieldValue("[name=\"style_background_opacity\"]", style.background_opacity);
+    setFieldValue("[name=\"style_background_padding\"]", style.background_padding);
+    setFieldValue("[name=\"style_background_blur\"]", style.background_blur);
+    setFieldValue("[name=\"style_line_height\"]", style.line_height);
+    setFieldValue("[name=\"style_position\"]", style.position);
+    setFieldValue("[name=\"style_margin_v\"]", style.margin_v);
+    setFieldValue("[name=\"style_max_words_per_line\"]", style.max_words_per_line);
+    if (style.text_color) updateColor("text", style.text_color);
+    if (style.highlight_color) updateColor("highlight", style.highlight_color);
+    if (style.outline_color) updateColor("outline", style.outline_color);
+    if (style.background_color) updateColor("background", style.background_color);
+    markDirty();
+    if (saveButton) {
+      saveButton.click();
+    }
+  };
+
+  const currentStylePayload = () => {
+    const getValue = (selector, fallback = null) => {
+      const field = form.querySelector(selector);
+      if (!field) {
+        return fallback;
+      }
+      if (field.type === "checkbox") {
+        return field.checked;
+      }
+      const value = field.value;
+      if (field.type === "number") {
+        const num = Number(value);
+        return Number.isNaN(num) ? fallback : num;
+      }
+      return value;
+    };
+    return {
+      font_family: fontInput ? fontInput.value.trim() : getValue("[name=\"style_font_family\"]"),
+      font_weight: getValue("[name=\"style_font_weight\"]"),
+      font_style: getValue("[name=\"style_font_style\"]"),
+      font_size: getValue("[name=\"style_font_size\"]"),
+      text_color: getValue("[name=\"style_text_color\"]"),
+      highlight_color: getValue("[name=\"style_highlight_color\"]"),
+      outline_color: getValue("[name=\"style_outline_color\"]"),
+      outline_enabled: getValue("[name=\"style_outline_enabled\"]"),
+      outline_size: getValue("[name=\"style_outline_size\"]"),
+      background_color: getValue("[name=\"style_background_color\"]"),
+      background_enabled: getValue("[name=\"style_background_enabled\"]"),
+      background_opacity: getValue("[name=\"style_background_opacity\"]"),
+      background_padding: getValue("[name=\"style_background_padding\"]"),
+      background_blur: getValue("[name=\"style_background_blur\"]"),
+      line_height: getValue("[name=\"style_line_height\"]"),
+      position: getValue("[name=\"style_position\"]"),
+      margin_v: getValue("[name=\"style_margin_v\"]"),
+      max_words_per_line: getValue("[name=\"style_max_words_per_line\"]"),
+    };
+  };
+
+  if (presetApply && presetSelect) {
+    presetApply.addEventListener("click", () => {
+      const presetId = presetSelect.value;
+      if (!presetId) {
+        showToast("Select a preset first.", "warning", 2200);
+        return;
+      }
+      const preset = presetMap[presetId];
+      if (!preset) {
+        showToast("Preset not found.", "error", 2200);
+        return;
+      }
+      applyPresetStyle(preset.style || {});
+      showToast(`Applied preset: ${preset.name}`, "success", 2200);
+    });
+  }
+
+  if (presetSave) {
+    presetSave.addEventListener("click", async () => {
+      const name = presetName ? presetName.value.trim() : "";
+      if (!name) {
+        showToast("Name your preset before saving.", "warning", 2400);
+        return;
+      }
+      presetSave.disabled = true;
+      try {
+        const response = await fetch("/presets", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name, style: currentStylePayload() }),
+        });
+        if (!response.ok) {
+          throw new Error("Save failed");
+        }
+        const payload = await response.json();
+        const preset = payload.preset;
+        const id = `user:${preset.id}`;
+        presetMap[id] = { ...preset, id };
+        if (presetSelect) {
+          const option = document.createElement("option");
+          option.value = id;
+          option.textContent = preset.name;
+          presetSelect.appendChild(option);
+          presetSelect.value = id;
+        }
+        if (presetName) {
+          presetName.value = "";
+        }
+        showToast("Preset saved.", "success", 2200);
+      } catch (error) {
+        console.error(error);
+        showToast("Unable to save preset.", "error", 2400);
+      } finally {
+        presetSave.disabled = false;
+      }
+    });
   }
 
   const collectSubtitles = () => {

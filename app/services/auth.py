@@ -57,6 +57,19 @@ def init_auth_db() -> None:
             )
             """
         )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS presets (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                name TEXT NOT NULL,
+                style_json TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                UNIQUE(user_id, name),
+                FOREIGN KEY(user_id) REFERENCES users(id)
+            )
+            """
+        )
 
 
 def _hash_password(password: str) -> str:

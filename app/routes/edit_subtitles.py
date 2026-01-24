@@ -39,6 +39,7 @@ from app.services.subtitles import (
     split_subtitles_by_words,
     subtitles_to_srt,
 )
+from app.services.presets import builtin_presets, list_user_presets
 
 router = APIRouter()
 
@@ -75,6 +76,11 @@ def edit_page(request: Request, job_id: str) -> Any:
     job_failed_step = None
     job_record = load_job(job_id)
     job_pinned = job_record.get("pinned", False) if job_record else False
+    user_presets = list_user_presets(user["id"])
+    presets_payload = builtin_presets() + [
+        {"id": f"user:{preset['id']}", "name": preset["name"], "style": preset["style"]}
+        for preset in user_presets
+    ]
     if not job_data:
         if not job_record:
             raise HTTPException(status_code=404, detail="Subtitle job not found")
@@ -155,6 +161,8 @@ def edit_page(request: Request, job_id: str) -> Any:
             "long_video_warning": bool(
                 job_data.get("video_duration", 0) and job_data["video_duration"] > LONG_VIDEO_WARNING_SECONDS
             ),
+            "presets": presets_payload,
+            "preset_data_json": json.dumps({p["id"]: p for p in presets_payload}),
         },
     )
 
