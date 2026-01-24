@@ -46,7 +46,6 @@
   const waveformImage = document.getElementById("waveform-image");
   const TIMELINE_WINDOW_SECONDS = 30;
   const presetSelect = document.getElementById("preset-select");
-  const presetApply = document.getElementById("preset-apply");
   const presetName = document.getElementById("preset-name");
   const presetSave = document.getElementById("preset-save");
   const presetDataEl = document.getElementById("preset-data");
@@ -613,7 +612,7 @@
     }
   };
 
-  const applyPresetStyle = (style) => {
+  const applyPresetStyle = (style, options = {}) => {
     if (!style) {
       return;
     }
@@ -644,7 +643,7 @@
     if (style.outline_color) updateColor("outline", style.outline_color);
     if (style.background_color) updateColor("background", style.background_color);
     markDirty();
-    if (saveButton) {
+    if (saveButton && options.autoSave !== false) {
       saveButton.click();
     }
   };
@@ -687,11 +686,10 @@
     };
   };
 
-  if (presetApply && presetSelect) {
-    presetApply.addEventListener("click", () => {
+  if (presetSelect) {
+    presetSelect.addEventListener("change", () => {
       const presetId = presetSelect.value;
       if (!presetId) {
-        showToast("Select a preset first.", "warning", 2200);
         return;
       }
       const preset = presetMap[presetId];
@@ -699,8 +697,7 @@
         showToast("Preset not found.", "error", 2200);
         return;
       }
-      applyPresetStyle(preset.style || {});
-      showToast(`Applied preset: ${preset.name}`, "success", 2200);
+      applyPresetStyle(preset.style || {}, { autoSave: false });
     });
   }
 
