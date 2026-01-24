@@ -32,6 +32,8 @@
 ### UX & Product
 - Add usage limits/quotas for public users (daily minutes, file size caps).
 - Optional: progress estimation for long transcriptions/exports.
+- Fix timeline viewport overflow on some clips (no page horizontal scroll).
+- Ensure pills render on short videos consistently and keep word separators on long videos.
 
 ## Long-term (Scale + productization)
 ### Infrastructure & Scaling

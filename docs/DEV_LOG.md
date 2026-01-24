@@ -198,3 +198,21 @@
 - Implemented: Back-to-upload button in editor header.
 - Updated: Video duration limit increased to 60 minutes.
 - Next action: Validate timeline window behavior on long videos and refine zoom math if needed.
+
+## 2026-01-24
+- Implemented: Scrollable timeline viewport with fixed 30s window and playhead-follow scroll.
+- Implemented: Waveform width scaling per duration with server-side generation updates.
+- Implemented: Focused subtitle editor under timeline (click pill to edit/delete).
+- Implemented: Presets system (built-in + user presets) with safe Google font (Montserrat).
+- Updated: Preset selection applies all style fields and auto-saves.
+- Incomplete: Timeline container overflow still breaks layout on some clips; short-video pills sometimes missing; word separators not rendering for long videos in some cases.
+- Next action: Fix timeline width containment + pill render consistency across short/long videos.
+
+## 2026-01-24
+- Implemented: Scrollable timeline viewport for long videos (30s window), auto-scroll follows playback, click-to-seek respects scroll.
+- Implemented: Focused block editor under the timeline (click a pill to edit), with delete from focused panel.
+- Implemented: Persistent preview toast (visible until preview finishes).
+- Implemented: Preset styles (5 built-ins) + per-account saved presets; preset apply updates all styling options and auto-saves.
+- Updated: Replaced risky TikTok font with safe Google Font (Montserrat) in presets.
+- Updated: Background opacity input accepts 0.01 steps (supports values like 0.55).
+- Next action: Finish timeline polish for long videos (verify pill separators, scroll containment, and waveform/pill sync on very long clips).
