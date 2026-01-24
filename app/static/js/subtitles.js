@@ -22,6 +22,12 @@
   const saveBar = document.getElementById("save-bar");
   const saveBarButton = document.getElementById("save-bar-button");
   const blockCount = document.getElementById("block-count");
+  const focusedBlock = document.getElementById("focused-block");
+  const focusedLabel = document.getElementById("focused-block-label");
+  const focusedStart = document.getElementById("focused-start");
+  const focusedEnd = document.getElementById("focused-end");
+  const focusedText = document.getElementById("focused-text");
+  const focusedDelete = document.getElementById("focused-delete");
   const pinForm = document.getElementById("pin-form");
   const pinCheckbox = document.getElementById("pin-checkbox");
   const pinStatus = document.getElementById("pin-status");
@@ -45,6 +51,7 @@
   let toastTimer = null;
   let timelineBaseline = null;
   let timelineDirty = false;
+  let suppressTimelineAutoScrollUntil = 0;
 
   const setProcessingState = (isProcessing) => {
     if (saveButton) {
@@ -332,6 +339,9 @@
     if (!viewport || !duration || !viewportWidth || !totalWidth) {
       return;
     }
+    if (Date.now() < suppressTimelineAutoScrollUntil) {
+      return;
+    }
     if (duration <= windowDuration) {
       viewport.scrollLeft = 0;
       return;
@@ -456,6 +466,33 @@
           onPointerDown(event, "end");
         } else {
           onPointerDown(event, "move");
+        }
+      });
+      bar.addEventListener("click", (event) => {
+        event.stopPropagation();
+        const index = Number(bar.dataset.index);
+        if (Number.isNaN(index)) {
+          return;
+        }
+        const target = subtitleList.querySelector(`.subtitle-block[data-index="${index}"]`);
+        if (!target) {
+          return;
+        }
+        if (focusedBlock && focusedStart && focusedEnd && focusedText) {
+          focusedBlock.classList.remove("hidden");
+          focusedBlock.dataset.index = String(index);
+          const allBars = overlay.querySelectorAll(".timeline-block");
+          allBars.forEach((item) => {
+            item.classList.remove("is-active");
+          });
+          bar.classList.add("is-active");
+          if (focusedLabel) {
+            focusedLabel.textContent = `Block ${index + 1}`;
+          }
+          focusedStart.value = target.querySelector(".start").value;
+          focusedEnd.value = target.querySelector(".end").value;
+          focusedText.value = target.querySelector(".text").value;
+          focusedStart.focus();
         }
       });
     });
@@ -595,6 +632,17 @@
     markDirty();
     updateBlockDurations();
     renderTimeline();
+    if (focusedBlock && focusedBlock.dataset.index) {
+      const index = Number(focusedBlock.dataset.index);
+      if (!Number.isNaN(index)) {
+        const target = subtitleList.querySelector(`.subtitle-block[data-index="${index}"]`);
+        if (target && focusedStart && focusedEnd && focusedText) {
+          focusedStart.value = target.querySelector(".start").value;
+          focusedEnd.value = target.querySelector(".end").value;
+          focusedText.value = target.querySelector(".text").value;
+        }
+      }
+    }
   });
 
   subtitleList.addEventListener("click", (event) => {
@@ -612,6 +660,64 @@
     updateBlockDurations();
     renderTimeline();
   });
+
+  const syncFocusedField = (field, selector) => {
+    if (!focusedBlock || !field) {
+      return;
+    }
+    const index = Number(focusedBlock.dataset.index || "");
+    if (Number.isNaN(index)) {
+      return;
+    }
+    const target = subtitleList.querySelector(`.subtitle-block[data-index="${index}"] ${selector}`);
+    if (!target) {
+      return;
+    }
+    target.value = field.value;
+    hiddenInput.value = JSON.stringify(collectSubtitles());
+    markDirty();
+    updateBlockDurations();
+    renderTimeline();
+  };
+
+  if (focusedStart) {
+    focusedStart.addEventListener("input", () => {
+      syncFocusedField(focusedStart, ".start");
+    });
+  }
+  if (focusedEnd) {
+    focusedEnd.addEventListener("input", () => {
+      syncFocusedField(focusedEnd, ".end");
+    });
+  }
+  if (focusedText) {
+    focusedText.addEventListener("input", () => {
+      syncFocusedField(focusedText, ".text");
+    });
+  }
+
+  if (focusedDelete) {
+    focusedDelete.addEventListener("click", () => {
+      if (!focusedBlock) {
+        return;
+      }
+      const index = Number(focusedBlock.dataset.index || "");
+      if (Number.isNaN(index)) {
+        return;
+      }
+      const target = subtitleList.querySelector(`.subtitle-block[data-index="${index}"]`);
+      if (!target) {
+        return;
+      }
+      target.remove();
+      focusedBlock.classList.add("hidden");
+      focusedBlock.dataset.index = "";
+      hiddenInput.value = JSON.stringify(collectSubtitles());
+      markDirty();
+      updateBlockDurations();
+      renderTimeline();
+    });
+  }
 
   const styleControls = form.querySelectorAll(
     "input[name^='style_'], select[name^='style_']"
@@ -641,6 +747,8 @@
     if (hasInvalidTimestamps()) {
       showToast("One or more timestamps look invalid (expected HH:MM:SS,mmm).", "warning", 3200);
     }
+    const viewport = document.getElementById("timeline-viewport");
+    const previousScroll = viewport ? viewport.scrollLeft : 0;
     try {
       const response = await fetch(form.action, { method: "POST", body: new FormData(form) });
       if (!response.ok) {
@@ -661,6 +769,10 @@
         subtitleList.innerHTML = updatedList.innerHTML;
         updateBlockDurations();
         renderTimeline();
+        if (viewport) {
+          suppressTimelineAutoScrollUntil = Date.now() + 1500;
+          viewport.scrollLeft = previousScroll;
+        }
       }
       const updatedForm = doc.getElementById("subtitle-form");
       if (updatedForm && form) {

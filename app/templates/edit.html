@@ -75,6 +75,15 @@
       outline: none;
       box-shadow: 0 0 0 3px rgba(251, 191, 36, 0.35);
     }
+    .timeline-block.is-active {
+      background: rgba(203, 213, 225, 0.55);
+    }
+    #timeline-viewport {
+      scrollbar-width: none;
+    }
+    #timeline-viewport::-webkit-scrollbar {
+      display: none;
+    }
   </style>
   <script src="/static/js/subtitles.js" defer></script>
 </head>
@@ -530,6 +539,36 @@
               {% else %}
                 <p class="mt-2 text-sm text-slate-500">Waveform preview unavailable.</p>
               {% endif %}
+            </div>
+
+            <div id="focused-block" class="hidden rounded-xl border border-slate-200 bg-slate-50 p-4">
+              <div class="mb-3 flex items-center justify-between text-xs uppercase tracking-[0.25em] text-slate-400">
+                <span>Focused block</span>
+                <div class="flex items-center gap-2">
+                  <span id="focused-block-label" class="text-slate-500"></span>
+                  <button
+                    type="button"
+                    id="focused-delete"
+                    class="rounded-md border border-slate-200 px-2 py-1 text-[11px] font-semibold text-slate-500 hover:bg-slate-100"
+                  >
+                    Delete
+                  </button>
+                </div>
+              </div>
+              <div class="grid gap-3 md:grid-cols-2">
+                <label class="flex flex-col gap-2 text-sm font-medium text-slate-700">
+                  Start time
+                  <input type="text" id="focused-start" class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900" />
+                </label>
+                <label class="flex flex-col gap-2 text-sm font-medium text-slate-700">
+                  End time
+                  <input type="text" id="focused-end" class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900" />
+                </label>
+              </div>
+              <label class="mt-3 flex flex-col gap-2 text-sm font-medium text-slate-700">
+                Subtitle text
+                <textarea id="focused-text" class="min-h-[96px] w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900"></textarea>
+              </label>
             </div>
 
             <div class="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
