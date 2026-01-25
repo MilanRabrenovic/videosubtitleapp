@@ -132,6 +132,17 @@ Cleanup rules will keep disk usage bounded, but you should still monitor disk sp
 - Create a user at `/signup`
 - Verify upload → edit → export
 - Verify exports are only accessible to logged-in owner
+- Confirm FFmpeg build choice (GPL vs LGPL-only) matches your risk tolerance.
+- Add Terms/Privacy pages (drafts + legal review) before public launch.
+
+## 12) License & compliance notes (SaaS)
+- This app runs FFmpeg server-side. The LGPL/GPL distribution checklist mostly applies when **distributing** FFmpeg binaries.
+- For hosted SaaS, distribution obligations are typically not triggered, but codec patent risk can still exist depending on jurisdiction.
+- If you want to minimize licensing risk:
+  - Use an **LGPL-only FFmpeg build** (no `--enable-gpl`, no `--enable-nonfree`).
+  - Avoid GPL-only libraries like **libx264** in production builds.
+  - Document how FFmpeg was built and keep version info on hand.
+- Add Terms clauses: users confirm they have rights to upload content; you are not liable for misuse.
 
 ## 12) Systemd examples (Ubuntu)
 Create a service for the web app:

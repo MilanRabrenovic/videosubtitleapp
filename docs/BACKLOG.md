@@ -8,6 +8,7 @@
 ### P1 — should have
 - Add proxy-level rate limits + hard upload caps (nginx/caddy) on deploy.
 - Replace Tailwind CDN with compiled CSS pipeline (PostCSS/CLI) before production.
+- Add Terms of Service + Privacy Policy pages (drafts, then legal review before launch).
 
 ### P2 — nice to have
 - Add progress estimates for transcription/export.
@@ -35,6 +36,15 @@
 - Optional: progress estimation for long transcriptions/exports.
 - Fix timeline viewport overflow on some clips (no page horizontal scroll).
 - Ensure pills render on short videos consistently and keep word separators on long videos.
+
+## Refactor backlog (maintainability)
+### P1 — soon
+- Split `app/static/js/subtitles.js` into smaller modules (timeline, editor, presets, exports, toast).
+- Extract subtitle edit/save logic from `app/routes/edit_subtitles.py` into services.
+
+### P2 — later
+- Split `app/services/tasks.py` into separate task modules (transcribe/preview/export).
+- Add lightweight unit tests for subtitle splitting + style normalization.
 
 ## Long-term (Scale + productization)
 ### Infrastructure & Scaling
