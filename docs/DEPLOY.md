@@ -142,7 +142,16 @@ Cleanup rules will keep disk usage bounded, but you should still monitor disk sp
   - Use an **LGPL-only FFmpeg build** (no `--enable-gpl`, no `--enable-nonfree`).
   - Avoid GPL-only libraries like **libx264** in production builds.
   - Document how FFmpeg was built and keep version info on hand.
+- This app currently outputs MP4 with H.264/AAC by default, which are patented codecs.
+- If you want a lower‑risk option, add a **royalty‑free export** (e.g., WebM with VP9/AV1 + Opus).
 - Add Terms clauses: users confirm they have rights to upload content; you are not liable for misuse.
+
+## 13) Codec licensing checklist (before scale)
+If you begin charging and see meaningful volume, do a quick compliance review:
+- Confirm which codecs your exports use (H.264/AAC in MP4 by default).
+- Decide whether to add a **royalty‑free export** option (WebM + VP9/AV1 + Opus).
+- If you want full compliance for patented codecs, contact the relevant licensing bodies (e.g., MPEG LA) and request current licensing terms.
+- Keep a short internal note on what codecs are used and why, and review annually.
 
 ## 12) Systemd examples (Ubuntu)
 Create a service for the web app:
