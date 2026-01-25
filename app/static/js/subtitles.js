@@ -798,6 +798,13 @@
       }
     });
   }
+  if (presetName && presetSave) {
+    const togglePresetSave = () => {
+      presetSave.disabled = !presetName.value.trim();
+    };
+    presetName.addEventListener("input", togglePresetSave);
+    togglePresetSave();
+  }
 
   const collectSubtitles = () => {
     const blocks = subtitleList.querySelectorAll(".subtitle-block");

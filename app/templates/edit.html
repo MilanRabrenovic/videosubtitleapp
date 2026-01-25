@@ -276,9 +276,10 @@
                 <button
                   type="button"
                   id="preset-save"
-                  class="self-end rounded-lg bg-amber-400 px-4 py-2 text-sm font-semibold text-slate-900 hover:bg-amber-300"
+                  class="self-end rounded-lg bg-amber-400 px-4 py-2 text-sm font-semibold text-slate-900 hover:bg-amber-300 disabled:cursor-not-allowed disabled:opacity-60"
+                  disabled
                 >
-                  Save
+                  Save preset
                 </button>
               </div>
             </div>
@@ -596,7 +597,6 @@
                     id="focused-start"
                     class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900"
                     inputmode="numeric"
-                    pattern="\\d{2}:\\d{2}:\\d{2},\\d{3}"
                     maxlength="12"
                     data-time-input="true"
                   />
@@ -608,7 +608,6 @@
                     id="focused-end"
                     class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900"
                     inputmode="numeric"
-                    pattern="\\d{2}:\\d{2}:\\d{2},\\d{3}"
                     maxlength="12"
                     data-time-input="true"
                   />
@@ -655,7 +654,6 @@
                       class="start rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900"
                       value="{{ block.start }}"
                       inputmode="numeric"
-                      pattern="\\d{2}:\\d{2}:\\d{2},\\d{3}"
                       maxlength="12"
                       data-time-input="true"
                     />
@@ -667,7 +665,6 @@
                       class="end rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900"
                       value="{{ block.end }}"
                       inputmode="numeric"
-                      pattern="\\d{2}:\\d{2}:\\d{2},\\d{3}"
                       maxlength="12"
                       data-time-input="true"
                     />
