@@ -591,11 +591,27 @@
               <div class="grid gap-3 md:grid-cols-2">
                 <label class="flex flex-col gap-2 text-sm font-medium text-slate-700">
                   Start time
-                  <input type="text" id="focused-start" class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900" />
+                  <input
+                    type="text"
+                    id="focused-start"
+                    class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900"
+                    inputmode="numeric"
+                    pattern="\\d{2}:\\d{2}:\\d{2},\\d{3}"
+                    maxlength="12"
+                    data-time-input="true"
+                  />
                 </label>
                 <label class="flex flex-col gap-2 text-sm font-medium text-slate-700">
                   End time
-                  <input type="text" id="focused-end" class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900" />
+                  <input
+                    type="text"
+                    id="focused-end"
+                    class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900"
+                    inputmode="numeric"
+                    pattern="\\d{2}:\\d{2}:\\d{2},\\d{3}"
+                    maxlength="12"
+                    data-time-input="true"
+                  />
                 </label>
               </div>
               <label class="mt-3 flex flex-col gap-2 text-sm font-medium text-slate-700">
@@ -634,11 +650,27 @@
                 <div class="grid gap-3 md:grid-cols-2">
                   <label class="flex flex-col gap-2 text-sm font-medium text-slate-700">
                     Start time
-                    <input type="text" class="start rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900" value="{{ block.start }}" />
+                    <input
+                      type="text"
+                      class="start rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900"
+                      value="{{ block.start }}"
+                      inputmode="numeric"
+                      pattern="\\d{2}:\\d{2}:\\d{2},\\d{3}"
+                      maxlength="12"
+                      data-time-input="true"
+                    />
                   </label>
                   <label class="flex flex-col gap-2 text-sm font-medium text-slate-700">
                     End time
-                    <input type="text" class="end rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900" value="{{ block.end }}" />
+                    <input
+                      type="text"
+                      class="end rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900"
+                      value="{{ block.end }}"
+                      inputmode="numeric"
+                      pattern="\\d{2}:\\d{2}:\\d{2},\\d{3}"
+                      maxlength="12"
+                      data-time-input="true"
+                    />
                   </label>
                 </div>
                 <p class="mt-2 text-xs text-slate-400">Format example: 00:01:12,340</p>

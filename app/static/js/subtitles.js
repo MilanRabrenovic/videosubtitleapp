@@ -94,15 +94,29 @@
     });
   };
 
+  const updateToastOffset = () => {
+    if (!toast) {
+      return;
+    }
+    const baseOffset = 24;
+    if (saveBar && !saveBar.classList.contains("hidden")) {
+      const barHeight = saveBar.offsetHeight || 0;
+      toast.style.bottom = `${barHeight + baseOffset}px`;
+    } else {
+      toast.style.bottom = `${baseOffset}px`;
+    }
+  };
+
   const showToast = (message, type = "info", timeout = 2200) => {
     if (!toast) {
       return;
     }
     const base =
-      "pointer-events-none fixed bottom-6 left-1/2 z-50 w-[calc(100%-2rem)] max-w-xl -translate-x-1/2 rounded-xl px-4 py-3 text-center text-sm font-medium shadow-lg backdrop-blur";
+      "pointer-events-none fixed left-1/2 z-50 w-[calc(100%-2rem)] max-w-xl -translate-x-1/2 rounded-xl px-4 py-3 text-center text-sm font-medium shadow-lg backdrop-blur";
     toast.className = `${base} ${toastClasses[type] || toastClasses.info}`;
     toast.textContent = message;
     toast.classList.remove("hidden");
+    updateToastOffset();
     if (toastTimer) {
       clearTimeout(toastTimer);
     }
@@ -137,6 +151,38 @@
     }
     return `${mins}:${ss}`;
   };
+
+  const normalizeTimeInput = (value) => {
+    const cleaned = value.replace(/[^\d:,]/g, "");
+    const parts = cleaned.split(",");
+    const left = parts[0].replace(/[^\d:]/g, "");
+    const right = parts[1] ? parts[1].replace(/\D/g, "") : "";
+    const leftChunks = left.split(":").slice(0, 3);
+    const paddedLeft = leftChunks
+      .map((chunk, index) => {
+        if (!chunk) {
+          return "";
+        }
+        const digits = chunk.replace(/\D/g, "");
+        return index < 2 ? digits.slice(0, 2) : digits.slice(0, 2);
+      })
+      .join(":");
+    const ms = right.slice(0, 3);
+    if (parts.length > 1 || right.length > 0) {
+      return `${paddedLeft},${ms}`;
+    }
+    return paddedLeft;
+  };
+
+  const timeInputs = form ? form.querySelectorAll("[data-time-input]") : [];
+  timeInputs.forEach((input) => {
+    input.addEventListener("input", () => {
+      const normalized = normalizeTimeInput(input.value);
+      if (normalized !== input.value) {
+        input.value = normalized;
+      }
+    });
+  });
 
   const formatJobError = (job) => {
     if (!job || !job.error) {
@@ -788,6 +834,7 @@
       saveBar.classList.remove("hidden");
       saveBar.classList.add("flex");
     }
+    updateToastOffset();
   };
 
   subtitleList.addEventListener("input", () => {
@@ -988,6 +1035,7 @@
         saveBar.classList.add("hidden");
         saveBar.classList.remove("flex");
       }
+      updateToastOffset();
       captureTimelineBaseline();
     } catch (error) {
       console.error(error);
@@ -1014,6 +1062,7 @@
     saveBar.classList.add("hidden");
     saveBar.classList.remove("flex");
   }
+  updateToastOffset();
   if (longVideoWarning) {
     const duration = Number(longVideoWarning.dataset.duration || 0);
     const pretty = formatDuration(duration);
