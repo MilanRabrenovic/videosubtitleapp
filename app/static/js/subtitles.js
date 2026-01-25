@@ -56,6 +56,7 @@
   let toastTimer = null;
   let timelineBaseline = null;
   let timelineDirty = false;
+  let timelineDirtyIndices = new Set();
   let suppressTimelineAutoScrollUntil = 0;
 
   const setProcessingState = (isProcessing) => {
@@ -153,25 +154,25 @@
   };
 
   const normalizeTimeInput = (value) => {
-    const cleaned = value.replace(/[^\d:,]/g, "");
-    const parts = cleaned.split(",");
-    const left = parts[0].replace(/[^\d:]/g, "");
-    const right = parts[1] ? parts[1].replace(/\D/g, "") : "";
-    const leftChunks = left.split(":").slice(0, 3);
-    const paddedLeft = leftChunks
-      .map((chunk, index) => {
-        if (!chunk) {
-          return "";
-        }
-        const digits = chunk.replace(/\D/g, "");
-        return index < 2 ? digits.slice(0, 2) : digits.slice(0, 2);
-      })
-      .join(":");
-    const ms = right.slice(0, 3);
-    if (parts.length > 1 || right.length > 0) {
-      return `${paddedLeft},${ms}`;
+    const digits = value.replace(/\D/g, "").slice(0, 9);
+    if (!digits) {
+      return "";
     }
-    return paddedLeft;
+    const hh = digits.slice(0, 2);
+    const mm = digits.slice(2, 4);
+    const ss = digits.slice(4, 6);
+    const ms = digits.slice(6, 9);
+    let formatted = hh;
+    if (digits.length > 2) {
+      formatted += `:${mm}`;
+    }
+    if (digits.length > 4) {
+      formatted += `:${ss}`;
+    }
+    if (digits.length > 6) {
+      formatted += `,${ms}`;
+    }
+    return formatted;
   };
 
   const timeInputs = form ? form.querySelectorAll("[data-time-input]") : [];
@@ -180,6 +181,14 @@
       const normalized = normalizeTimeInput(input.value);
       if (normalized !== input.value) {
         input.value = normalized;
+      }
+      const parentBlock = input.closest(".subtitle-block");
+      if (parentBlock) {
+        markTimelineDirty(parentBlock.dataset.index);
+      } else if (focusedBlock && focusedBlock.dataset.index) {
+        markTimelineDirty(focusedBlock.dataset.index);
+      } else {
+        markTimelineDirty();
       }
     });
   });
@@ -479,7 +488,7 @@
         const length = endSeconds - startSeconds;
         const startX = event.clientX;
         const onMove = (moveEvent) => {
-          markTimelineDirty();
+          markTimelineDirty(block.dataset.index);
           const delta = moveEvent.clientX - startX;
           const deltaSeconds = (delta / totalWidth) * duration;
           let nextStart = startSeconds;
@@ -805,14 +814,18 @@
   const captureTimelineBaseline = () => {
     timelineBaseline = collectSubtitles();
     timelineDirty = false;
+    timelineDirtyIndices = new Set();
     if (timelineReset) {
       timelineReset.classList.add("hidden");
       timelineReset.disabled = true;
     }
   };
 
-  const markTimelineDirty = () => {
+  const markTimelineDirty = (index = null) => {
     timelineDirty = true;
+    if (index !== null && index !== undefined && !Number.isNaN(Number(index))) {
+      timelineDirtyIndices.add(Number(index));
+    }
     if (timelineReset) {
       timelineReset.classList.remove("hidden");
       timelineReset.disabled = false;
@@ -837,9 +850,20 @@
     updateToastOffset();
   };
 
-  subtitleList.addEventListener("input", () => {
+  subtitleList.addEventListener("input", (event) => {
     hiddenInput.value = JSON.stringify(collectSubtitles());
     markDirty();
+    const target = event.target;
+    if (target && target.matches && target.matches("[data-time-input]")) {
+      const parentBlock = target.closest(".subtitle-block");
+      if (parentBlock) {
+        markTimelineDirty(parentBlock.dataset.index);
+      } else if (focusedBlock && focusedBlock.dataset.index) {
+        markTimelineDirty(focusedBlock.dataset.index);
+      } else {
+        markTimelineDirty();
+      }
+    }
     updateBlockDurations();
     renderTimeline();
     if (focusedBlock && focusedBlock.dataset.index) {
@@ -1070,6 +1094,14 @@
     showToast(`Long video${suffix}. Transcription may take a while.`, "warning", 5000);
   }
 
+  window.addEventListener("beforeunload", (event) => {
+    if (!isDirty) {
+      return;
+    }
+    event.preventDefault();
+    event.returnValue = "";
+  });
+
   if (previewVideo) {
     let rafId = null;
     const tick = () => {
@@ -1135,19 +1167,50 @@
         captureTimelineBaseline();
         return;
       }
-      blocks.forEach((block, index) => {
+      const indices = timelineDirtyIndices.size
+        ? Array.from(timelineDirtyIndices)
+        : Array.from(blocks).map((block) => Number(block.dataset.index));
+      indices.forEach((index) => {
+        if (Number.isNaN(index)) {
+          return;
+        }
         const baseline = timelineBaseline[index];
         if (!baseline) {
           return;
         }
-        block.querySelector(".start").value = baseline.start;
-        block.querySelector(".end").value = baseline.end;
+        const block = subtitleList.querySelector(`.subtitle-block[data-index="${index}"]`);
+        if (!block) {
+          return;
+        }
+        const startInput = block.querySelector(".start");
+        const endInput = block.querySelector(".end");
+        if (startInput) {
+          startInput.value = baseline.start;
+          startInput.dispatchEvent(new Event("input", { bubbles: true }));
+          startInput.dispatchEvent(new Event("change", { bubbles: true }));
+        }
+        if (endInput) {
+          endInput.value = baseline.end;
+          endInput.dispatchEvent(new Event("input", { bubbles: true }));
+          endInput.dispatchEvent(new Event("change", { bubbles: true }));
+        }
       });
       hiddenInput.value = JSON.stringify(collectSubtitles());
       markDirty();
       updateBlockDurations();
       renderTimeline();
+      if (focusedBlock && focusedBlock.dataset.index) {
+        const focusedIndex = Number(focusedBlock.dataset.index);
+        if (!Number.isNaN(focusedIndex)) {
+          const target = subtitleList.querySelector(`.subtitle-block[data-index="${focusedIndex}"]`);
+          if (target && focusedStart && focusedEnd) {
+            focusedStart.value = target.querySelector(".start").value;
+            focusedEnd.value = target.querySelector(".end").value;
+          }
+        }
+      }
       timelineDirty = false;
+      timelineDirtyIndices = new Set();
       timelineReset.classList.add("hidden");
       timelineReset.disabled = true;
     });
