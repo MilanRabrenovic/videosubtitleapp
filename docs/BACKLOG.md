@@ -7,6 +7,7 @@
 
 ### P1 — should have
 - Add proxy-level rate limits + hard upload caps (nginx/caddy) on deploy.
+- Replace Tailwind CDN with compiled CSS pipeline (PostCSS/CLI) before production.
 
 ### P2 — nice to have
 - Add progress estimates for transcription/export.
