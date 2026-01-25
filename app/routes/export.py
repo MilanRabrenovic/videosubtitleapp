@@ -119,3 +119,32 @@ def export_video_karaoke(request: Request, job_id: str) -> Any:
         owner_user_id=user["id"],
     )
     return {"job_id": export_job["job_id"], "status": export_job["status"]}
+
+
+@router.post("/export/{job_id}/video-greenscreen")
+def export_video_greenscreen(request: Request, job_id: str) -> Any:
+    """Export a green screen video with burned-in subtitles and original audio."""
+    user = _require_user(request)
+    if not user:
+        return RedirectResponse(url="/login", status_code=303)
+    if not _ensure_owner(job_id, user["id"]):
+        raise HTTPException(status_code=403, detail="Access denied")
+    job_data = load_subtitle_job(job_id)
+    if not job_data:
+        raise HTTPException(status_code=404, detail="Subtitle job not found")
+
+    existing = find_active_job(
+        "greenscreen_export",
+        lambda job: job.get("input", {}).get("options", {}).get("subtitle_job_id") == job_id,
+    )
+    if existing:
+        return {"job_id": existing.get("job_id"), "status": existing.get("status")}
+
+    session_id = getattr(request.state, "session_id", None)
+    export_job = create_job(
+        "greenscreen_export",
+        {"video_path": str(UPLOADS_DIR / job_data.get("video_filename", "")), "options": {"subtitle_job_id": job_id}},
+        owner_session_id=session_id,
+        owner_user_id=user["id"],
+    )
+    return {"job_id": export_job["job_id"], "status": export_job["status"]}

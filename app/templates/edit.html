@@ -694,6 +694,16 @@
               Download subtitles (VTT)
             </button>
           </form>
+          <form action="/export/{{ job.job_id }}/video-greenscreen" method="post">
+            <button
+              type="submit"
+              data-export="video-greenscreen"
+              class="w-full rounded-lg border border-slate-200 px-4 py-2 text-sm text-slate-700 hover:bg-slate-100"
+              {% if processing_job_id or processing_job_error %}disabled{% endif %}
+            >
+              Export green screen (subtitles + audio)
+            </button>
+          </form>
           <form action="/export/{{ job.job_id }}/video-karaoke" method="post">
             <button type="submit" data-export="video-karaoke" class="w-full rounded-lg bg-amber-400 px-4 py-2 text-sm font-semibold text-slate-900 hover:bg-amber-300" {% if processing_job_id or processing_job_error %}disabled{% endif %}>
               Export video with word highlight

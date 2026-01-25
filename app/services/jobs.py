@@ -69,6 +69,8 @@ def _job_timeout(job: Dict[str, Any]) -> int | None:
         return JOB_TIMEOUT_EXPORT
     if job_type == "karaoke_export":
         return JOB_TIMEOUT_KARAOKE
+    if job_type == "greenscreen_export":
+        return JOB_TIMEOUT_EXPORT
     return None
 
 

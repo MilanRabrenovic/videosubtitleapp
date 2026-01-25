@@ -8,6 +8,7 @@
   const exportStatus = document.getElementById("export-status");
   const exportSrtButton = document.querySelector("[data-export='srt']");
   const exportKaraokeButtons = document.querySelectorAll("[data-export='video-karaoke']");
+  const exportGreenButtons = document.querySelectorAll("[data-export='video-greenscreen']");
   const exportVideoStatus = document.getElementById("video-export-status");
   const previewVideo = document.getElementById("preview-video");
   const saveButton = document.getElementById("save-button");
@@ -1131,7 +1132,7 @@
       return;
     }
     button.disabled = true;
-    showToast(startText, "info", 2600);
+    showToast(startText, "info", 0);
     try {
       const response = await fetch(form.action, { method: "POST", body: new FormData(form) });
       if (!response.ok) {
@@ -1151,6 +1152,7 @@
       pollJob(
         jobId,
         (job) => {
+          hideToast();
           const url = job.output && job.output.video_url ? job.output.video_url : null;
           const downloadName =
             job.output && job.output.download_name ? job.output.download_name : fallbackName;
@@ -1169,6 +1171,7 @@
           button.disabled = false;
         },
         (job) => {
+          hideToast();
           showToast(formatJobFailure(job, "Video export failed."), "error", 3600);
           showErrorPanel(job);
           button.disabled = false;
@@ -1176,6 +1179,7 @@
       );
     } catch (error) {
       console.error(error);
+      hideToast();
       showToast(
         error.message || "Video export failed.",
         error.message?.includes("Too many") ? "warning" : "error",
@@ -1201,6 +1205,12 @@
     exportVideoStatus,
     "karaoke.mp4",
     "Exporting video..."
+  );
+  bindExportButtons(
+    exportGreenButtons,
+    exportVideoStatus,
+    "greenscreen.mp4",
+    "Exporting green screen..."
   );
 
   if (jobStatus && jobStatus.dataset.jobId) {

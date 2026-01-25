@@ -24,7 +24,13 @@ from app.services.subtitles import (
 )
 from app.services.transcription import transcribe_video
 import re
-from app.services.video import burn_in_ass, generate_waveform, get_video_dimensions, get_video_duration
+from app.services.video import (
+    burn_in_ass,
+    burn_in_ass_on_color,
+    generate_waveform,
+    get_video_dimensions,
+    get_video_duration,
+)
 
 
 def _render_style(job_id: str, style: Dict[str, Any]) -> Dict[str, Any]:
@@ -207,6 +213,17 @@ def run_export_job(job: Dict[str, Any]) -> Dict[str, Any]:
         generate_karaoke_ass(karaoke_lines, ass_path, render_style)
         output_path = OUTPUTS_DIR / f"{job_id}_karaoke.mp4"
         download_name = f"{base_name}.mp4"
+    elif job.get("type") == "greenscreen_export":
+        step_name = "export_greenscreen"
+        ass_path = OUTPUTS_DIR / f"{job_id}_greenscreen.ass"
+        if words:
+            manual_groups = set(job_data.get("manual_groups", []))
+            karaoke_lines = build_karaoke_lines(words, subtitles, manual_groups)
+            generate_karaoke_ass(karaoke_lines, ass_path, render_style)
+        else:
+            generate_ass_from_subtitles(subtitles, ass_path, render_style)
+        output_path = OUTPUTS_DIR / f"{job_id}_greenscreen.mp4"
+        download_name = f"{base_name}_greenscreen.mp4"
     else:
         ass_path = OUTPUTS_DIR / f"{job_id}.ass"
         generate_ass_from_subtitles(subtitles, ass_path, render_style)
@@ -218,7 +235,23 @@ def run_export_job(job: Dict[str, Any]) -> Dict[str, Any]:
     )
     start_step(job_id, step_name)
     try:
-        burn_in_ass(video_path, ass_path, output_path, fonts_dir)
+        if job.get("type") == "greenscreen_export":
+            width = int(render_style.get("play_res_x") or 1920)
+            height = int(render_style.get("play_res_y") or 1080)
+            duration = get_video_duration(video_path)
+            if not duration:
+                raise RuntimeError("Unable to read video duration")
+            burn_in_ass_on_color(
+                video_path,
+                ass_path,
+                output_path,
+                width,
+                height,
+                duration,
+                fonts_dir,
+            )
+        else:
+            burn_in_ass(video_path, ass_path, output_path, fonts_dir)
     except Exception as exc:  # noqa: BLE001
         error_payload = getattr(exc, "error_payload", {"code": "UNKNOWN"})
         fail_step(job_id, step_name, error_payload.get("code", "UNKNOWN"))
@@ -239,6 +272,6 @@ def run_job(job: Dict[str, Any]) -> Dict[str, Any]:
         return run_transcription_job(job)
     if job_type == "preview":
         return run_preview_job(job)
-    if job_type in {"export", "karaoke_export"}:
+    if job_type in {"export", "karaoke_export", "greenscreen_export"}:
         return run_export_job(job)
     raise RuntimeError(f"Unknown job type: {job_type}")
