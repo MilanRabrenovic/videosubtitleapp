@@ -57,6 +57,7 @@
   let timelineBaseline = null;
   let timelineDirty = false;
   let timelineDirtyIndices = new Set();
+  let initialStyleState = null;
   let suppressTimelineAutoScrollUntil = 0;
 
   const setProcessingState = (isProcessing) => {
@@ -850,6 +851,22 @@
     updateToastOffset();
   };
 
+  const stylesMatchInitial = () => {
+    if (!initialStyleState) {
+      return false;
+    }
+    const current = currentStylePayload();
+    return JSON.stringify(current) === JSON.stringify(initialStyleState);
+  };
+
+  const subtitlesMatchBaseline = () => {
+    if (!timelineBaseline) {
+      return false;
+    }
+    const current = collectSubtitles();
+    return JSON.stringify(current) === JSON.stringify(timelineBaseline);
+  };
+
   subtitleList.addEventListener("input", (event) => {
     hiddenInput.value = JSON.stringify(collectSubtitles());
     markDirty();
@@ -1061,6 +1078,7 @@
       }
       updateToastOffset();
       captureTimelineBaseline();
+      initialStyleState = currentStylePayload();
     } catch (error) {
       console.error(error);
       showToast(error.message || "Save failed. Please try again.", error.message?.includes("Too many") ? "warning" : "error", 3200);
@@ -1077,6 +1095,7 @@
   updateBlockDurations();
   renderTimeline();
   captureTimelineBaseline();
+  initialStyleState = currentStylePayload();
   if (waveformImage) {
     waveformImage.addEventListener("load", () => {
       renderTimeline();
@@ -1213,6 +1232,14 @@
       timelineDirtyIndices = new Set();
       timelineReset.classList.add("hidden");
       timelineReset.disabled = true;
+      if (stylesMatchInitial() && subtitlesMatchBaseline()) {
+        isDirty = false;
+        if (saveBar) {
+          saveBar.classList.add("hidden");
+          saveBar.classList.remove("flex");
+        }
+        updateToastOffset();
+      }
     });
   }
 
