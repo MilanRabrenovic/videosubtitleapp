@@ -683,6 +683,7 @@
     setFieldValue("[name=\"style_font_size\"]", style.font_size);
     setFieldValue("[name=\"style_text_color\"]", style.text_color);
     setFieldValue("[name=\"style_highlight_color\"]", style.highlight_color);
+    setFieldValue("[name=\"style_highlight_mode\"]", style.highlight_mode);
     setFieldValue("[name=\"style_outline_color\"]", style.outline_color);
     setFieldValue("[name=\"style_outline_enabled\"]", style.outline_enabled);
     setFieldValue("[name=\"style_outline_size\"]", style.outline_size);
@@ -728,6 +729,7 @@
       font_size: getValue("[name=\"style_font_size\"]"),
       text_color: getValue("[name=\"style_text_color\"]"),
       highlight_color: getValue("[name=\"style_highlight_color\"]"),
+      highlight_mode: getValue("[name=\"style_highlight_mode\"]"),
       outline_color: getValue("[name=\"style_outline_color\"]"),
       outline_enabled: getValue("[name=\"style_outline_enabled\"]"),
       outline_size: getValue("[name=\"style_outline_size\"]"),

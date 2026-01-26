@@ -395,40 +395,47 @@
             <div class="min-w-0 rounded-xl border border-slate-200 bg-white p-4">
               <p class="text-xs font-semibold uppercase tracking-[0.25em] text-slate-500">Colors</p>
               <div class="mt-4 grid gap-4 lg:grid-cols-3">
-              <div class="flex flex-col gap-2 text-sm font-medium text-slate-700">
-                Text color
-                <div class="flex items-center gap-3 rounded-full border border-slate-200 bg-white px-3 py-2">
-                  <input
-                    type="color"
-                    name="style_text_color"
-                    value="{{ job.style.text_color }}"
-                    class="color-input sr-only"
-                    data-color-key="text"
-                  />
-                  <span class="color-dot h-6 w-6 rounded-full border border-slate-200" style="background-color: {{ job.style.text_color }};" data-color-key="text"></span>
-                  <span class="color-hex text-xs uppercase tracking-widest text-slate-500" data-color-key="text">{{ job.style.text_color }}</span>
-                  <button type="button" class="color-trigger ml-auto text-xs font-semibold text-amber-600 hover:text-amber-500" data-color-key="text">
-                    Change
-                  </button>
+                <label class="flex flex-col gap-2 text-sm font-medium text-slate-700">
+                  Highlight style
+                  <select name="style_highlight_mode" class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900">
+                    <option value="text" {% if job.style.highlight_mode != 'background' %}selected{% endif %}>Text color</option>
+                    <option value="background" {% if job.style.highlight_mode == 'background' %}selected{% endif %}>Highlight box</option>
+                  </select>
+                </label>
+                <div class="flex flex-col gap-2 text-sm font-medium text-slate-700">
+                  Text color
+                  <div class="flex items-center gap-3 rounded-full border border-slate-200 bg-white px-3 py-2">
+                    <input
+                      type="color"
+                      name="style_text_color"
+                      value="{{ job.style.text_color }}"
+                      class="color-input sr-only"
+                      data-color-key="text"
+                    />
+                    <span class="color-dot h-6 w-6 rounded-full border border-slate-200" style="background-color: {{ job.style.text_color }};" data-color-key="text"></span>
+                    <span class="color-hex text-xs uppercase tracking-widest text-slate-500" data-color-key="text">{{ job.style.text_color }}</span>
+                    <button type="button" class="color-trigger ml-auto text-xs font-semibold text-amber-600 hover:text-amber-500" data-color-key="text">
+                      Change
+                    </button>
+                  </div>
                 </div>
-              </div>
-              <div class="flex flex-col gap-2 text-sm font-medium text-slate-700">
-                Highlight color
-                <div class="flex items-center gap-3 rounded-full border border-slate-200 bg-white px-3 py-2">
-                  <input
-                    type="color"
-                    name="style_highlight_color"
-                    value="{{ job.style.highlight_color }}"
-                    class="color-input sr-only"
-                    data-color-key="highlight"
-                  />
-                  <span class="color-dot h-6 w-6 rounded-full border border-slate-200" style="background-color: {{ job.style.highlight_color }};" data-color-key="highlight"></span>
-                  <span class="color-hex text-xs uppercase tracking-widest text-slate-500" data-color-key="highlight">{{ job.style.highlight_color }}</span>
-                  <button type="button" class="color-trigger ml-auto text-xs font-semibold text-amber-600 hover:text-amber-500" data-color-key="highlight">
-                    Change
-                  </button>
+                <div class="flex flex-col gap-2 text-sm font-medium text-slate-700">
+                  Highlight color
+                  <div class="flex items-center gap-3 rounded-full border border-slate-200 bg-white px-3 py-2">
+                    <input
+                      type="color"
+                      name="style_highlight_color"
+                      value="{{ job.style.highlight_color }}"
+                      class="color-input sr-only"
+                      data-color-key="highlight"
+                    />
+                    <span class="color-dot h-6 w-6 rounded-full border border-slate-200" style="background-color: {{ job.style.highlight_color }};" data-color-key="highlight"></span>
+                    <span class="color-hex text-xs uppercase tracking-widest text-slate-500" data-color-key="highlight">{{ job.style.highlight_color }}</span>
+                    <button type="button" class="color-trigger ml-auto text-xs font-semibold text-amber-600 hover:text-amber-500" data-color-key="highlight">
+                      Change
+                    </button>
+                  </div>
                 </div>
-              </div>
               </div>
             </div>
 

@@ -19,6 +19,11 @@ try:
 except ImportError:  # pragma: no cover - optional dependency
     TTFont = None
 
+try:
+    from PIL import ImageFont
+except ImportError:  # pragma: no cover - optional dependency
+    ImageFont = None
+
 GOOGLE_FONTS: list[str] = [
     "Roboto",
     "Open Sans",
@@ -142,6 +147,52 @@ def find_system_font_dir(font_name: str) -> Optional[Path]:
                 return font_file.parent
     return None
 
+
+def find_system_font_variant(
+    font_name: Optional[str], weight: int = 400, italic: bool = False
+) -> Optional[Path]:
+    """Find the closest matching system font file for weight/style."""
+    if not font_name:
+        return None
+    needle = font_name.strip().lower()
+    best_path: Optional[Path] = None
+    best_score = 10_000
+    for font_dir in _system_font_dirs():
+        if not font_dir.exists():
+            continue
+        for font_file in font_dir.rglob("*.ttf"):
+            try:
+                data = font_file.read_bytes()
+            except OSError:
+                continue
+            family, full_name, is_italic, file_weight = detect_font_info(data, font_file.name)
+            if not family and not full_name:
+                continue
+            family_name = (family or full_name or "").lower()
+            if needle not in family_name:
+                continue
+            w = int(file_weight or 400)
+            score = abs(w - int(weight)) + (0 if bool(is_italic) == bool(italic) else 300)
+            if score < best_score:
+                best_score = score
+                best_path = font_file
+        for font_file in font_dir.rglob("*.otf"):
+            try:
+                data = font_file.read_bytes()
+            except OSError:
+                continue
+            family, full_name, is_italic, file_weight = detect_font_info(data, font_file.name)
+            if not family and not full_name:
+                continue
+            family_name = (family or full_name or "").lower()
+            if needle not in family_name:
+                continue
+            w = int(file_weight or 400)
+            score = abs(w - int(weight)) + (0 if bool(is_italic) == bool(italic) else 300)
+            if score < best_score:
+                best_score = score
+                best_path = font_file
+    return best_path
 
 def ensure_font_downloaded(font_name: Optional[str]) -> Optional[Path]:
     """Download the Google Font family zip if needed; return the font directory."""
@@ -339,6 +390,16 @@ def text_width_px(text: str, font_path: Optional[Path], font_size: int) -> Optio
     """Measure text width in pixels for a font file and size."""
     if not text or not font_path:
         return None
+    if ImageFont is not None:
+        try:
+            font = ImageFont.truetype(str(font_path), font_size)
+            if hasattr(font, "getlength"):
+                return float(font.getlength(text))
+            bbox = font.getbbox(text)
+            if bbox:
+                return float(bbox[2] - bbox[0])
+        except Exception:
+            pass
     metrics = _load_font_metrics(str(font_path))
     if not metrics:
         return None
@@ -466,6 +527,15 @@ def detect_font_info(data: bytes, filename: Optional[str]) -> tuple[Optional[str
     except Exception:
         family = guess_font_family(filename)
         return family, family, False, 400
+
+
+def detect_font_info_from_path(path: Path) -> tuple[Optional[str], Optional[str], bool, int]:
+    """Detect font info from a font file path."""
+    try:
+        data = path.read_bytes()
+    except OSError:
+        return None, None, False, 400
+    return detect_font_info(data, path.name)
 
 
 def save_uploaded_font(

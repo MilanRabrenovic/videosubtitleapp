@@ -17,11 +17,14 @@ from app.services.fonts import (
     delete_font_family,
     ensure_font_downloaded,
     font_files_available,
+    detect_font_info_from_path,
     google_font_choices,
     guess_font_family,
     google_fonts_css_url,
+    find_system_font_variant,
     is_google_font,
     normalize_font_name,
+    resolve_font_file,
     save_uploaded_font,
     system_font_choices,
 )
@@ -176,6 +179,7 @@ def save_edits(
     style_font_size: int = Form(None),
     style_text_color: str = Form(None),
     style_highlight_color: str = Form(None),
+    style_highlight_mode: str = Form(None),
     style_outline_color: str = Form(None),
     style_outline_enabled: str = Form(None),
     style_outline_size: int = Form(None),
@@ -217,6 +221,7 @@ def save_edits(
         "font_style": style_font_style or style_defaults["font_style"],
         "text_color": style_text_color or style_defaults["text_color"],
         "highlight_color": style_highlight_color or style_defaults["highlight_color"],
+        "highlight_mode": style_highlight_mode or style_defaults["highlight_mode"],
         "outline_color": style_outline_color or style_defaults["outline_color"],
         "outline_enabled": style_outline_enabled == "on" if style_outline_enabled is not None else False,
         "outline_size": style_outline_size if style_outline_size is not None else style_defaults["outline_size"],
@@ -265,6 +270,8 @@ def save_edits(
             key=lambda variant: abs(int(variant.get("weight", 400)) - desired_weight),
         )
         style["font_family"] = best.get("full_name") or best.get("family")
+        if best.get("path"):
+            style["font_path"] = str(best.get("path"))
         style["font_bold"] = False
         style["font_italic"] = bool(best.get("italic"))
         style["font_weight"] = int(best.get("weight", desired_weight))
@@ -272,6 +279,24 @@ def save_edits(
     else:
         style["font_bold"] = desired_weight >= 600
         style["font_italic"] = desired_italic
+        variant_path = find_system_font_variant(
+            style.get("font_family"),
+            weight=desired_weight,
+            italic=desired_italic,
+        )
+        if variant_path:
+            style["font_path"] = str(variant_path)
+            _, full_name, is_italic, weight = detect_font_info_from_path(variant_path)
+            if full_name:
+                style["font_family"] = full_name
+            style["font_bold"] = False
+            style["font_italic"] = bool(is_italic)
+            style["font_weight"] = int(weight or desired_weight)
+            style["font_style"] = "italic" if style["font_italic"] else "regular"
+    if not style.get("font_path"):
+        fallback_path = resolve_font_file(style.get("font_family"), job_id)
+        if fallback_path:
+            style["font_path"] = str(fallback_path)
     words = load_transcript_words(job_id)
     previous_blocks = job_data.get("subtitles", [])
 

@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any, Dict
 
 from app.config import OUTPUTS_DIR, UPLOADS_DIR
-from app.services.fonts import ensure_font_downloaded, font_dir_for_name
+from app.services.fonts import ensure_font_downloaded, font_dir_for_name, find_system_font_variant, resolve_font_file
 from app.services.jobs import complete_step, fail_step, start_step
 from app.services.subtitles import (
     build_karaoke_lines,
@@ -37,6 +37,21 @@ def _render_style(job_id: str, style: Dict[str, Any]) -> Dict[str, Any]:
     render_style = dict(style)
     render_style["font_job_id"] = job_id
     return render_style
+
+
+def _fonts_dir_for_style(style: Dict[str, Any], job_id: str) -> Path | None:
+    font_path = style.get("font_path")
+    if font_path:
+        try:
+            candidate = Path(str(font_path))
+        except Exception:
+            candidate = None
+        else:
+            if candidate.exists():
+                return candidate.parent
+    return ensure_font_downloaded(style.get("font_family")) or font_dir_for_name(
+        style.get("font_family"), job_id
+    )
 
 
 def _preview_paths(job_id: str) -> tuple[Path, Path]:
@@ -82,6 +97,11 @@ def run_transcription_job(job: Dict[str, Any]) -> Dict[str, Any]:
     style = default_style()
     style["play_res_x"] = video_width
     style["play_res_y"] = video_height
+    fallback_font_path = resolve_font_file(style.get("font_family"), job_id)
+    if not fallback_font_path:
+        fallback_font_path = find_system_font_variant(style.get("font_family"), weight=400, italic=False)
+    if fallback_font_path:
+        style["font_path"] = str(fallback_font_path)
     job_data: Dict[str, Any] = {
         "job_id": job_id,
         "title": title,
@@ -111,9 +131,7 @@ def run_transcription_job(job: Dict[str, Any]) -> Dict[str, Any]:
         karaoke_lines = build_karaoke_lines(words, job_data["subtitles"], manual_groups)
         render_style = _render_style(job_id, job_data["style"])
         generate_karaoke_ass(karaoke_lines, preview_ass_path, render_style)
-        fonts_dir = ensure_font_downloaded(job_data["style"].get("font_family")) or font_dir_for_name(
-            job_data["style"].get("font_family"), job_id
-        )
+        fonts_dir = _fonts_dir_for_style(render_style, job_id)
         burn_in_ass(video_path, preview_ass_path, preview_path, fonts_dir)
     except Exception as exc:  # noqa: BLE001
         error_payload = getattr(exc, "error_payload", {"code": "UNKNOWN"})
@@ -166,9 +184,7 @@ def run_preview_job(job: Dict[str, Any]) -> Dict[str, Any]:
             generate_karaoke_ass(karaoke_lines, preview_ass_path, render_style)
         else:
             generate_ass_from_subtitles(job_data.get("subtitles", []), preview_ass_path, render_style)
-        fonts_dir = ensure_font_downloaded(render_style.get("font_family")) or font_dir_for_name(
-            render_style.get("font_family"), job_id
-        )
+        fonts_dir = _fonts_dir_for_style(render_style, job_id)
         burn_in_ass(video_path, preview_ass_path, preview_path, fonts_dir)
     except Exception as exc:  # noqa: BLE001
         error_payload = getattr(exc, "error_payload", {"code": "UNKNOWN"})
@@ -230,9 +246,7 @@ def run_export_job(job: Dict[str, Any]) -> Dict[str, Any]:
         output_path = OUTPUTS_DIR / f"{job_id}_subtitled.mp4"
         download_name = f"{base_name}.mp4"
         step_name = "export_standard"
-    fonts_dir = ensure_font_downloaded(render_style.get("font_family")) or font_dir_for_name(
-        render_style.get("font_family"), job_id
-    )
+    fonts_dir = _fonts_dir_for_style(render_style, job_id)
     start_step(job_id, step_name)
     try:
         if job.get("type") == "greenscreen_export":

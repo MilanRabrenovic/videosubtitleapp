@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from app.config import OUTPUTS_DIR
-from app.services.fonts import font_vertical_metrics, resolve_font_file
+from app.services.fonts import detect_font_info_from_path, font_vertical_metrics, resolve_font_file, text_width_px
 
 
 def job_path(job_id: str) -> Path:
@@ -58,6 +58,7 @@ def default_style() -> Dict[str, Any]:
         "font_style": "regular",
         "text_color": "#FFFFFF",
         "highlight_color": "#FFFF00",
+        "highlight_mode": "text",
         "outline_color": "#000000",
         "outline_enabled": True,
         "outline_size": 2,
@@ -222,27 +223,28 @@ def split_subtitles_by_words(subtitles: List[Dict[str, Any]], max_words: int) ->
     return split_blocks
 
 
+def _join_karaoke_tokens(tokens: List[str]) -> str:
+    joined: List[str] = []
+    for token in tokens:
+        token = str(token).strip()
+        if not token:
+            continue
+        if not joined:
+            joined.append(token)
+            continue
+        if joined[-1].endswith("-"):
+            joined[-1] = f"{joined[-1]}{token}"
+        else:
+            joined.append(token)
+    return " ".join(joined).strip()
+
+
 def split_subtitles_by_word_timings(
     word_lines: List[List[Dict[str, Any]]], max_words: int, group_ids: Optional[List[int]] = None
 ) -> List[Dict[str, Any]]:
     """Split subtitles using word-level timings for precise start/end times."""
     if max_words <= 0:
         return []
-
-    def _join_karaoke_tokens(tokens: List[str]) -> str:
-        joined: List[str] = []
-        for token in tokens:
-            token = str(token).strip()
-            if not token:
-                continue
-            if not joined:
-                joined.append(token)
-                continue
-            if joined[-1].endswith("-"):
-                joined[-1] = f"{joined[-1]}{token}"
-            else:
-                joined.append(token)
-        return " ".join(joined).strip()
     split_blocks: List[Dict[str, Any]] = []
     last_end = 0.0
     min_gap = 0.2
@@ -315,6 +317,14 @@ def _ass_color(hex_color: str, alpha: int = 0) -> str:
 def _ass_header(style: Dict[str, Any]) -> str:
     """Build the ASS header with default and optional background styles."""
     style = normalize_style(style)
+    font_path = style.get("font_path")
+    if font_path:
+        try:
+            _, full_name, _, _ = detect_font_info_from_path(Path(font_path))
+        except Exception:
+            full_name = None
+        if full_name:
+            style["font_family"] = full_name
     background_enabled = bool(style.get("background_enabled"))
     background_opacity = float(style.get("background_opacity", 0.6))
     background_opacity = min(max(background_opacity, 0.0), 1.0)
@@ -328,6 +338,7 @@ def _ass_header(style: Dict[str, Any]) -> str:
     secondary = _ass_color(str(style.get("text_color", "#FFFFFF")), 0)
     back_color = _ass_color(str(style.get("background_color", "#000000")), back_alpha)
     outline = _ass_color(str(style.get("outline_color", "#000000")), 0)
+    highlight_back = _ass_color(str(style.get("highlight_color", "#FFFF00")), 0)
     back = back_color
     default_back = _ass_color(str(style.get("background_color", "#000000")), 255) if background_enabled else back
     outline_enabled = bool(style.get("outline_enabled", True))
@@ -370,6 +381,18 @@ def _ass_header(style: Dict[str, Any]) -> str:
                 f"3,{box_outline},0,{alignment},80,80,{margin_v},1"
             )
         )
+
+    word_box_outline = int(style.get("background_padding", 8))
+    header_lines.append(
+        (
+            "Style: WordBox,"
+            f"{style.get('font_family', 'Arial')},{int(style.get('font_size', 48))},"
+            f"{transparent_text},{transparent_text},{highlight_back},{highlight_back},"
+            f"{bold_flag},{italic_flag},0,0,100,100,"
+            "0,0,"
+            f"3,{word_box_outline},0,{alignment},80,80,{margin_v},1"
+        )
+    )
 
     header_lines.extend(
         [
@@ -570,6 +593,139 @@ def _overlay_dialogues(
     return dialogues
 
 
+def _word_box_dialogues(
+    words: List[Dict[str, Any]],
+    style_data: Dict[str, Any],
+    pos: Dict[str, int],
+    format_ass_time,
+    highlight_color: str,
+) -> List[str]:
+    """Create per-word rectangle highlight overlays."""
+    font_path = None
+    raw_font_path = style_data.get("font_path")
+    if raw_font_path:
+        try:
+            font_path = Path(str(raw_font_path))
+        except Exception:
+            font_path = None
+    if not font_path or not font_path.exists():
+        font_path = resolve_font_file(style_data.get("font_family"), style_data.get("font_job_id"))
+    font_size = int(style_data.get("font_size", 48))
+    padding = int(style_data.get("background_padding", 8))
+    alignment = int(pos.get("alignment", 2))
+    line_height = font_size + padding * 2
+    if alignment == 8:
+        top_y = int(pos["y"])
+    elif alignment == 5:
+        top_y = int(round(pos["y"] - line_height / 2))
+    else:
+        top_y = int(pos["y"] - line_height)
+    center_y = int(round(top_y + line_height / 2))
+
+    use_approx = font_path is None
+    approx_char = font_size * 0.55
+    approx_space = font_size * 0.33
+
+    def measure(text: str) -> Optional[float]:
+        if not text:
+            return 0.0
+        if use_approx:
+            return sum(approx_space if ch == " " else approx_char for ch in text)
+        width = text_width_px(text, font_path, font_size)
+        if width is None:
+            return None
+        return width
+
+    tokens: List[str] = []
+    for word in words:
+        token = _strip_sup_sub_tags(str(word.get("word", "")).strip())
+        tokens.append(token)
+    line_text = " ".join(tokens).strip()
+    total_width = measure(line_text)
+    if total_width is None:
+        use_approx = True
+        total_width = measure(line_text) or 0.0
+    start_x = int(round(pos["x"] - total_width / 2))
+
+    dialogues: List[str] = []
+    for index, word in enumerate(words):
+        word_start = float(word.get("start", 0.0))
+        word_end = float(word.get("end", word_start))
+        if word_end <= word_start:
+            continue
+        prefix_text = " ".join(tokens[:index]).strip()
+        if prefix_text:
+            prefix_text += " "
+        prefix_width = measure(prefix_text)
+        word_width = measure(tokens[index])
+        if prefix_width is None or word_width is None:
+            use_approx = True
+            prefix_width = measure(prefix_text) or 0.0
+            word_width = measure(tokens[index]) or approx_char
+        cursor_x = float(start_x) + float(prefix_width)
+        rect_x = int(round(cursor_x - padding))
+        rect_w = int(round(word_width + padding * 2))
+        rect_h = int(round(line_height))
+        draw = (
+            f"{{\\an7\\pos({rect_x},{top_y})\\p1\\1c{highlight_color}&"
+            f"\\3c{highlight_color}&\\bord0\\shad0}}"
+            f"m 0 0 l {rect_w} 0 l {rect_w} {rect_h} l 0 {rect_h}"
+            f"{{\\p0}}"
+        )
+        dialogues.append(
+            f"Dialogue: 0,{format_ass_time(word_start)},{format_ass_time(word_end)},Default,,0,0,0,,{draw}"
+        )
+    return dialogues
+
+
+def _word_box_overlay_dialogue(
+    words: List[Dict[str, Any]],
+    format_ass_time,
+    style_data: Dict[str, Any],
+    style_name: str,
+    override_tag: str = "",
+) -> str:
+    """Create a dialogue that shows a word-box only during each word's timing."""
+    start = float(words[0].get("_line_start", words[0].get("start", 0.0)))
+    end = float(words[-1].get("_line_end", words[-1].get("end", start)))
+    box_pad = int(style_data.get("background_padding", 8))
+    chunks: List[str] = []
+    for word in words:
+        raw_text = str(word.get("word", "")).strip()
+        word_text = _escape_ass_text(raw_text)
+        separator = "" if raw_text.endswith("-") else " "
+        word_start = float(word.get("start", start))
+        word_end = float(word.get("end", word_start))
+        if word_start < start:
+            word_start = start
+        if word_end > end:
+            word_end = end
+        rel_start = max(0, int(round((word_start - start) * 1000)))
+        rel_end = max(rel_start + 1, int(round((word_end - start) * 1000)))
+        if rel_start == 0:
+            chunks.append(
+                f"{{\\alpha&H00&\\bord{box_pad}"
+                f"\\t({rel_end},{rel_end},\\alpha&HFF&\\bord0)}}{word_text}"
+            )
+        else:
+            chunks.append(
+                f"{{\\alpha&HFF&\\bord0"
+                f"\\t({rel_start},{rel_start},\\alpha&H00&\\bord{box_pad})"
+                f"\\t({rel_end},{rel_end},\\alpha&HFF&\\bord0)}}{word_text}"
+            )
+        if separator:
+            chunks.append("{\\alpha&HFF&\\bord0}" + separator)
+    text = "".join(chunks).strip()
+    if style_data.get("single_line", True):
+        text = _single_line_text(text, style_data)
+        text = _apply_single_line_override(text, style_data)
+    else:
+        text = "\\N".join(_split_text_lines(text, style_data))
+    if override_tag:
+        text = f"{override_tag}{text}"
+    return f"Dialogue: 0,{format_ass_time(start)},{format_ass_time(end)},{style_name},,0,0,0,,{text}"
+
+
 def generate_karaoke_ass(
     word_lines: List[List[Dict[str, Any]]], output_path: Path, style: Optional[Dict[str, Any]] = None
 ) -> None:
@@ -578,6 +734,7 @@ def generate_karaoke_ass(
     header = _ass_header(style_data)
     highlight_color = _ass_color(str(style_data.get("highlight_color", "#FFFF00")), 0)
     base_color = _ass_color(str(style_data.get("text_color", "#FFFFFF")), 0)
+    outline_color = _ass_color(str(style_data.get("outline_color", "#000000")), 0)
 
     def format_ass_time(seconds: float) -> str:
         total_cs = max(0, int(round(seconds * 100)))
@@ -609,7 +766,9 @@ def generate_karaoke_ass(
                 pos_tag = f"{{\\an{pos['alignment']}\\pos({pos['x']},{pos['y']})\\q2}}"
             else:
                 pos_tag = ""
-            plain_text = " ".join(str(word.get("word", "")).strip() for word in chunk_words).strip()
+            plain_text = _join_karaoke_tokens(
+                [str(word.get("word", "")).strip() for word in chunk_words]
+            ).strip()
             layout = _sup_sub_layout(plain_text, style_data)
             base_text = layout["base_text"]
             render_text = layout["render_text"]
@@ -632,18 +791,35 @@ def generate_karaoke_ass(
                 )
             karaoke_style = style_data.copy()
             karaoke_style["single_line"] = True
-            dialogue = _build_ass_dialogue(
-                chunk_words,
-                format_ass_time,
-                _format_word_with_alpha,
-                base_color,
-                highlight_color,
-                karaoke_style,
-                "Default",
-                pos_tag,
-            )
-            lines.append(dialogue)
-            lines.extend(overlay_lines)
+            if str(style_data.get("highlight_mode", "text")).lower() == "background":
+                base_line = f"{pos_tag}{layout['render_text']}"
+                lines.append(
+                    f"Dialogue: 0,{format_ass_time(block_start)},"
+                    f"{format_ass_time(block_end)},Default,,0,0,0,,{base_line}"
+                )
+                box_overlay = _word_box_overlay_dialogue(
+                    chunk_words,
+                    format_ass_time,
+                    karaoke_style,
+                    "WordBox",
+                    pos_tag,
+                )
+                lines.append(box_overlay)
+                lines.extend(overlay_lines)
+            else:
+                dialogue = _build_ass_dialogue(
+                    chunk_words,
+                    format_ass_time,
+                    _format_word_with_alpha,
+                    base_color,
+                    highlight_color,
+                    outline_color,
+                    karaoke_style,
+                    "Default",
+                    pos_tag,
+                )
+                lines.append(dialogue)
+                lines.extend(overlay_lines)
 
     output_path.write_text("\n".join(lines).strip() + "\n", encoding="utf-8")
 
@@ -1021,6 +1197,7 @@ def _build_ass_dialogue(
     format_ass_text,
     base_color: str,
     highlight_color: str,
+    outline_color: str,
     style_data: Dict[str, Any],
     style_name: str,
     override_tag: str = "",
@@ -1028,6 +1205,16 @@ def _build_ass_dialogue(
     start = float(words[0].get("_line_start", words[0].get("start", 0.0)))
     end = float(words[-1].get("_line_end", words[-1].get("end", start)))
     chunks: List[str] = []
+    highlight_mode = str(style_data.get("highlight_mode", "text")).lower()
+    outline_enabled = bool(style_data.get("outline_enabled", True))
+    outline_size = int(style_data.get("outline_size", 2) or 0)
+    normal_bord = outline_size if outline_enabled else 0
+    highlight_bord = max(normal_bord, int(round((style_data.get("background_padding", 8) or 0) / 2)) + 6)
+    normal_style = f"\\1c{base_color}&\\3c{outline_color}&\\bord{normal_bord}\\shad0"
+    highlight_style = (
+        f"\\1c{base_color}&\\3c{highlight_color}&"
+        f"\\bord{highlight_bord}\\xbord{highlight_bord}\\ybord{highlight_bord}\\shad0\\blur0"
+    )
     for word in words:
         word_text = format_ass_text(str(word.get("word", "")).strip(), style_data)
         separator = "" if word_text.endswith("-") else " "
@@ -1040,16 +1227,29 @@ def _build_ass_dialogue(
         duration = max(1, int(round((word_end - word_start) * 100)))
         rel_start = max(0, int(round((word_start - start) * 1000)))
         rel_end = max(rel_start + 1, int(round((word_end - start) * 1000)))
-        if rel_start == 0:
-            chunks.append(
-                f"{{\\k{duration}\\1c{highlight_color}&\\t({rel_end},{rel_end},\\1c{base_color}&)}}{word_text}{separator}"
-            )
+        if highlight_mode == "background":
+            if rel_start == 0:
+                chunks.append(
+                    f"{{\\k{duration}{highlight_style}"
+                    f"\\t({rel_end},{rel_end},{normal_style})}}{word_text}{separator}"
+                )
+            else:
+                chunks.append(
+                    f"{{\\k{duration}{normal_style}"
+                    f"\\t({rel_start},{rel_start},{highlight_style})"
+                    f"\\t({rel_end},{rel_end},{normal_style})}}{word_text}{separator}"
+                )
         else:
-            chunks.append(
-                f"{{\\k{duration}\\1c{base_color}&"
-                f"\\t({rel_start},{rel_start},\\1c{highlight_color}&)"
-                f"\\t({rel_end},{rel_end},\\1c{base_color}&)}}{word_text}{separator}"
-            )
+            if rel_start == 0:
+                chunks.append(
+                    f"{{\\k{duration}\\1c{highlight_color}&\\t({rel_end},{rel_end},\\1c{base_color}&)}}{word_text}{separator}"
+                )
+            else:
+                chunks.append(
+                    f"{{\\k{duration}\\1c{base_color}&"
+                    f"\\t({rel_start},{rel_start},\\1c{highlight_color}&)"
+                    f"\\t({rel_end},{rel_end},\\1c{base_color}&)}}{word_text}{separator}"
+                )
     text = "".join(chunks).strip()
     if style_data.get("single_line", True):
         text = _single_line_text(text, style_data)
