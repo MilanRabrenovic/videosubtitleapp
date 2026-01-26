@@ -586,6 +586,7 @@
     fontInput.addEventListener("input", () => {
       fontValue.value = fontInput.value.trim();
       filterOptions();
+      markDirty();
     });
 
     options.forEach((option) => {
@@ -594,6 +595,7 @@
         fontInput.value = value;
         fontValue.value = value;
         fontOptions.hidden = true;
+        markDirty();
       });
     });
 
