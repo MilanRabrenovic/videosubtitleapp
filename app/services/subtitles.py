@@ -59,6 +59,7 @@ def default_style() -> Dict[str, Any]:
         "text_color": "#FFFFFF",
         "highlight_color": "#FFFF00",
         "highlight_mode": "text",
+        "highlight_opacity": 1.0,
         "outline_color": "#000000",
         "outline_enabled": True,
         "outline_size": 2,
@@ -338,7 +339,10 @@ def _ass_header(style: Dict[str, Any]) -> str:
     secondary = _ass_color(str(style.get("text_color", "#FFFFFF")), 0)
     back_color = _ass_color(str(style.get("background_color", "#000000")), back_alpha)
     outline = _ass_color(str(style.get("outline_color", "#000000")), 0)
-    highlight_back = _ass_color(str(style.get("highlight_color", "#FFFF00")), 0)
+    highlight_opacity = float(style.get("highlight_opacity", 1.0))
+    highlight_opacity = min(max(highlight_opacity, 0.0), 1.0)
+    highlight_alpha = int(round((1.0 - highlight_opacity) * 255))
+    highlight_back = _ass_color(str(style.get("highlight_color", "#FFFF00")), highlight_alpha)
     back = back_color
     default_back = _ass_color(str(style.get("background_color", "#000000")), 255) if background_enabled else back
     outline_enabled = bool(style.get("outline_enabled", True))
@@ -692,7 +696,8 @@ def _word_box_overlay_dialogue(
     chunks: List[str] = []
     for word in words:
         raw_text = str(word.get("word", "")).strip()
-        word_text = _escape_ass_text(raw_text)
+        visible_text = _strip_sup_sub_tags(raw_text)
+        word_text = _escape_ass_text(visible_text)
         separator = "" if raw_text.endswith("-") else " "
         word_start = float(word.get("start", start))
         word_end = float(word.get("end", word_start))
@@ -704,17 +709,17 @@ def _word_box_overlay_dialogue(
         rel_end = max(rel_start + 1, int(round((word_end - start) * 1000)))
         if rel_start == 0:
             chunks.append(
-                f"{{\\alpha&H00&\\bord{box_pad}"
-                f"\\t({rel_end},{rel_end},\\alpha&HFF&\\bord0)}}{word_text}"
+                f"{{\\1a&HFF&\\bord{box_pad}"
+                f"\\t({rel_end},{rel_end},\\bord0)}}{word_text}"
             )
         else:
             chunks.append(
-                f"{{\\alpha&HFF&\\bord0"
-                f"\\t({rel_start},{rel_start},\\alpha&H00&\\bord{box_pad})"
-                f"\\t({rel_end},{rel_end},\\alpha&HFF&\\bord0)}}{word_text}"
+                f"{{\\1a&HFF&\\bord0"
+                f"\\t({rel_start},{rel_start},\\bord{box_pad})"
+                f"\\t({rel_end},{rel_end},\\bord0)}}{word_text}"
             )
         if separator:
-            chunks.append("{\\alpha&HFF&\\bord0}" + separator)
+            chunks.append("{\\1a&HFF&\\bord0}" + separator)
     text = "".join(chunks).strip()
     if style_data.get("single_line", True):
         text = _single_line_text(text, style_data)
@@ -792,11 +797,6 @@ def generate_karaoke_ass(
             karaoke_style = style_data.copy()
             karaoke_style["single_line"] = True
             if str(style_data.get("highlight_mode", "text")).lower() == "background":
-                base_line = f"{pos_tag}{layout['render_text']}"
-                lines.append(
-                    f"Dialogue: 0,{format_ass_time(block_start)},"
-                    f"{format_ass_time(block_end)},Default,,0,0,0,,{base_line}"
-                )
                 box_overlay = _word_box_overlay_dialogue(
                     chunk_words,
                     format_ass_time,
@@ -805,6 +805,11 @@ def generate_karaoke_ass(
                     pos_tag,
                 )
                 lines.append(box_overlay)
+                base_line = f"{pos_tag}{layout['render_text']}"
+                lines.append(
+                    f"Dialogue: 0,{format_ass_time(block_start)},"
+                    f"{format_ass_time(block_end)},Default,,0,0,0,,{base_line}"
+                )
                 lines.extend(overlay_lines)
             else:
                 dialogue = _build_ass_dialogue(

@@ -436,6 +436,18 @@
                     </button>
                   </div>
                 </div>
+                <label class="flex flex-col gap-2 text-sm font-medium text-slate-700 highlight-opacity-field {% if job.style.highlight_mode != 'background' %}hidden{% endif %}">
+                  Highlight opacity
+                  <input
+                    type="number"
+                    name="style_highlight_opacity"
+                    value="{{ job.style.highlight_opacity }}"
+                    min="0"
+                    max="1"
+                    step="0.05"
+                    class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900"
+                  />
+                </label>
               </div>
             </div>
 

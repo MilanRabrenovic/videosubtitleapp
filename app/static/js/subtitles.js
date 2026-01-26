@@ -23,6 +23,8 @@
   const saveBar = document.getElementById("save-bar");
   const saveBarButton = document.getElementById("save-bar-button");
   const blockCount = document.getElementById("block-count");
+  const highlightMode = document.querySelector("[name=\"style_highlight_mode\"]");
+  const highlightOpacityField = document.querySelector(".highlight-opacity-field");
   const focusedBlock = document.getElementById("focused-block");
   const focusedLabel = document.getElementById("focused-block-label");
   const focusedStart = document.getElementById("focused-start");
@@ -684,6 +686,7 @@
     setFieldValue("[name=\"style_text_color\"]", style.text_color);
     setFieldValue("[name=\"style_highlight_color\"]", style.highlight_color);
     setFieldValue("[name=\"style_highlight_mode\"]", style.highlight_mode);
+    setFieldValue("[name=\"style_highlight_opacity\"]", style.highlight_opacity);
     setFieldValue("[name=\"style_outline_color\"]", style.outline_color);
     setFieldValue("[name=\"style_outline_enabled\"]", style.outline_enabled);
     setFieldValue("[name=\"style_outline_size\"]", style.outline_size);
@@ -700,6 +703,7 @@
     if (style.highlight_color) updateColor("highlight", style.highlight_color);
     if (style.outline_color) updateColor("outline", style.outline_color);
     if (style.background_color) updateColor("background", style.background_color);
+    updateHighlightOpacityVisibility();
     markDirty();
     if (saveButton && options.autoSave !== false) {
       saveButton.click();
@@ -730,6 +734,7 @@
       text_color: getValue("[name=\"style_text_color\"]"),
       highlight_color: getValue("[name=\"style_highlight_color\"]"),
       highlight_mode: getValue("[name=\"style_highlight_mode\"]"),
+      highlight_opacity: getValue("[name=\"style_highlight_opacity\"]"),
       outline_color: getValue("[name=\"style_outline_color\"]"),
       outline_enabled: getValue("[name=\"style_outline_enabled\"]"),
       outline_size: getValue("[name=\"style_outline_size\"]"),
@@ -758,6 +763,21 @@
       }
       applyPresetStyle(preset.style || {}, { autoSave: false });
     });
+  }
+
+  const updateHighlightOpacityVisibility = () => {
+    if (!highlightOpacityField || !highlightMode) {
+      return;
+    }
+    if (highlightMode.value === "background") {
+      highlightOpacityField.classList.remove("hidden");
+    } else {
+      highlightOpacityField.classList.add("hidden");
+    }
+  };
+  if (highlightMode) {
+    highlightMode.addEventListener("change", updateHighlightOpacityVisibility);
+    updateHighlightOpacityVisibility();
   }
 
   if (presetSave) {
