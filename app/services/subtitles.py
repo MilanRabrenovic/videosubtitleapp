@@ -101,6 +101,27 @@ def _clamp01(value: Any, default: float = 1.0) -> float:
     return num
 
 
+def _normalize_highlight_mode(value: Any) -> str:
+    """Normalize highlight mode strings to a supported value."""
+    mode = str(value or "text").lower().strip()
+    allowed = {"text", "text_cumulative", "background", "background_cumulative"}
+    return mode if mode in allowed else "text"
+
+
+def _ass_text_tag(color: str, alpha: int) -> str:
+    """Build ASS primary color + alpha tag."""
+    return f"\\1c{color}&\\1a&H{alpha:02X}&"
+
+
+def _ass_outline_tag(style: Dict[str, Any]) -> str:
+    """Build ASS outline tag for current style."""
+    outline_enabled = bool(style.get("outline_enabled", True))
+    outline_size = int(style.get("outline_size", 2) or 0)
+    outline_size = outline_size if outline_enabled else 0
+    outline_color = _ass_color(str(style.get("outline_color", "#000000")), 0)
+    return f"\\3c{outline_color}&\\bord{outline_size}\\shad0"
+
+
 def _escape_ass_text(text: str) -> str:
     """Escape ASS control characters in plain text."""
     return text.replace("\\", "\\\\").replace("{", "\\{").replace("}", "\\}")
@@ -567,6 +588,8 @@ def _overlay_dialogues(
     """Create extra dialogue lines for sup/sub overlays."""
     if not overlays or not base_text:
         return []
+    if highlight_mode is not None:
+        highlight_mode = _normalize_highlight_mode(highlight_mode)
     font_size = int(style.get("font_size", 48))
     small_size = max(8, int(round(font_size * 0.6)))
     text_opacity = _clamp01(style.get("text_opacity", 1.0), 1.0)
@@ -801,7 +824,7 @@ def generate_karaoke_ass(
 ) -> None:
     """Generate an ASS file with karaoke word highlighting."""
     style_data = normalize_style(style)
-    highlight_mode = str(style_data.get("highlight_mode", "text")).lower()
+    highlight_mode = _normalize_highlight_mode(style_data.get("highlight_mode"))
     if highlight_mode in {"background", "background_cumulative"}:
         style_data["text_opacity"] = 1.0
     header = _ass_header(style_data)
@@ -1310,7 +1333,7 @@ def _build_ass_dialogue(
     start = float(words[0].get("_line_start", words[0].get("start", 0.0)))
     end = float(words[-1].get("_line_end", words[-1].get("end", start)))
     chunks: List[str] = []
-    highlight_mode = str(style_data.get("highlight_mode", "text")).lower()
+    highlight_mode = _normalize_highlight_mode(style_data.get("highlight_mode"))
     cumulative_text = highlight_mode == "text_cumulative"
     outline_enabled = bool(style_data.get("outline_enabled", True))
     outline_size = int(style_data.get("outline_size", 2) or 0)
@@ -1320,12 +1343,9 @@ def _build_ass_dialogue(
     base_alpha = int(round((1.0 - base_text_opacity) * 255))
     highlight_text_opacity = _clamp01(style_data.get("highlight_text_opacity", 1.0), 1.0)
     highlight_alpha = int(round((1.0 - highlight_text_opacity) * 255))
-    normal_style = (
-        f"\\1c{base_color}&\\1a&H{base_alpha:02X}&"
-        f"\\3c{outline_color}&\\bord{normal_bord}\\shad0"
-    )
+    normal_style = f"{_ass_text_tag(base_color, base_alpha)}{_ass_outline_tag(style_data)}"
     highlight_style = (
-        f"\\1c{base_color}&\\1a&H{base_alpha:02X}&"
+        f"{_ass_text_tag(base_color, base_alpha)}"
         f"\\3c{highlight_color}&"
         f"\\bord{highlight_bord}\\xbord{highlight_bord}\\ybord{highlight_bord}\\shad0\\blur0"
     )
