@@ -216,3 +216,12 @@
 - Updated: Replaced risky TikTok font with safe Google Font (Montserrat) in presets.
 - Updated: Background opacity input accepts 0.01 steps (supports values like 0.55).
 - Next action: Finish timeline polish for long videos (verify pill separators, scroll containment, and waveform/pill sync on very long clips).
+
+## 2026-01-26
+- Implemented: Sup/sub overlays now inherit outline and highlight timing for text highlight modes.
+- Implemented: Font family changes now trigger the save bar.
+- Updated: Max font size increased to 160px.
+- Refactor: Added `_clamp01`, `_normalize_highlight_mode`, `_ass_text_tag`, `_ass_outline_tag` helpers to reduce repeated style logic.
+- Fixed: `queuedPreviewJob` scoping error in `subtitles.js`.
+- WIP: Highlight box rendering alignment/visibility still inconsistent after multiple approaches; current ASS output shows WordBox tags but visual alignment remains off.
+- Next action: Stabilize highlight box rendering (ensure boxes align exactly to words and show with correct color/opacity), then verify on preview and export.

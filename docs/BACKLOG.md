@@ -36,6 +36,7 @@
 - Optional: progress estimation for long transcriptions/exports.
 - Fix timeline viewport overflow on some clips (no page horizontal scroll).
 - Ensure pills render on short videos consistently and keep word separators on long videos.
+- Fix highlight box rendering alignment/visibility (boxes should match word bounds; opacity/color must apply correctly).
 
 ## Refactor backlog (maintainability)
 ### P1 — soon
