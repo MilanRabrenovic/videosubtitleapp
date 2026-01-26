@@ -88,6 +88,19 @@ def normalize_style(style: Optional[Dict[str, Any]]) -> Dict[str, Any]:
     return merged
 
 
+def _clamp01(value: Any, default: float = 1.0) -> float:
+    """Clamp numeric values to 0..1 with a safe default."""
+    try:
+        num = float(value)
+    except (TypeError, ValueError):
+        return default
+    if num < 0.0:
+        return 0.0
+    if num > 1.0:
+        return 1.0
+    return num
+
+
 def _escape_ass_text(text: str) -> str:
     """Escape ASS control characters in plain text."""
     return text.replace("\\", "\\\\").replace("{", "\\{").replace("}", "\\}")
@@ -329,23 +342,20 @@ def _ass_header(style: Dict[str, Any]) -> str:
         if full_name:
             style["font_family"] = full_name
     background_enabled = bool(style.get("background_enabled"))
-    background_opacity = float(style.get("background_opacity", 0.6))
-    background_opacity = min(max(background_opacity, 0.0), 1.0)
+    background_opacity = _clamp01(style.get("background_opacity", 0.6), 0.6)
     back_alpha = int(round((1.0 - background_opacity) * 255))
     alignment = {"bottom": 2, "center": 5, "top": 8}.get(style.get("position"), 2)
     margin_v = int(style.get("margin_v", 50))
     outline_value = int(style.get("outline_size", 2))
     bold_flag = -1 if style.get("font_bold", True) else 0
     italic_flag = -1 if style.get("font_italic", False) else 0
-    text_opacity = float(style.get("text_opacity", 1.0))
-    text_opacity = min(max(text_opacity, 0.0), 1.0)
+    text_opacity = _clamp01(style.get("text_opacity", 1.0), 1.0)
     text_alpha = int(round((1.0 - text_opacity) * 255))
     primary = _ass_color(str(style.get("text_color", "#FFFFFF")), text_alpha)
     secondary = _ass_color(str(style.get("text_color", "#FFFFFF")), text_alpha)
     back_color = _ass_color(str(style.get("background_color", "#000000")), back_alpha)
     outline = _ass_color(str(style.get("outline_color", "#000000")), 0)
-    highlight_opacity = float(style.get("highlight_opacity", 1.0))
-    highlight_opacity = min(max(highlight_opacity, 0.0), 1.0)
+    highlight_opacity = _clamp01(style.get("highlight_opacity", 1.0), 1.0)
     highlight_alpha = int(round((1.0 - highlight_opacity) * 255))
     highlight_back = _ass_color(str(style.get("highlight_color", "#FFFF00")), highlight_alpha)
     back = back_color
@@ -441,7 +451,7 @@ def _max_chars_per_line(style: Dict[str, Any]) -> int:
     play_res_x = int(style.get("play_res_x", 1920) or 1920)
     side_padding = 20
     font_size = int(style.get("font_size", 48))
-    text_opacity = min(max(float(style.get("text_opacity", 1.0)), 0.0), 1.0)
+    text_opacity = _clamp01(style.get("text_opacity", 1.0), 1.0)
     text_alpha = int(round((1.0 - text_opacity) * 255))
     safe_width = play_res_x - (side_padding * 2)
     char_width = max(1.0, font_size * 0.5)
@@ -559,9 +569,9 @@ def _overlay_dialogues(
         return []
     font_size = int(style.get("font_size", 48))
     small_size = max(8, int(round(font_size * 0.6)))
-    text_opacity = min(max(float(style.get("text_opacity", 1.0)), 0.0), 1.0)
+    text_opacity = _clamp01(style.get("text_opacity", 1.0), 1.0)
     text_alpha = int(round((1.0 - text_opacity) * 255))
-    highlight_text_opacity = min(max(float(style.get("highlight_text_opacity", 1.0)), 0.0), 1.0)
+    highlight_text_opacity = _clamp01(style.get("highlight_text_opacity", 1.0), 1.0)
     highlight_alpha = int(round((1.0 - highlight_text_opacity) * 255))
     outline_enabled = bool(style.get("outline_enabled", True))
     outline_size = int(style.get("outline_size", 2) or 0)
@@ -795,11 +805,10 @@ def generate_karaoke_ass(
     if highlight_mode in {"background", "background_cumulative"}:
         style_data["text_opacity"] = 1.0
     header = _ass_header(style_data)
-    highlight_text_opacity = float(style_data.get("highlight_text_opacity", 1.0))
-    highlight_text_opacity = min(max(highlight_text_opacity, 0.0), 1.0)
+    highlight_text_opacity = _clamp01(style_data.get("highlight_text_opacity", 1.0), 1.0)
     highlight_text_alpha = int(round((1.0 - highlight_text_opacity) * 255))
     highlight_color = _ass_color(str(style_data.get("highlight_color", "#FFFF00")), 0)
-    base_text_opacity = min(max(float(style_data.get("text_opacity", 1.0)), 0.0), 1.0)
+    base_text_opacity = _clamp01(style_data.get("text_opacity", 1.0), 1.0)
     base_text_alpha = int(round((1.0 - base_text_opacity) * 255))
     base_color = _ass_color(str(style_data.get("text_color", "#FFFFFF")), 0)
     outline_color = _ass_color(str(style_data.get("outline_color", "#000000")), 0)
@@ -1307,9 +1316,9 @@ def _build_ass_dialogue(
     outline_size = int(style_data.get("outline_size", 2) or 0)
     normal_bord = outline_size if outline_enabled else 0
     highlight_bord = max(normal_bord, int(round((style_data.get("background_padding", 8) or 0) / 2)) + 6)
-    base_text_opacity = min(max(float(style_data.get("text_opacity", 1.0)), 0.0), 1.0)
+    base_text_opacity = _clamp01(style_data.get("text_opacity", 1.0), 1.0)
     base_alpha = int(round((1.0 - base_text_opacity) * 255))
-    highlight_text_opacity = min(max(float(style_data.get("highlight_text_opacity", 1.0)), 0.0), 1.0)
+    highlight_text_opacity = _clamp01(style_data.get("highlight_text_opacity", 1.0), 1.0)
     highlight_alpha = int(round((1.0 - highlight_text_opacity) * 255))
     normal_style = (
         f"\\1c{base_color}&\\1a&H{base_alpha:02X}&"
