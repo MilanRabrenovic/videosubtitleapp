@@ -178,9 +178,11 @@ def save_edits(
     style_font_family: str = Form(None),
     style_font_size: int = Form(None),
     style_text_color: str = Form(None),
+    style_text_opacity: float = Form(None),
     style_highlight_color: str = Form(None),
     style_highlight_mode: str = Form(None),
     style_highlight_opacity: float = Form(None),
+    style_highlight_text_opacity: float = Form(None),
     style_outline_color: str = Form(None),
     style_outline_enabled: str = Form(None),
     style_outline_size: int = Form(None),
@@ -221,11 +223,17 @@ def save_edits(
         "font_weight": style_font_weight if style_font_weight is not None else style_defaults["font_weight"],
         "font_style": style_font_style or style_defaults["font_style"],
         "text_color": style_text_color or style_defaults["text_color"],
+        "text_opacity": style_text_opacity
+        if style_text_opacity is not None
+        else style_defaults["text_opacity"],
         "highlight_color": style_highlight_color or style_defaults["highlight_color"],
         "highlight_mode": style_highlight_mode or style_defaults["highlight_mode"],
         "highlight_opacity": style_highlight_opacity
         if style_highlight_opacity is not None
         else style_defaults["highlight_opacity"],
+        "highlight_text_opacity": style_highlight_text_opacity
+        if style_highlight_text_opacity is not None
+        else style_defaults["highlight_text_opacity"],
         "outline_color": style_outline_color or style_defaults["outline_color"],
         "outline_enabled": style_outline_enabled == "on" if style_outline_enabled is not None else False,
         "outline_size": style_outline_size if style_outline_size is not None else style_defaults["outline_size"],

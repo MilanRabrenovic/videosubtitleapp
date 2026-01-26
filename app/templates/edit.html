@@ -398,8 +398,10 @@
                 <label class="flex flex-col gap-2 text-sm font-medium text-slate-700">
                   Highlight style
                   <select name="style_highlight_mode" class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900">
-                    <option value="text" {% if job.style.highlight_mode != 'background' %}selected{% endif %}>Text color</option>
+                    <option value="text" {% if job.style.highlight_mode == 'text' %}selected{% endif %}>Text color</option>
+                    <option value="text_cumulative" {% if job.style.highlight_mode == 'text_cumulative' %}selected{% endif %}>Text color (cumulative)</option>
                     <option value="background" {% if job.style.highlight_mode == 'background' %}selected{% endif %}>Highlight box</option>
+                    <option value="background_cumulative" {% if job.style.highlight_mode == 'background_cumulative' %}selected{% endif %}>Highlight box (cumulative)</option>
                   </select>
                 </label>
                 <div class="flex flex-col gap-2 text-sm font-medium text-slate-700">
@@ -419,6 +421,18 @@
                     </button>
                   </div>
                 </div>
+                <label class="flex flex-col gap-2 text-sm font-medium text-slate-700 text-opacity-field {% if job.style.highlight_mode not in ['text', 'text_cumulative'] %}hidden{% endif %}">
+                  Text opacity
+                  <input
+                    type="number"
+                    name="style_text_opacity"
+                    value="{{ job.style.text_opacity }}"
+                    min="0"
+                    max="1"
+                    step="0.05"
+                    class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900"
+                  />
+                </label>
                 <div class="flex flex-col gap-2 text-sm font-medium text-slate-700">
                   Highlight color
                   <div class="flex items-center gap-3 rounded-full border border-slate-200 bg-white px-3 py-2">
@@ -442,6 +456,18 @@
                     type="number"
                     name="style_highlight_opacity"
                     value="{{ job.style.highlight_opacity }}"
+                    min="0"
+                    max="1"
+                    step="0.05"
+                    class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900"
+                  />
+                </label>
+                <label class="flex flex-col gap-2 text-sm font-medium text-slate-700 highlight-text-opacity-field {% if job.style.highlight_mode not in ['text', 'text_cumulative'] %}hidden{% endif %}">
+                  Highlight text opacity
+                  <input
+                    type="number"
+                    name="style_highlight_text_opacity"
+                    value="{{ job.style.highlight_text_opacity }}"
                     min="0"
                     max="1"
                     step="0.05"

@@ -25,6 +25,8 @@
   const blockCount = document.getElementById("block-count");
   const highlightMode = document.querySelector("[name=\"style_highlight_mode\"]");
   const highlightOpacityField = document.querySelector(".highlight-opacity-field");
+  const highlightTextOpacityField = document.querySelector(".highlight-text-opacity-field");
+  const textOpacityField = document.querySelector(".text-opacity-field");
   const focusedBlock = document.getElementById("focused-block");
   const focusedLabel = document.getElementById("focused-block-label");
   const focusedStart = document.getElementById("focused-start");
@@ -684,9 +686,11 @@
     setFieldValue("[name=\"style_font_style\"]", style.font_style);
     setFieldValue("[name=\"style_font_size\"]", style.font_size);
     setFieldValue("[name=\"style_text_color\"]", style.text_color);
+    setFieldValue("[name=\"style_text_opacity\"]", style.text_opacity);
     setFieldValue("[name=\"style_highlight_color\"]", style.highlight_color);
     setFieldValue("[name=\"style_highlight_mode\"]", style.highlight_mode);
     setFieldValue("[name=\"style_highlight_opacity\"]", style.highlight_opacity);
+    setFieldValue("[name=\"style_highlight_text_opacity\"]", style.highlight_text_opacity);
     setFieldValue("[name=\"style_outline_color\"]", style.outline_color);
     setFieldValue("[name=\"style_outline_enabled\"]", style.outline_enabled);
     setFieldValue("[name=\"style_outline_size\"]", style.outline_size);
@@ -732,9 +736,11 @@
       font_style: getValue("[name=\"style_font_style\"]"),
       font_size: getValue("[name=\"style_font_size\"]"),
       text_color: getValue("[name=\"style_text_color\"]"),
+      text_opacity: getValue("[name=\"style_text_opacity\"]"),
       highlight_color: getValue("[name=\"style_highlight_color\"]"),
       highlight_mode: getValue("[name=\"style_highlight_mode\"]"),
       highlight_opacity: getValue("[name=\"style_highlight_opacity\"]"),
+      highlight_text_opacity: getValue("[name=\"style_highlight_text_opacity\"]"),
       outline_color: getValue("[name=\"style_outline_color\"]"),
       outline_enabled: getValue("[name=\"style_outline_enabled\"]"),
       outline_size: getValue("[name=\"style_outline_size\"]"),
@@ -769,10 +775,24 @@
     if (!highlightOpacityField || !highlightMode) {
       return;
     }
-    if (highlightMode.value === "background") {
+    if (highlightMode.value === "background" || highlightMode.value === "background_cumulative") {
       highlightOpacityField.classList.remove("hidden");
     } else {
       highlightOpacityField.classList.add("hidden");
+    }
+    if (highlightTextOpacityField) {
+      if (highlightMode.value === "text" || highlightMode.value === "text_cumulative") {
+        highlightTextOpacityField.classList.remove("hidden");
+      } else {
+        highlightTextOpacityField.classList.add("hidden");
+      }
+    }
+    if (textOpacityField) {
+      if (highlightMode.value === "text" || highlightMode.value === "text_cumulative") {
+        textOpacityField.classList.remove("hidden");
+      } else {
+        textOpacityField.classList.add("hidden");
+      }
     }
   };
   if (highlightMode) {

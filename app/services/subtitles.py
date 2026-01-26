@@ -57,9 +57,11 @@ def default_style() -> Dict[str, Any]:
         "font_weight": 400,
         "font_style": "regular",
         "text_color": "#FFFFFF",
+        "text_opacity": 1.0,
         "highlight_color": "#FFFF00",
         "highlight_mode": "text",
         "highlight_opacity": 1.0,
+        "highlight_text_opacity": 1.0,
         "outline_color": "#000000",
         "outline_enabled": True,
         "outline_size": 2,
@@ -335,8 +337,11 @@ def _ass_header(style: Dict[str, Any]) -> str:
     outline_value = int(style.get("outline_size", 2))
     bold_flag = -1 if style.get("font_bold", True) else 0
     italic_flag = -1 if style.get("font_italic", False) else 0
-    primary = _ass_color(str(style.get("text_color", "#FFFFFF")), 0)
-    secondary = _ass_color(str(style.get("text_color", "#FFFFFF")), 0)
+    text_opacity = float(style.get("text_opacity", 1.0))
+    text_opacity = min(max(text_opacity, 0.0), 1.0)
+    text_alpha = int(round((1.0 - text_opacity) * 255))
+    primary = _ass_color(str(style.get("text_color", "#FFFFFF")), text_alpha)
+    secondary = _ass_color(str(style.get("text_color", "#FFFFFF")), text_alpha)
     back_color = _ass_color(str(style.get("background_color", "#000000")), back_alpha)
     outline = _ass_color(str(style.get("outline_color", "#000000")), 0)
     highlight_opacity = float(style.get("highlight_opacity", 1.0))
@@ -436,6 +441,8 @@ def _max_chars_per_line(style: Dict[str, Any]) -> int:
     play_res_x = int(style.get("play_res_x", 1920) or 1920)
     side_padding = 20
     font_size = int(style.get("font_size", 48))
+    text_opacity = min(max(float(style.get("text_opacity", 1.0)), 0.0), 1.0)
+    text_alpha = int(round((1.0 - text_opacity) * 255))
     safe_width = play_res_x - (side_padding * 2)
     char_width = max(1.0, font_size * 0.5)
     return max(10, int(safe_width / char_width))
@@ -542,12 +549,25 @@ def _overlay_dialogues(
     start: float,
     end: float,
     format_ass_time,
+    word_spans: Optional[List[Dict[str, Any]]] = None,
+    highlight_mode: Optional[str] = None,
+    highlight_color: Optional[str] = None,
+    base_color: Optional[str] = None,
 ) -> List[str]:
     """Create extra dialogue lines for sup/sub overlays."""
     if not overlays or not base_text:
         return []
     font_size = int(style.get("font_size", 48))
     small_size = max(8, int(round(font_size * 0.6)))
+    text_opacity = min(max(float(style.get("text_opacity", 1.0)), 0.0), 1.0)
+    text_alpha = int(round((1.0 - text_opacity) * 255))
+    highlight_text_opacity = min(max(float(style.get("highlight_text_opacity", 1.0)), 0.0), 1.0)
+    highlight_alpha = int(round((1.0 - highlight_text_opacity) * 255))
+    outline_enabled = bool(style.get("outline_enabled", True))
+    outline_size = int(style.get("outline_size", 2) or 0)
+    outline_size = outline_size if outline_enabled else 0
+    outline_color = _ass_color(str(style.get("outline_color", "#000000")), 0)
+    outline_tag = f"\\3c{outline_color}&\\bord{outline_size}\\shad0"
     font_job_id = style.get("font_job_id")
     font_path = resolve_font_file(style.get("font_family"), font_job_id)
     alignment = pos["alignment"]
@@ -586,9 +606,34 @@ def _overlay_dialogues(
         x_shift = max(1, min(12, int(round(font_size * 0.04))))
         italic_tag = "\\i1" if style.get("font_italic") else "\\i0"
         tag = f"{{\\an5\\pos({pos['x'] - x_shift},{int(round(overlay_y))})\\q2{italic_tag}}}"
+        timing_tag = ""
+        if word_spans and highlight_mode in {"text", "text_cumulative"} and highlight_color and base_color:
+            for span in word_spans:
+                if span["start"] <= start_index < span["end"]:
+                    rel_start = max(0, int(round((span["start_time"] - start) * 1000)))
+                    rel_end = max(rel_start + 1, int(round((span["end_time"] - start) * 1000)))
+                    if highlight_mode == "text_cumulative":
+                        timing_tag = (
+                            f"\\1c{base_color}&\\1a&H{text_alpha:02X}&"
+                            f"\\t({rel_start},{rel_start},\\1c{highlight_color}&\\1a&H{highlight_alpha:02X}&)"
+                        )
+                    else:
+                        timing_tag = (
+                            f"\\1c{base_color}&\\1a&H{text_alpha:02X}&"
+                            f"\\t({rel_start},{rel_start},\\1c{highlight_color}&\\1a&H{highlight_alpha:02X}&)"
+                            f"\\t({rel_end},{rel_end},\\1c{base_color}&\\1a&H{text_alpha:02X}&)"
+                        )
+                    break
+        reset_alpha = "\\alpha&H00&"
+        if timing_tag:
+            main_tag = f"{reset_alpha}{timing_tag}{outline_tag}"
+        elif base_color:
+            main_tag = f"{reset_alpha}\\1c{base_color}&\\1a&H{text_alpha:02X}&{outline_tag}"
+        else:
+            main_tag = f"{reset_alpha}\\1a&H{text_alpha:02X}&{outline_tag}"
         overlay_line = (
             f"{{\\alpha&HFE&}}{prefix_text}"
-            f"{{\\alpha&H00&}}{{\\fs{small_size}}}{ass_text}{{\\fs{font_size}}}"
+            f"{{{main_tag}}}{{\\fs{small_size}}}{ass_text}{{\\fs{font_size}}}"
             f"{{\\alpha&HFE&}}{suffix_text}{{\\alpha&H00&}}"
         )
         dialogues.append(
@@ -688,6 +733,7 @@ def _word_box_overlay_dialogue(
     style_data: Dict[str, Any],
     style_name: str,
     override_tag: str = "",
+    cumulative: bool = False,
 ) -> str:
     """Create a dialogue that shows a word-box only during each word's timing."""
     start = float(words[0].get("_line_start", words[0].get("start", 0.0)))
@@ -707,17 +753,26 @@ def _word_box_overlay_dialogue(
             word_end = end
         rel_start = max(0, int(round((word_start - start) * 1000)))
         rel_end = max(rel_start + 1, int(round((word_end - start) * 1000)))
-        if rel_start == 0:
-            chunks.append(
-                f"{{\\1a&HFF&\\bord{box_pad}"
-                f"\\t({rel_end},{rel_end},\\bord0)}}{word_text}"
-            )
+        if cumulative:
+            if rel_start == 0:
+                chunks.append(f"{{\\1a&HFF&\\bord{box_pad}}}{word_text}")
+            else:
+                chunks.append(
+                    f"{{\\1a&HFF&\\bord0"
+                    f"\\t({rel_start},{rel_start},\\bord{box_pad})}}{word_text}"
+                )
         else:
-            chunks.append(
-                f"{{\\1a&HFF&\\bord0"
-                f"\\t({rel_start},{rel_start},\\bord{box_pad})"
-                f"\\t({rel_end},{rel_end},\\bord0)}}{word_text}"
-            )
+            if rel_start == 0:
+                chunks.append(
+                    f"{{\\1a&HFF&\\bord{box_pad}"
+                    f"\\t({rel_end},{rel_end},\\bord0)}}{word_text}"
+                )
+            else:
+                chunks.append(
+                    f"{{\\1a&HFF&\\bord0"
+                    f"\\t({rel_start},{rel_start},\\bord{box_pad})"
+                    f"\\t({rel_end},{rel_end},\\bord0)}}{word_text}"
+                )
         if separator:
             chunks.append("{\\1a&HFF&\\bord0}" + separator)
     text = "".join(chunks).strip()
@@ -736,8 +791,16 @@ def generate_karaoke_ass(
 ) -> None:
     """Generate an ASS file with karaoke word highlighting."""
     style_data = normalize_style(style)
+    highlight_mode = str(style_data.get("highlight_mode", "text")).lower()
+    if highlight_mode in {"background", "background_cumulative"}:
+        style_data["text_opacity"] = 1.0
     header = _ass_header(style_data)
+    highlight_text_opacity = float(style_data.get("highlight_text_opacity", 1.0))
+    highlight_text_opacity = min(max(highlight_text_opacity, 0.0), 1.0)
+    highlight_text_alpha = int(round((1.0 - highlight_text_opacity) * 255))
     highlight_color = _ass_color(str(style_data.get("highlight_color", "#FFFF00")), 0)
+    base_text_opacity = min(max(float(style_data.get("text_opacity", 1.0)), 0.0), 1.0)
+    base_text_alpha = int(round((1.0 - base_text_opacity) * 255))
     base_color = _ass_color(str(style_data.get("text_color", "#FFFFFF")), 0)
     outline_color = _ass_color(str(style_data.get("outline_color", "#000000")), 0)
 
@@ -777,6 +840,29 @@ def generate_karaoke_ass(
             layout = _sup_sub_layout(plain_text, style_data)
             base_text = layout["base_text"]
             render_text = layout["render_text"]
+            word_spans: List[Dict[str, Any]] = []
+            if highlight_mode in {"text", "text_cumulative"}:
+                cursor = 0
+                for word in chunk_words:
+                    token = _strip_sup_sub_tags(str(word.get("word", "")).strip())
+                    if not token:
+                        continue
+                    idx = base_text.find(token, cursor)
+                    if idx < 0:
+                        continue
+                    span_start = idx
+                    span_end = idx + len(token)
+                    word_spans.append(
+                        {
+                            "start": span_start,
+                            "end": span_end,
+                            "start_time": float(word.get("start", block_start)),
+                            "end_time": float(word.get("end", block_start)),
+                        }
+                    )
+                    cursor = span_end
+                    if not token.endswith("-") and cursor < len(base_text) and base_text[cursor] == " ":
+                        cursor += 1
             overlay_lines = []
             if positions:
                 overlay_lines = _overlay_dialogues(
@@ -787,6 +873,10 @@ def generate_karaoke_ass(
                     block_start,
                     block_end,
                     format_ass_time,
+                    word_spans=word_spans,
+                    highlight_mode=highlight_mode,
+                    highlight_color=highlight_color,
+                    base_color=base_color,
                 )
             if style_data.get("background_enabled"):
                 lines.append(
@@ -796,13 +886,14 @@ def generate_karaoke_ass(
                 )
             karaoke_style = style_data.copy()
             karaoke_style["single_line"] = True
-            if str(style_data.get("highlight_mode", "text")).lower() == "background":
+            if highlight_mode in {"background", "background_cumulative"}:
                 box_overlay = _word_box_overlay_dialogue(
                     chunk_words,
                     format_ass_time,
                     karaoke_style,
                     "WordBox",
                     pos_tag,
+                    cumulative=highlight_mode == "background_cumulative",
                 )
                 lines.append(box_overlay)
                 base_line = f"{pos_tag}{layout['render_text']}"
@@ -1211,13 +1302,22 @@ def _build_ass_dialogue(
     end = float(words[-1].get("_line_end", words[-1].get("end", start)))
     chunks: List[str] = []
     highlight_mode = str(style_data.get("highlight_mode", "text")).lower()
+    cumulative_text = highlight_mode == "text_cumulative"
     outline_enabled = bool(style_data.get("outline_enabled", True))
     outline_size = int(style_data.get("outline_size", 2) or 0)
     normal_bord = outline_size if outline_enabled else 0
     highlight_bord = max(normal_bord, int(round((style_data.get("background_padding", 8) or 0) / 2)) + 6)
-    normal_style = f"\\1c{base_color}&\\3c{outline_color}&\\bord{normal_bord}\\shad0"
+    base_text_opacity = min(max(float(style_data.get("text_opacity", 1.0)), 0.0), 1.0)
+    base_alpha = int(round((1.0 - base_text_opacity) * 255))
+    highlight_text_opacity = min(max(float(style_data.get("highlight_text_opacity", 1.0)), 0.0), 1.0)
+    highlight_alpha = int(round((1.0 - highlight_text_opacity) * 255))
+    normal_style = (
+        f"\\1c{base_color}&\\1a&H{base_alpha:02X}&"
+        f"\\3c{outline_color}&\\bord{normal_bord}\\shad0"
+    )
     highlight_style = (
-        f"\\1c{base_color}&\\3c{highlight_color}&"
+        f"\\1c{base_color}&\\1a&H{base_alpha:02X}&"
+        f"\\3c{highlight_color}&"
         f"\\bord{highlight_bord}\\xbord{highlight_bord}\\ybord{highlight_bord}\\shad0\\blur0"
     )
     for word in words:
@@ -1232,29 +1332,42 @@ def _build_ass_dialogue(
         duration = max(1, int(round((word_end - word_start) * 100)))
         rel_start = max(0, int(round((word_start - start) * 1000)))
         rel_end = max(rel_start + 1, int(round((word_end - start) * 1000)))
-        if highlight_mode == "background":
+        karaoke_tag = "" if highlight_mode in {"text", "text_cumulative"} else f"\\k{duration}"
+        if highlight_mode in {"background", "background_cumulative"}:
             if rel_start == 0:
                 chunks.append(
-                    f"{{\\k{duration}{highlight_style}"
+                    f"{{{karaoke_tag}{highlight_style}"
                     f"\\t({rel_end},{rel_end},{normal_style})}}{word_text}{separator}"
                 )
             else:
                 chunks.append(
-                    f"{{\\k{duration}{normal_style}"
+                    f"{{{karaoke_tag}{normal_style}"
                     f"\\t({rel_start},{rel_start},{highlight_style})"
                     f"\\t({rel_end},{rel_end},{normal_style})}}{word_text}{separator}"
                 )
         else:
             if rel_start == 0:
-                chunks.append(
-                    f"{{\\k{duration}\\1c{highlight_color}&\\t({rel_end},{rel_end},\\1c{base_color}&)}}{word_text}{separator}"
-                )
+                if cumulative_text:
+                    chunks.append(
+                        f"{{{karaoke_tag}\\1c{highlight_color}&\\1a&H{highlight_alpha:02X}&}}{word_text}{separator}"
+                    )
+                else:
+                    chunks.append(
+                        f"{{{karaoke_tag}\\1c{highlight_color}&\\1a&H{highlight_alpha:02X}&"
+                        f"\\t({rel_end},{rel_end},\\1c{base_color}&\\1a&H{base_alpha:02X}&)}}{word_text}{separator}"
+                    )
             else:
-                chunks.append(
-                    f"{{\\k{duration}\\1c{base_color}&"
-                    f"\\t({rel_start},{rel_start},\\1c{highlight_color}&)"
-                    f"\\t({rel_end},{rel_end},\\1c{base_color}&)}}{word_text}{separator}"
-                )
+                if cumulative_text:
+                    chunks.append(
+                        f"{{{karaoke_tag}\\1c{base_color}&\\1a&H{base_alpha:02X}&"
+                        f"\\t({rel_start},{rel_start},\\1c{highlight_color}&\\1a&H{highlight_alpha:02X}&)}}{word_text}{separator}"
+                    )
+                else:
+                    chunks.append(
+                        f"{{{karaoke_tag}\\1c{base_color}&\\1a&H{base_alpha:02X}&"
+                        f"\\t({rel_start},{rel_start},\\1c{highlight_color}&\\1a&H{highlight_alpha:02X}&)"
+                        f"\\t({rel_end},{rel_end},\\1c{base_color}&\\1a&H{base_alpha:02X}&)}}{word_text}{separator}"
+                    )
     text = "".join(chunks).strip()
     if style_data.get("single_line", True):
         text = _single_line_text(text, style_data)
