@@ -652,6 +652,7 @@
     if (!presetDataEl) {
       return {};
     }
+    let queuedPreviewJob = false;
     try {
       return JSON.parse(presetDataEl.textContent || "{}");
     } catch (error) {
@@ -1103,7 +1104,6 @@
         jobStatus.dataset.jobId = updatedJobStatus.dataset.jobId || "";
       }
       const updatedPreviewJob = doc.getElementById("preview-job");
-      let queuedPreviewJob = false;
       if (updatedPreviewJob && previewJob) {
         previewJob.dataset.jobId = updatedPreviewJob.dataset.jobId || "";
         if (previewJob.dataset.jobId) {
@@ -1134,10 +1134,10 @@
       console.error(error);
       showToast(error.message || "Save failed. Please try again.", error.message?.includes("Too many") ? "warning" : "error", 3200);
     }
-  if (saveButton && !queuedPreviewJob) {
-    saveButton.disabled = false;
-    saveButton.textContent = saveButton.dataset.originalText || "Save edits";
-  }
+    if (saveButton && !queuedPreviewJob) {
+      saveButton.disabled = false;
+      saveButton.textContent = saveButton.dataset.originalText || "Save edits";
+    }
   });
 
   // Initialize hidden input with current values.
