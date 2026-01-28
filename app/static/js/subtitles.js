@@ -278,6 +278,7 @@
     pollJob(
       jobId,
       () => {
+        hideToast();
         if (previewVideo) {
           const source = previewVideo.querySelector("source");
           if (source && source.src.includes("/media/outputs/")) {
@@ -286,20 +287,19 @@
             previewVideo.load();
           }
         }
-        hideToast();
         showToast("Preview updated.", "success");
         if (saveButton) {
           saveButton.disabled = false;
           saveButton.textContent = saveButton.dataset.originalText || "Save edits";
         }
       },
-        (job) => {
-          hideToast();
-          showToast(formatJobFailure(job, "Preview failed."), "error", 3200);
-          showErrorPanel(job);
-          if (saveButton) {
-            saveButton.disabled = false;
-            saveButton.textContent = saveButton.dataset.originalText || "Save edits";
+      (job) => {
+        hideToast();
+        showToast(formatJobFailure(job, "Preview failed."), "error", 3200);
+        showErrorPanel(job);
+        if (saveButton) {
+          saveButton.disabled = false;
+          saveButton.textContent = saveButton.dataset.originalText || "Save edits";
         }
       }
     );
@@ -361,208 +361,7 @@
     });
   };
 
-  const updatePlayhead = () => {
-    const timeline = document.getElementById("timeline");
-    const playhead = document.getElementById("timeline-playhead");
-    const viewport = document.getElementById("timeline-viewport");
-    if (!timeline || !playhead || !previewVideo || !viewport) {
-      return;
-    }
-    const duration = Number(timeline.dataset.duration || 0);
-    if (!duration) {
-      return;
-    }
-    const viewportWidth = viewport.clientWidth;
-    if (!viewportWidth) {
-      return;
-    }
-    const windowDuration = Math.min(TIMELINE_WINDOW_SECONDS, duration);
-    const waveformWidth = Number(timeline.dataset.waveformWidth || 0);
-    const totalWidth =
-      duration <= windowDuration
-        ? viewportWidth
-        : Math.max(
-            viewportWidth,
-            waveformWidth > 0 ? waveformWidth : viewportWidth * (duration / windowDuration)
-          );
-    timeline.style.width = `${totalWidth}px`;
-    playhead.style.left = `${(previewVideo.currentTime / duration) * 100}%`;
-    updateWaveformWindow(totalWidth);
-    syncTimelineScroll(duration, windowDuration, viewportWidth, totalWidth);
-  };
-
-  const updateWaveformWindow = (totalWidth) => {
-    if (!waveformImage || !totalWidth) {
-      return;
-    }
-    waveformImage.style.width = `${totalWidth}px`;
-    waveformImage.style.transform = "translateX(0)";
-  };
-
-  const syncTimelineScroll = (duration, windowDuration, viewportWidth, totalWidth) => {
-    const viewport = document.getElementById("timeline-viewport");
-    if (!viewport || !duration || !viewportWidth || !totalWidth) {
-      return;
-    }
-    if (Date.now() < suppressTimelineAutoScrollUntil) {
-      return;
-    }
-    if (duration <= windowDuration) {
-      viewport.scrollLeft = 0;
-      return;
-    }
-    const targetCenter = (previewVideo.currentTime / duration) * totalWidth;
-    const desiredLeft = Math.max(0, targetCenter - viewportWidth / 2);
-    const maxScroll = Math.max(0, totalWidth - viewportWidth);
-    viewport.scrollLeft = Math.min(desiredLeft, maxScroll);
-  };
-
-  const renderTimeline = () => {
-    const timeline = document.getElementById("timeline");
-    const overlay = document.getElementById("timeline-overlay");
-    const viewport = document.getElementById("timeline-viewport");
-    if (!timeline || !overlay || !viewport) {
-      return;
-    }
-    const duration = Number(timeline.dataset.duration || 0);
-    if (!duration || Number.isNaN(duration)) {
-      return;
-    }
-    const viewportWidth = viewport.clientWidth;
-    if (!viewportWidth) {
-      return;
-    }
-    const windowDuration = Math.min(TIMELINE_WINDOW_SECONDS, duration);
-    const waveformWidth = Number(timeline.dataset.waveformWidth || 0);
-    const totalWidth =
-      duration <= windowDuration
-        ? viewportWidth
-        : Math.max(
-            viewportWidth,
-            waveformWidth > 0 ? waveformWidth : viewportWidth * (duration / windowDuration)
-          );
-    timeline.style.width = `${totalWidth}px`;
-    updateWaveformWindow(totalWidth);
-    if (previewVideo) {
-      syncTimelineScroll(duration, windowDuration, viewportWidth, totalWidth);
-    }
-    overlay.innerHTML = "";
-    const blocks = subtitleList.querySelectorAll(".subtitle-block");
-    blocks.forEach((block) => {
-      const startValue = block.querySelector(".start").value.trim();
-      const endValue = block.querySelector(".end").value.trim();
-      const start = parseTimestamp(startValue);
-      const end = parseTimestamp(endValue);
-      if (start === null || end === null || end <= start) {
-        return;
-      }
-      const left = (start / duration) * 100;
-      const width = ((end - start) / duration) * 100;
-      const bar = document.createElement("div");
-      bar.className =
-        "timeline-block absolute top-3 h-4 rounded-sm border border-slate-300/40 bg-slate-200/35";
-      bar.style.left = `${left}%`;
-      bar.style.width = `${width}%`;
-      bar.dataset.index = block.dataset.index || "";
-      const textValue = block.querySelector(".text")?.value || "";
-      const wordCount = textValue.trim() ? textValue.trim().split(/\s+/).length : 0;
-      bar.innerHTML =
-        "<span class='handle-left absolute top-0 h-full cursor-ew-resize' style='left:-4px;width:8px;'></span>" +
-        "<span class='handle-right absolute top-0 h-full cursor-ew-resize' style='right:-4px;width:8px;'></span>" +
-        "<span class='handle-left absolute left-0 top-0 h-full w-px bg-slate-500/60 pointer-events-none'></span>" +
-        "<span class='handle-right absolute right-0 top-0 h-full w-px bg-slate-500/60 pointer-events-none'></span>";
-      overlay.appendChild(bar);
-      if (wordCount > 1) {
-        const barWidth = bar.getBoundingClientRect().width;
-        if (barWidth >= 18) {
-          const maxSeparators = Math.min(wordCount - 1, 30);
-          for (let i = 1; i <= maxSeparators; i += 1) {
-            const leftPos = (i / wordCount) * barWidth;
-            const separator = document.createElement("span");
-            separator.className = "absolute inset-y-1 w-px bg-slate-500/20";
-            separator.style.left = `${leftPos}px`;
-            bar.appendChild(separator);
-          }
-        }
-      }
-
-      const onPointerDown = (event, mode) => {
-        event.preventDefault();
-        const startSeconds = parseTimestamp(block.querySelector(".start").value.trim()) || 0;
-        const endSeconds = parseTimestamp(block.querySelector(".end").value.trim()) || startSeconds + 0.1;
-        const length = endSeconds - startSeconds;
-        const startX = event.clientX;
-        const onMove = (moveEvent) => {
-          markTimelineDirty(block.dataset.index);
-          const delta = moveEvent.clientX - startX;
-          const deltaSeconds = (delta / totalWidth) * duration;
-          let nextStart = startSeconds;
-          let nextEnd = endSeconds;
-          if (mode === "move") {
-            nextStart = Math.max(0, Math.min(duration - length, startSeconds + deltaSeconds));
-            nextEnd = nextStart + length;
-          } else if (mode === "start") {
-            nextStart = Math.max(0, Math.min(endSeconds - 0.05, startSeconds + deltaSeconds));
-          } else if (mode === "end") {
-            nextEnd = Math.min(duration, Math.max(startSeconds + 0.05, endSeconds + deltaSeconds));
-          }
-          block.querySelector(".start").value = formatTimestamp(nextStart);
-          block.querySelector(".end").value = formatTimestamp(nextEnd);
-          hiddenInput.value = JSON.stringify(collectSubtitles());
-          markDirty();
-          updateBlockDurations();
-          const newLeft = (nextStart / duration) * 100;
-          const newWidth = ((nextEnd - nextStart) / duration) * 100;
-          bar.style.left = `${newLeft}%`;
-          bar.style.width = `${newWidth}%`;
-        };
-        const onUp = () => {
-          document.removeEventListener("pointermove", onMove);
-          document.removeEventListener("pointerup", onUp);
-        };
-        document.addEventListener("pointermove", onMove);
-        document.addEventListener("pointerup", onUp);
-      };
-
-      bar.addEventListener("pointerdown", (event) => {
-        if (event.target.classList.contains("handle-left")) {
-          onPointerDown(event, "start");
-        } else if (event.target.classList.contains("handle-right")) {
-          onPointerDown(event, "end");
-        } else {
-          onPointerDown(event, "move");
-        }
-      });
-      bar.addEventListener("click", (event) => {
-        event.stopPropagation();
-        const index = Number(bar.dataset.index);
-        if (Number.isNaN(index)) {
-          return;
-        }
-        const target = subtitleList.querySelector(`.subtitle-block[data-index="${index}"]`);
-        if (!target) {
-          return;
-        }
-        if (focusedBlock && focusedStart && focusedEnd && focusedText) {
-          focusedBlock.classList.remove("hidden");
-          focusedBlock.dataset.index = String(index);
-          const allBars = overlay.querySelectorAll(".timeline-block");
-          allBars.forEach((item) => {
-            item.classList.remove("is-active");
-          });
-          bar.classList.add("is-active");
-          if (focusedLabel) {
-            focusedLabel.textContent = `Block ${index + 1}`;
-          }
-          focusedStart.value = target.querySelector(".start").value;
-          focusedEnd.value = target.querySelector(".end").value;
-          focusedText.value = target.querySelector(".text").value;
-          focusedStart.focus();
-        }
-      });
-    });
-    updatePlayhead();
-  };
+  // Timeline logic moved to subtitles/timeline.js
 
   if (!form || !subtitleList || !hiddenInput) {
     return;
@@ -934,7 +733,7 @@
       }
     }
     updateBlockDurations();
-    renderTimeline();
+    SubtitleTimeline.render();
     if (focusedBlock && focusedBlock.dataset.index) {
       const index = Number(focusedBlock.dataset.index);
       if (!Number.isNaN(index)) {
@@ -961,7 +760,7 @@
     hiddenInput.value = JSON.stringify(collectSubtitles());
     markDirty();
     updateBlockDurations();
-    renderTimeline();
+    SubtitleTimeline.render();
   });
 
   const syncFocusedField = (field, selector) => {
@@ -980,7 +779,7 @@
     hiddenInput.value = JSON.stringify(collectSubtitles());
     markDirty();
     updateBlockDurations();
-    renderTimeline();
+    SubtitleTimeline.render();
   };
 
   if (focusedStart) {
@@ -1018,7 +817,7 @@
       hiddenInput.value = JSON.stringify(collectSubtitles());
       markDirty();
       updateBlockDurations();
-      renderTimeline();
+      SubtitleTimeline.render();
     });
   }
 
@@ -1071,7 +870,7 @@
       if (updatedList) {
         subtitleList.innerHTML = updatedList.innerHTML;
         updateBlockDurations();
-        renderTimeline();
+        SubtitleTimeline.render();
         if (viewport) {
           suppressTimelineAutoScrollUntil = Date.now() + 1500;
           viewport.scrollLeft = previousScroll;
@@ -1114,14 +913,7 @@
           startPreviewPolling(previewJob.dataset.jobId);
         }
       }
-      if (previewVideo) {
-        const source = previewVideo.querySelector("source");
-        if (source && source.src.includes("/media/outputs/")) {
-          const cacheBuster = `v=${Date.now()}`;
-          source.src = source.src.split("?")[0] + "?" + cacheBuster;
-          previewVideo.load();
-        }
-      }
+      // Preview reload happens when the preview job completes.
       isDirty = false;
       if (saveBar) {
         saveBar.classList.add("hidden");
@@ -1140,18 +932,36 @@
     }
   });
 
+  if (window.SubtitleTimeline) {
+    SubtitleTimeline.setHelpers({
+      subtitleList,
+      hiddenInput,
+      previewVideo,
+      waveformImage,
+      focusedBlock,
+      focusedLabel,
+      focusedStart,
+      focusedEnd,
+      focusedText,
+      TIMELINE_WINDOW_SECONDS,
+      parseTimestamp,
+      formatTimestamp,
+      collectSubtitles,
+      markDirty,
+      markTimelineDirty,
+      updateBlockDurations,
+      getSuppressTimelineAutoScrollUntil: () => suppressTimelineAutoScrollUntil,
+    });
+    SubtitleTimeline.init();
+  }
+
   // Initialize hidden input with current values.
   hiddenInput.value = JSON.stringify(collectSubtitles());
   isDirty = false;
   updateBlockDurations();
-  renderTimeline();
+  SubtitleTimeline.render();
   captureTimelineBaseline();
   initialStyleState = currentStylePayload();
-  if (waveformImage) {
-    waveformImage.addEventListener("load", () => {
-      renderTimeline();
-    });
-  }
   if (saveBar) {
     saveBar.classList.add("hidden");
     saveBar.classList.remove("flex");
@@ -1175,7 +985,7 @@
   if (previewVideo) {
     let rafId = null;
     const tick = () => {
-      updatePlayhead();
+      SubtitleTimeline.updatePlayhead();
       rafId = requestAnimationFrame(tick);
     };
     const startTick = () => {
@@ -1194,38 +1004,10 @@
     previewVideo.addEventListener("play", startTick);
     previewVideo.addEventListener("pause", stopTick);
     previewVideo.addEventListener("ended", stopTick);
-    previewVideo.addEventListener("seeked", updatePlayhead);
-    previewVideo.addEventListener("loadedmetadata", updatePlayhead);
+    previewVideo.addEventListener("seeked", SubtitleTimeline.updatePlayhead);
+    previewVideo.addEventListener("loadedmetadata", SubtitleTimeline.updatePlayhead);
   }
 
-  const timeline = document.getElementById("timeline");
-  const timelineViewport = document.getElementById("timeline-viewport");
-  if (timelineViewport && timeline && previewVideo) {
-    timelineViewport.addEventListener("click", (event) => {
-      const duration = Number(timeline.dataset.duration || 0);
-      if (!duration) {
-        return;
-      }
-      const rect = timelineViewport.getBoundingClientRect();
-      const x = Math.min(Math.max(event.clientX - rect.left, 0), rect.width);
-      const windowDuration = Math.min(TIMELINE_WINDOW_SECONDS, duration);
-      const waveformWidth = Number(timeline.dataset.waveformWidth || 0);
-      const totalWidth =
-        duration <= windowDuration
-          ? timelineViewport.clientWidth
-          : Math.max(
-              timelineViewport.clientWidth,
-              waveformWidth > 0
-                ? waveformWidth
-                : timelineViewport.clientWidth * (duration / windowDuration)
-            );
-      const absoluteX = timelineViewport.scrollLeft + x;
-      const targetTime = (absoluteX / totalWidth) * duration;
-      previewVideo.currentTime = targetTime;
-      renderTimeline();
-      updatePlayhead();
-    });
-  }
 
   if (timelineReset) {
     timelineReset.addEventListener("click", () => {
@@ -1268,7 +1050,7 @@
       hiddenInput.value = JSON.stringify(collectSubtitles());
       markDirty();
       updateBlockDurations();
-      renderTimeline();
+      SubtitleTimeline.render();
       if (focusedBlock && focusedBlock.dataset.index) {
         const focusedIndex = Number(focusedBlock.dataset.index);
         if (!Number.isNaN(focusedIndex)) {

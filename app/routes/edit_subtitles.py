@@ -331,6 +331,7 @@ def save_edits(
         if not previous_group:
             continue
         if len(group_blocks) != len(previous_group):
+            manual_groups.add(group_id)
             continue
         for index, block in enumerate(group_blocks):
             prev_block = previous_group[index]
