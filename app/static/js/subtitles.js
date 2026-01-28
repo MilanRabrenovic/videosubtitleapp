@@ -447,11 +447,11 @@
     toggleFontUpload();
   }
 
+  let queuedPreviewJob = false;
   const presetMap = (() => {
     if (!presetDataEl) {
       return {};
     }
-    let queuedPreviewJob = false;
     try {
       return JSON.parse(presetDataEl.textContent || "{}");
     } catch (error) {
