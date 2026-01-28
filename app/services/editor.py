@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 from pathlib import Path
+import json
 from typing import Any
 
-from app.config import OUTPUTS_DIR, UPLOADS_DIR
+from app.config import LONG_VIDEO_WARNING_SECONDS, OUTPUTS_DIR, UPLOADS_DIR
 from app.services.fonts import (
     available_google_font_variants,
     available_local_font_variants,
@@ -15,12 +16,17 @@ from app.services.fonts import (
     find_system_font_variant,
     font_files_available,
     google_fonts_css_url,
+    google_font_choices,
     is_google_font,
     normalize_font_name,
     resolve_font_file,
+    system_font_choices,
+    guess_font_family,
+    save_uploaded_font,
 )
-from app.services.jobs import create_job, load_job, touch_job_access
+from app.services.jobs import create_job, load_job, touch_job_access, last_failed_step
 from app.services.cleanup import touch_job
+from app.services.presets import builtin_presets, list_user_presets
 from app.services.subtitles import (
     apply_manual_breaks,
     build_karaoke_lines,
@@ -28,6 +34,7 @@ from app.services.subtitles import (
     load_subtitle_job,
     load_transcript_words,
     merge_subtitles_by_group,
+    normalize_style,
     save_subtitle_job,
     split_subtitles_by_word_timings,
     split_subtitles_by_words,
@@ -156,6 +163,104 @@ def _build_style(style_form: dict[str, Any], job_data: dict[str, Any]) -> dict[s
     return style
 
 
+def _build_presets_payload(user_id: int) -> list[dict[str, Any]]:
+    user_presets = list_user_presets(user_id)
+    return builtin_presets() + [
+        {"id": f"user:{preset['id']}", "name": preset["name"], "style": preset["style"]}
+        for preset in user_presets
+    ]
+
+
+def build_edit_context(job_id: str, user_id: int) -> dict[str, Any]:
+    job_data = load_subtitle_job(job_id)
+    job_status = None
+    job_error = None
+    job_failed_step = None
+    job_record = load_job(job_id)
+    job_pinned = job_record.get("pinned", False) if job_record else False
+    presets_payload = _build_presets_payload(user_id)
+    if not job_data:
+        if not job_record:
+            raise RuntimeError("Subtitle job not found")
+        touch_job_access(job_id, locked=True)
+        options = job_record.get("input", {}).get("options", {}) or {}
+        job_data = {
+            "job_id": job_id,
+            "title": options.get("title", "Untitled"),
+            "video_filename": options.get("video_filename", ""),
+            "subtitles": [],
+            "style": default_style(),
+        }
+        job_status = job_record.get("status")
+        job_error = job_record.get("error")
+        job_failed_step = last_failed_step(job_record) if job_record else None
+    else:
+        touch_job(job_id)
+        touch_job_access(job_id, locked=True)
+
+    job_data["style"] = normalize_style(job_data.get("style"))
+    for index, block in enumerate(job_data["subtitles"]):
+        block.setdefault("group_id", index)
+    job_data.setdefault("custom_fonts", [])
+    if "video_duration" not in job_data:
+        options = job_record.get("input", {}).get("options", {}) if job_record else {}
+        job_data["video_duration"] = options.get("video_duration") or 0
+    job_data.setdefault("video_duration", 0)
+    job_data.setdefault("waveform_image", f"{job_id}_waveform.png")
+    if not job_data.get("waveform_width") and job_data.get("video_duration"):
+        pixels_per_second = 20
+        max_width = 30000
+        min_width = 1200
+        job_data["waveform_width"] = max(
+            min_width,
+            min(int(job_data["video_duration"] * pixels_per_second), max_width),
+        )
+    job_data.setdefault("waveform_width", 1200)
+
+    preview_path = OUTPUTS_DIR / f"{job_id}_preview.mp4"
+    waveform_path = OUTPUTS_DIR / f"{job_id}_waveform.png"
+    preview_token = int(preview_path.stat().st_mtime) if preview_path.exists() else None
+    waveform_token = int(waveform_path.stat().st_mtime) if waveform_path.exists() else None
+    font_css = None
+    font_family = job_data["style"].get("font_family")
+    font_warning = None
+    if is_google_font(font_family):
+        font_css = google_fonts_css_url(font_family)
+        if not font_files_available(font_family):
+            font_warning = (
+                f"Font '{font_family}' is not available locally. "
+                "Install it. Or place the TTF/OTF files in outputs/fonts/"
+                f"{font_family.replace(' ', '-')}/."
+            )
+    job_custom_fonts = job_data.get("custom_fonts") or available_local_fonts(job_id)
+    job_record = load_job(job_id)
+    job_pinned = job_record.get("pinned", False) if job_record else False
+    return {
+        "job": job_data,
+        "preview_available": preview_path.exists(),
+        "preview_token": preview_token,
+        "waveform_available": waveform_path.exists(),
+        "waveform_token": waveform_token,
+        "preview_job_id": None,
+        "google_fonts": google_font_choices(),
+        "system_fonts": system_font_choices(),
+        "custom_fonts": job_custom_fonts,
+        "font_css_url": font_css,
+        "font_warning": font_warning,
+        "processing_job_id": job_id if job_status in {"queued", "running"} else None,
+        "processing_job_status": job_status,
+        "processing_job_error": job_error,
+        "processing_job_step": job_failed_step,
+        "job_pinned": job_pinned,
+        "long_video_warning": bool(
+            job_data.get("video_duration", 0)
+            and job_data["video_duration"] > LONG_VIDEO_WARNING_SECONDS
+        ),
+        "presets": presets_payload,
+        "preset_data_json": json.dumps({p["id"]: p for p in presets_payload}),
+    }
+
+
 def save_subtitle_edits(
     *,
     job_id: str,
@@ -270,3 +375,59 @@ def save_subtitle_edits(
         "font_warning": font_warning,
         "job_pinned": job_pinned,
     }
+
+
+def handle_font_upload(
+    *,
+    job_id: str,
+    font_file,
+    font_family: str,
+    license_confirmed: bool,
+    session_id: str | None,
+    owner_user_id: int,
+) -> dict[str, Any]:
+    if not license_confirmed:
+        raise ValueError("Please confirm font usage rights")
+    job_data = load_subtitle_job(job_id)
+    if not job_data:
+        raise RuntimeError("Subtitle job not found")
+    guessed_family = guess_font_family(getattr(font_file, "filename", "")) or font_family.strip()
+    guessed_family = guessed_family or getattr(font_file, "filename", "") or ""
+    saved = save_uploaded_font(guessed_family, font_file.filename or "", font_file.file.read(), job_id)
+    if not saved:
+        raise ValueError("Unsupported font file")
+    _, detected_family, detected_full, italic, weight = saved
+
+    job_data["style"] = normalize_style(job_data.get("style"))
+    job_data["style"]["font_family"] = detected_full
+    job_data["style"]["font_bold"] = False
+    job_data["style"]["font_italic"] = italic
+    job_data["style"]["font_weight"] = int(weight)
+    job_data["style"]["font_style"] = "italic" if italic else "regular"
+    job_data.setdefault("custom_fonts", [])
+    if detected_full and detected_full not in job_data["custom_fonts"]:
+        job_data["custom_fonts"].append(detected_full)
+    save_subtitle_job(job_id, job_data)
+    touch_job(job_id)
+    touch_job_access(job_id)
+
+    preview_path = OUTPUTS_DIR / f"{job_id}_preview.mp4"
+    waveform_path = OUTPUTS_DIR / f"{job_id}_waveform.png"
+    video_path = UPLOADS_DIR / job_data.get("video_filename", "")
+    preview_job_id = None
+    if video_path.exists():
+        preview_job = create_job(
+            "preview",
+            {"video_path": str(video_path), "options": {"subtitle_job_id": job_id}},
+            owner_session_id=session_id,
+            owner_user_id=int(owner_user_id),
+        )
+        preview_job_id = preview_job["job_id"]
+
+    context = build_edit_context(job_id, owner_user_id)
+    context["preview_job_id"] = preview_job_id
+    context["preview_available"] = preview_path.exists()
+    context["preview_token"] = int(preview_path.stat().st_mtime) if preview_path.exists() else None
+    context["waveform_available"] = waveform_path.exists()
+    context["waveform_token"] = int(waveform_path.stat().st_mtime) if waveform_path.exists() else None
+    return context
