@@ -58,6 +58,9 @@ def save_edits(
     request: Request,
     job_id: str,
     subtitles_json: str = Form(...),
+    font_file: UploadFile = File(None),
+    font_family: str = Form(""),
+    font_license_confirm: str = Form(None),
     style_font_family: str = Form(None),
     style_font_size: int = Form(None),
     style_text_color: str = Form(None),
@@ -126,6 +129,9 @@ def save_edits(
         style_form=style_form,
         session_id=session_id,
         owner_user_id=int(user["id"]),
+        font_file=font_file if font_file and font_file.filename else None,
+        font_family=font_family,
+        font_license_confirm=font_license_confirm,
     )
     return templates.TemplateResponse(
         "edit.html",

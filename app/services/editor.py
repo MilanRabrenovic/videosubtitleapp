@@ -4,9 +4,10 @@ from __future__ import annotations
 
 from pathlib import Path
 import json
+import re
 from typing import Any
 
-from app.config import LONG_VIDEO_WARNING_SECONDS, OUTPUTS_DIR, UPLOADS_DIR
+from app.config import FONTS_DIR, LONG_VIDEO_WARNING_SECONDS, OUTPUTS_DIR, UPLOADS_DIR
 from app.services.fonts import (
     available_google_font_variants,
     available_local_font_variants,
@@ -58,6 +59,10 @@ def _group_blocks(blocks: list[dict[str, Any]]) -> dict[int | None, list[dict[st
 def _build_style(style_form: dict[str, Any], job_data: dict[str, Any]) -> dict[str, Any]:
     style_defaults = default_style()
     existing_style = job_data.get("style") or {}
+    if style_form.get("font_family"):
+        style_form["font_family"] = _strip_variant_from_family(str(style_form.get("font_family"))) or style_form.get(
+            "font_family"
+        )
     style = {
         "font_family": style_form.get("font_family") or style_defaults["font_family"],
         "font_size": style_form.get("font_size") or style_defaults["font_size"],
@@ -112,6 +117,12 @@ def _build_style(style_form: dict[str, Any], job_data: dict[str, Any]) -> dict[s
     canonical_font = normalize_font_name(style.get("font_family"))
     if canonical_font:
         style["font_family"] = canonical_font
+    if style_form.get("font_path"):
+        style["font_path"] = style_form.get("font_path")
+        style["font_bold"] = False
+        style["font_italic"] = str(style.get("font_style", "regular")).lower() == "italic"
+        style["font_weight"] = int(style.get("font_weight", 400))
+        return style
     desired_weight = int(style.get("font_weight", 400))
     desired_italic = str(style.get("font_style", "regular")).lower() == "italic"
     if is_google_font(style.get("font_family")):
@@ -132,7 +143,8 @@ def _build_style(style_form: dict[str, Any], job_data: dict[str, Any]) -> dict[s
             candidates,
             key=lambda variant: abs(int(variant.get("weight", 400)) - desired_weight),
         )
-        style["font_family"] = best.get("full_name") or best.get("family")
+        if best.get("family"):
+            style["font_family"] = best.get("family")
         if best.get("path"):
             style["font_path"] = str(best.get("path"))
         style["font_bold"] = False
@@ -150,8 +162,6 @@ def _build_style(style_form: dict[str, Any], job_data: dict[str, Any]) -> dict[s
         if variant_path:
             style["font_path"] = str(variant_path)
             _, full_name, is_italic, weight = detect_font_info_from_path(variant_path)
-            if full_name:
-                style["font_family"] = full_name
             style["font_bold"] = False
             style["font_italic"] = bool(is_italic)
             style["font_weight"] = int(weight or desired_weight)
@@ -161,6 +171,19 @@ def _build_style(style_form: dict[str, Any], job_data: dict[str, Any]) -> dict[s
         if fallback_path:
             style["font_path"] = str(fallback_path)
     return style
+
+
+def _strip_variant_from_family(name: str | None) -> str | None:
+    if not name:
+        return None
+    cleaned = re.sub(
+        r"(?i)\\b(regular|bold|italic|light|medium|thin|black|semibold|extrabold|extralight)\\b",
+        "",
+        name,
+    )
+    cleaned = re.sub(r"(?i)\\b\\d+\\s*pt\\b", "", cleaned)
+    cleaned = re.sub(r"\\s+", " ", cleaned).strip()
+    return cleaned or name
 
 
 def _build_presets_payload(user_id: int) -> list[dict[str, Any]]:
@@ -268,12 +291,62 @@ def save_subtitle_edits(
     style_form: dict[str, Any],
     session_id: str | None,
     owner_user_id: int,
+    font_file=None,
+    font_family: str = "",
+    font_license_confirm: str | None = None,
 ) -> dict[str, Any]:
     job_data = load_subtitle_job(job_id)
     if not job_data:
         raise RuntimeError("Subtitle job not found")
 
     job_data["job_id"] = job_id
+    if font_file is not None:
+        if font_license_confirm != "on":
+            raise ValueError("Please confirm font usage rights")
+        guessed_family = guess_font_family(getattr(font_file, "filename", "")) or font_family.strip()
+        guessed_family = guessed_family or getattr(font_file, "filename", "") or ""
+        saved = save_uploaded_font(guessed_family, font_file.filename or "", font_file.file.read(), job_id)
+        if not saved:
+            raise ValueError("Unsupported font file")
+        _, detected_family, detected_full, italic, weight = saved
+        display_family = _strip_variant_from_family(detected_family or detected_full)
+        job_data["style"] = normalize_style(job_data.get("style"))
+        job_data["style"]["font_family"] = display_family
+        job_data["style"]["font_bold"] = False
+        job_data["style"]["font_italic"] = italic
+        job_data["style"]["font_weight"] = int(weight)
+        job_data["style"]["font_style"] = "italic" if italic else "regular"
+        job_data.setdefault("custom_fonts", [])
+        if display_family and display_family not in job_data["custom_fonts"]:
+            job_data["custom_fonts"].append(display_family)
+        style_form["font_family"] = display_family
+        style_form["font_weight"] = int(weight)
+        style_form["font_style"] = "italic" if italic else "regular"
+        variants = available_local_font_variants(job_id)
+        matched_variant = next(
+            (
+                variant
+                for variant in variants
+                if variant.get("full_name") == detected_full
+                or (
+                    variant.get("family") == detected_family
+                    and int(variant.get("weight", weight or 0)) == int(weight or 0)
+                    and bool(variant.get("italic")) == bool(italic)
+                )
+            ),
+            None,
+        )
+        if matched_variant and matched_variant.get("path"):
+            style_form["font_path"] = str(matched_variant.get("path"))
+        else:
+            target_dir = FONTS_DIR / "jobs" / job_id
+            stem = Path(font_file.filename or "").stem
+            suffix = Path(font_file.filename or "").suffix.lower()
+            if stem and suffix and target_dir.exists():
+                candidates = list(target_dir.glob(f"{stem}-*{suffix}"))
+                if candidates:
+                    latest = max(candidates, key=lambda p: p.stat().st_mtime)
+                    style_form["font_path"] = str(latest)
     style = _build_style(style_form, job_data)
     words = load_transcript_words(job_id)
     previous_blocks = job_data.get("subtitles", [])
@@ -397,16 +470,17 @@ def handle_font_upload(
     if not saved:
         raise ValueError("Unsupported font file")
     _, detected_family, detected_full, italic, weight = saved
+    display_family = detected_family or _strip_variant_from_family(detected_full) or _strip_variant_from_family(guessed_family)
 
     job_data["style"] = normalize_style(job_data.get("style"))
-    job_data["style"]["font_family"] = detected_full
+    job_data["style"]["font_family"] = display_family
     job_data["style"]["font_bold"] = False
     job_data["style"]["font_italic"] = italic
     job_data["style"]["font_weight"] = int(weight)
     job_data["style"]["font_style"] = "italic" if italic else "regular"
     job_data.setdefault("custom_fonts", [])
-    if detected_full and detected_full not in job_data["custom_fonts"]:
-        job_data["custom_fonts"].append(detected_full)
+    if display_family and display_family not in job_data["custom_fonts"]:
+        job_data["custom_fonts"].append(display_family)
     save_subtitle_job(job_id, job_data)
     touch_job(job_id)
     touch_job_access(job_id)

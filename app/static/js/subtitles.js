@@ -14,6 +14,8 @@
   const saveButton = document.getElementById("save-button");
   const exportForms = document.querySelectorAll("form[action^='/export/']");
   const fontUploadButton = document.getElementById("font-upload-button");
+  const fontUploadForm = document.getElementById("font-upload-form");
+  const fontDeleteForm = document.getElementById("font-delete-form");
   const pinSubmit = document.getElementById("pin-submit");
   const subtitleInputs = form ? form.querySelectorAll("input, select, textarea, button") : [];
   const jobStatus = document.getElementById("job-status");
@@ -44,6 +46,8 @@
     warning: "bg-amber-50 text-amber-900 border border-amber-200",
   };
   const fontLicenseConfirm = document.getElementById("font-license-confirm");
+  const fontFileInput = document.querySelector("input[name='font_file']");
+  let fontQueued = false;
   const fontInput = document.getElementById("font-input");
   const fontValue = document.getElementById("font-value");
   const fontOptions = document.getElementById("font-options");
@@ -63,6 +67,7 @@
   let timelineDirtyIndices = new Set();
   let initialStyleState = null;
   let suppressTimelineAutoScrollUntil = 0;
+  let suppressUnloadWarning = false;
 
   const setProcessingState = (isProcessing) => {
     if (saveButton) {
@@ -441,10 +446,45 @@
 
   if (fontLicenseConfirm && fontUploadButton) {
     const toggleFontUpload = () => {
-      fontUploadButton.disabled = !fontLicenseConfirm.checked;
+      const hasFile = Boolean(fontFileInput && fontFileInput.files && fontFileInput.files.length);
+      fontUploadButton.disabled = !fontLicenseConfirm.checked || !hasFile || fontQueued;
     };
     fontLicenseConfirm.addEventListener("change", toggleFontUpload);
+    if (fontFileInput) {
+      fontFileInput.addEventListener("change", () => {
+        fontQueued = false;
+        toggleFontUpload();
+      });
+    }
     toggleFontUpload();
+  }
+
+  if (fontUploadForm) {
+    fontUploadForm.addEventListener("submit", () => {
+      suppressUnloadWarning = true;
+    });
+  }
+
+  if (fontDeleteForm) {
+    fontDeleteForm.addEventListener("submit", () => {
+      suppressUnloadWarning = true;
+    });
+  }
+
+  if (fontUploadButton) {
+    fontUploadButton.addEventListener("click", () => {
+      if (!fontFileInput || !fontFileInput.files || !fontFileInput.files.length) {
+        return;
+      }
+      if (fontLicenseConfirm && !fontLicenseConfirm.checked) {
+        return;
+      }
+      fontQueued = true;
+      if (fontUploadButton) {
+        fontUploadButton.disabled = true;
+      }
+      markDirty();
+    });
   }
 
   let queuedPreviewJob = false;
@@ -852,7 +892,14 @@
     const viewport = document.getElementById("timeline-viewport");
     const previousScroll = viewport ? viewport.scrollLeft : 0;
     try {
-      const response = await fetch(form.action, { method: "POST", body: new FormData(form) });
+      const formData = new FormData(form);
+      if (fontFileInput && fontFileInput.files && fontFileInput.files.length) {
+        formData.append("font_file", fontFileInput.files[0]);
+      }
+      if (fontLicenseConfirm && fontLicenseConfirm.checked) {
+        formData.append("font_license_confirm", "on");
+      }
+      const response = await fetch(form.action, { method: "POST", body: formData });
       if (!response.ok) {
         let detail = "Save failed. Please try again.";
         if (response.status === 413) {
@@ -896,6 +943,9 @@
             field.value = updated.value;
           }
         });
+        if (fontInput && fontValue) {
+          fontInput.value = fontValue.value || "";
+        }
       }
       const updatedJobStatus = doc.getElementById("job-status");
       if (updatedJobStatus && jobStatus) {
@@ -975,7 +1025,7 @@
   }
 
   window.addEventListener("beforeunload", (event) => {
-    if (!isDirty) {
+    if (!isDirty || suppressUnloadWarning) {
       return;
     }
     event.preventDefault();
