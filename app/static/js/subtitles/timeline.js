@@ -133,6 +133,7 @@
       bar.dataset.index = block.dataset.index || "";
       const textValue = block.querySelector(".text")?.value || "";
       const wordCount = textValue.trim() ? textValue.trim().split(/\s+/).length : 0;
+      bar.tabIndex = 0; // Make focusable
       bar.innerHTML =
         "<span class='handle-left absolute top-0 h-full cursor-ew-resize' style='left:-4px;width:8px;'></span>" +
         "<span class='handle-right absolute top-0 h-full cursor-ew-resize' style='right:-4px;width:8px;'></span>" +
@@ -144,10 +145,10 @@
         if (barWidth >= 18) {
           const maxSeparators = Math.min(wordCount - 1, 30);
           for (let i = 1; i <= maxSeparators; i += 1) {
-            const leftPos = (i / wordCount) * barWidth;
+            const leftPercent = (i / wordCount) * 100;
             const separator = document.createElement("span");
             separator.className = "absolute inset-y-1 w-px bg-slate-500/20";
-            separator.style.left = `${leftPos}px`;
+            separator.style.left = `${leftPercent}%`;
             bar.appendChild(separator);
           }
         }
@@ -155,6 +156,9 @@
 
       const onPointerDown = (event, mode) => {
         event.preventDefault();
+        // Focus the bar so keyboard events work
+        bar.focus({ preventScroll: true });
+        
         const startSeconds = helpers.parseTimestamp(block.querySelector(".start").value.trim()) || 0;
         const endSeconds = helpers.parseTimestamp(block.querySelector(".end").value.trim()) || startSeconds + 0.1;
         const length = endSeconds - startSeconds;
@@ -200,12 +204,23 @@
           onPointerDown(event, "move");
         }
       });
+      
+      bar.addEventListener("keydown", (event) => {
+        if (event.key === "Delete" || event.key === "Backspace") {
+           event.preventDefault();
+           if (helpers.deleteBlock) {
+               helpers.deleteBlock(bar.dataset.index);
+           }
+        }
+      });
+
       bar.addEventListener("click", (event) => {
         event.stopPropagation();
         const index = Number(bar.dataset.index);
         if (Number.isNaN(index)) {
           return;
         }
+        bar.focus({ preventScroll: true }); // Focus the pill
         const target = helpers.subtitleList.querySelector(`.subtitle-block[data-index="${index}"]`);
         if (!target) {
           return;
@@ -224,7 +239,9 @@
           helpers.focusedStart.value = target.querySelector(".start").value;
           helpers.focusedEnd.value = target.querySelector(".end").value;
           helpers.focusedText.value = target.querySelector(".text").value;
-          helpers.focusedStart.focus();
+          // IMPORTANT: Do NOT auto-focus the input fields, so 'Delete' key 
+          // works on the pill itself. The user can click the input fields if they want to type.
+          // helpers.focusedStart.focus(); 
         }
       });
     });

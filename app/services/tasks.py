@@ -23,6 +23,7 @@ from app.services.subtitles import (
     whisper_segments_to_subtitles,
 )
 from app.services.transcription import transcribe_video
+from app.services.resync_helper import fill_subtitle_gaps
 import re
 from app.services.video import (
     burn_in_ass,
@@ -178,12 +179,15 @@ def run_preview_job(job: Dict[str, Any]) -> Dict[str, Any]:
     render_style = _render_style(job_id, job_data.get("style", {}))
     start_step(job_id, "preview_render")
     try:
+        # Fill gaps for seamless playback of preview
+        filled_subtitles = fill_subtitle_gaps(job_data.get("subtitles", []))
+        
         if words:
             manual_groups = set(job_data.get("manual_groups", []))
-            karaoke_lines = build_karaoke_lines(words, job_data.get("subtitles", []), manual_groups)
+            karaoke_lines = build_karaoke_lines(words, filled_subtitles, manual_groups)
             generate_karaoke_ass(karaoke_lines, preview_ass_path, render_style)
         else:
-            generate_ass_from_subtitles(job_data.get("subtitles", []), preview_ass_path, render_style)
+            generate_ass_from_subtitles(filled_subtitles, preview_ass_path, render_style)
         fonts_dir = _fonts_dir_for_style(render_style, job_id)
         burn_in_ass(video_path, preview_ass_path, preview_path, fonts_dir)
     except Exception as exc:  # noqa: BLE001
@@ -208,7 +212,8 @@ def run_export_job(job: Dict[str, Any]) -> Dict[str, Any]:
         raise RuntimeError("Source video not found")
     style = job_data.get("style", {})
     render_style = _render_style(job_id, style)
-    subtitles = job_data.get("subtitles", [])
+    # Fill gaps for seamless playback of export
+    subtitles = fill_subtitle_gaps(job_data.get("subtitles", []))
     words = load_transcript_words(job_id)
     def safe_name(value: str) -> str:
         cleaned = re.sub(r"[^A-Za-z0-9._-]+", "-", value).strip("-")

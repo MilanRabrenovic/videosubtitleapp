@@ -797,6 +797,11 @@
       return;
     }
     block.remove();
+    // If the deleted block was the one currently focused, hide the focus panel
+    if (focusedBlock && focusedBlock.dataset.index === block.dataset.index) {
+        focusedBlock.classList.add("hidden");
+        focusedBlock.dataset.index = "";
+    }
     hiddenInput.value = JSON.stringify(collectSubtitles());
     markDirty();
     updateBlockDurations();
@@ -972,6 +977,12 @@
       updateToastOffset();
       captureTimelineBaseline();
       initialStyleState = currentStylePayload();
+      
+      // Unfocus block on save
+      if (focusedBlock) {
+          focusedBlock.classList.add("hidden");
+          focusedBlock.dataset.index = "";
+      }
     } catch (error) {
       console.error(error);
       showToast(error.message || "Save failed. Please try again.", error.message?.includes("Too many") ? "warning" : "error", 3200);
@@ -1000,6 +1011,14 @@
       markDirty,
       markTimelineDirty,
       updateBlockDurations,
+      deleteBlock: (index) => {
+        const idx = Number(index);
+        if (Number.isNaN(idx)) return;
+        const block = subtitleList.querySelector(`.subtitle-block[data-index="${idx}"]`);
+        if (block) {
+          block.querySelector(".delete-block").click();
+        }
+      },
       getSuppressTimelineAutoScrollUntil: () => suppressTimelineAutoScrollUntil,
     });
     SubtitleTimeline.init();

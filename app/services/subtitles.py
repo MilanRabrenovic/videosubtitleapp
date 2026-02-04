@@ -290,15 +290,31 @@ def split_subtitles_by_word_timings(
             continue
         group_id = group_ids[index] if group_ids and index < len(group_ids) else None
         chunks = [line_words[i : i + max_words] for i in range(0, len(line_words), max_words)]
-        for chunk in chunks:
+        for chunk_index, chunk in enumerate(chunks):
             if not chunk:
                 continue
             start = float(chunk[0].get("start", 0.0))
             end = float(chunk[-1].get("end", start))
-            if start < last_end + min_gap:
-                start = last_end + min_gap
-            if end < start + min_gap:
-                end = start + min_gap
+            if start < last_end:
+                 start = last_end
+            if start < last_end + min_gap and index > 0 and chunk_index == 0:
+                 pass 
+            
+            if start < last_end + 0.05: # Minimal gap
+                 start = max(start, last_end + 0.05)
+            
+            if end < start + 0.1:
+                end = start + 0.1
+            
+            # Sync word timings with the block boundaries
+            # If we shifted the block start/end, we should update the boundary words
+            # so the pills align perfectly with the block.
+            if chunk:
+                if float(chunk[0].get("start", 0.0)) < start:
+                    chunk[0]["start"] = start
+                if float(chunk[-1].get("end", 0.0)) > end:
+                    chunk[-1]["end"] = end
+
             tokens = [str(word.get("word", "")).strip() for word in chunk]
             text = _join_karaoke_tokens(tokens)
             if not text:
@@ -448,7 +464,7 @@ def _single_line_text(text: str, style: Dict[str, Any]) -> str:
     """Force subtitle text to a single line if enabled."""
     if not style.get("single_line", True):
         return text
-    return " ".join(text.replace("\r", " ").replace("\n", " ").split())
+    return " ".join(text.replace("|", " ").replace("\r", " ").replace("\n", " ").split())
 
 
 def _apply_single_line_override(text: str, style: Dict[str, Any]) -> str:
@@ -485,7 +501,8 @@ def _split_text_lines(text: str, style: Dict[str, Any]) -> List[str]:
         return [text]
     max_words = int(style.get("max_words_per_line", 7))
     max_chars = _max_chars_per_line(style)
-    segments = [segment for segment in text.replace("\r", "").split("\n") if segment.strip()]
+    normalized = text.replace("|", "\n").replace("\r", "")
+    segments = [segment for segment in normalized.split("\n") if segment.strip()]
     if not segments:
         return []
     lines: List[str] = []
@@ -1101,16 +1118,15 @@ def build_karaoke_lines(
         group_id = block.get("group_id")
         manual_mode = manual_groups is not None and group_id in manual_groups
         if manual_mode:
-            while index < total_words:
-                word = words[index]
+            # Manual timing edits: collect words by time window to keep real durations.
+            for word in words:
                 word_start = float(word.get("start", 0.0))
                 word_end = float(word.get("end", word_start))
                 if word_end < block_start:
-                    index += 1
                     continue
                 if word_start > block_end:
-                    break
-                index += 1
+                    continue
+                block_words.append(word)
         else:
             while index < total_words:
                 word = words[index]
@@ -1123,8 +1139,6 @@ def build_karaoke_lines(
                     break
                 block_words.append(word)
                 index += 1
-        if manual_mode:
-            block_words = []
 
         raw_tokens = block_text.split()
         if not raw_tokens:
@@ -1148,27 +1162,252 @@ def build_karaoke_lines(
                     }
                 )
         elif block_words and match_tokens:
-            total = len(block_words)
-            count = len(match_tokens)
+            # Greedy alignment to handle token count mismatches (e.g. "mega-money-wheel" vs "mega", "money", "wheel")
+            # This preserves precise timings for matching words and only interpolates local mismatches.
+            
+            def normalize(s: str) -> str:
+                return re.sub(r"\W+", "", s.lower())
+
+            bw_len = len(block_words)
+            mt_len = len(match_tokens)
+            bw_cursor = 0
+            
+            # Map each match_token to a list of block_word indices
+            alignment_map: Dict[int, List[int]] = {i: [] for i in range(mt_len)}
+            
+            for i in range(mt_len):
+                token_norm = normalize(match_tokens[i])
+                if not token_norm: 
+                    continue
+                
+                # look ahead in block_words
+                best_match_idx = -1
+                
+                # Check current cursor first
+                if bw_cursor < bw_len:
+                    word_norm = normalize(str(block_words[bw_cursor].get("word", "")))
+                    if word_norm.startswith(token_norm) or token_norm.startswith(word_norm) or token_norm == word_norm:
+                        best_match_idx = bw_cursor
+                    # Handle 1-to-N case (one block word covers multiple tokens)
+                    # "mega-money-wheel" covers "mega", "money", "wheel"
+                    # If we already matched bw_cursor to previous token, check if it still matches
+                    elif i > 0 and alignment_map[i-1] and alignment_map[i-1][-1] == bw_cursor:
+                        # Re-check if this word covers this token too? 
+                        # Simple heuristic: if we didn't advance cursor, reuse it?
+                        # Actually simpler: standard greedy forward.
+                        pass
+
+                # If no match at cursor, search forward a bit (window of 5)
+                if best_match_idx == -1:
+                    for offset in range(1, 6):
+                        if bw_cursor + offset >= bw_len: break
+                        w_norm = normalize(str(block_words[bw_cursor + offset].get("word", "")))
+                        if w_norm == token_norm:
+                            best_match_idx = bw_cursor + offset
+                            break
+                
+                if best_match_idx != -1:
+                    alignment_map[i].append(best_match_idx)
+                    # If exact match or close enough, advance cursor
+                    # But if 1-to-N (word covers multiple tokens), we might not want to advance yet?
+                    # Let's assume 1-to-1 or N-to-1 primarily.
+                    # For 1-to-N (hyphens), the word "mega-money-wheel" matches "mega".
+                    # We advance cursor? No, we need it for "money".
+                    
+                    word_full = normalize(str(block_words[best_match_idx].get("word", "")))
+                    # If token is just a prefix of word, do not advance cursor effectively?
+                    # But we are strictly iterating tokens.
+                    # If token == "mega" and word == "megamoneywheel"
+                    if len(word_full) > len(token_norm) and word_full.startswith(token_norm):
+                        # Partial match. Keep cursor here for next token?
+                        # Only if next token is likely part of this word.
+                        # For now, let's keep it simple: mapped.
+                        # We only advance cursor if we think we exhausted the word.
+                        # Simple heuristic: Always update cursor to best_match_idx. 
+                        # Only increment if we "used up" the word? 
+                        # Let's just rely on the Search Forward to find the next word if we advanced too fast.
+                        # OR: just track usage.
+                        bw_cursor = best_match_idx 
+                        # Don't increment bw_cursor here, let the next token's search start from current.
+                        # But we risk reusing same word for unrelated tokens.
+                        # Wait, we need to consume words.
+                        pass
+                    else:
+                         bw_cursor = best_match_idx + 1
+
+            # Fill gaps and build lines
+            # If a token has no match, interpolate from neighbors.
+            for i in range(mt_len):
+                mapped_indices = alignment_map[i]
+                
+                start_time = 0.0
+                end_time = 0.0
+                
+                if mapped_indices:
+                    # Use mapped words
+                    w_idx = mapped_indices[0]
+                    start_time = float(block_words[w_idx].get("start", block_start))
+                    end_time = float(block_words[w_idx].get("end", start_time))
+                    
+                    # If 1 word maps to multiple tokens (e.g. mega-money-wheel -> mega, money, wheel)
+                    # We need to distribute duration.
+                    # Check how many tokens map to this same w_idx?
+                    siblings = [k for k, v in alignment_map.items() if v and v[0] == w_idx]
+                    if len(siblings) > 1:
+                        total_dur = end_time - start_time
+                        rank = siblings.index(i)
+                        slice_dur = total_dur / len(siblings)
+                        start_time = start_time + (rank * slice_dur)
+                        end_time = start_time + slice_dur
+                else:
+                    # No match. Interpolate.
+                    # Find previous matched
+                    prev_time = block_start
+                    for k in range(i - 1, -1, -1):
+                        if alignment_map[k]:
+                             # Get end time of that token
+                             # Re-calculate to handle logic above
+                             # To simplify: Let's first resolve all timings for all tokens, then assign.
+                             pass
+                             break 
+                    # This implies 2-pass approach is better.
+
+            # 2-Pass: Assign Raw Timings, then Interpolate Gaps
+            final_timings = []
+            for i in range(mt_len):
+                indices = alignment_map[i]
+                if indices:
+                    w_idx = indices[0]
+                    # Check siblings
+                    siblings = [k for k, v in alignment_map.items() if v and v[0] == w_idx]
+                    raw_start = float(block_words[w_idx].get("start", block_start))
+                    raw_end = float(block_words[w_idx].get("end", raw_start))
+                    
+                    if len(siblings) > 1:
+                        total_dur = max(0.01, raw_end - raw_start)
+                        rank = siblings.index(i)
+                        slice_dur = total_dur / len(siblings)
+                        s = raw_start + (rank * slice_dur)
+                        e = s + slice_dur
+                        final_timings.append({"start": s, "end": e, "fixed": True})
+                    else:
+                        final_timings.append({"start": raw_start, "end": raw_end, "fixed": True})
+                else:
+                    final_timings.append({"start": 0.0, "end": 0.0, "fixed": False})
+
+            # Pass 2b: Ensure Gaps have Minimum Duration (Gap Expansion)
+            # If inserted words (unfixed) have 0 duration, steal from neighbors.
+            MIN_INSERT_DURATION = 0.3
+            processed_gap_until = -1
+            
+            for i in range(mt_len):
+                if i <= processed_gap_until:
+                    continue
+                
+                if not final_timings[i]["fixed"]:
+                    # Found start of a gap
+                    gap_start_idx = i
+                    gap_end_idx = i
+                    for k in range(i + 1, mt_len):
+                        if not final_timings[k]["fixed"]:
+                            gap_end_idx = k
+                        else:
+                            break
+                    processed_gap_until = gap_end_idx
+                    
+                    gap_count = gap_end_idx - gap_start_idx + 1
+                    required_dur = MIN_INSERT_DURATION * gap_count
+                    
+                    # Find boundaries
+                    left_idx = gap_start_idx - 1
+                    right_idx = gap_end_idx + 1
+                    
+                    left_time = final_timings[left_idx]["end"] if left_idx >= 0 else block_start
+                    right_time = final_timings[right_idx]["start"] if right_idx < mt_len else block_end
+                    
+                    available_dur = max(0.0, right_time - left_time)
+                    deficit = required_dur - available_dur
+                    
+                    if deficit > 0.01:
+                        # Try to steal duration from neighbors
+                        steal_amount = deficit
+                        
+                        # Can steal from left?
+                        stolen_left = 0.0
+                        if left_idx >= 0 and final_timings[left_idx]["fixed"]:
+                            l_start = final_timings[left_idx]["start"]
+                            l_dur = left_time - l_start
+                            # Don't shrink below 0.1s
+                            can_steal = max(0.0, l_dur - 0.1)
+                            steal_req = steal_amount / 2 # Try splitting evenly
+                            if right_idx >= mt_len: # If no right neighbor, take all from left
+                                 steal_req = steal_amount
+                            
+                            actual_steal = min(can_steal, steal_req)
+                            # If we need more and right side can't give (not implemented fully), tough luck?
+                            # Let's try to take as much as needed up to limit.
+                            actual_steal = min(can_steal, steal_amount)
+                            
+                            if actual_steal > 0:
+                                final_timings[left_idx]["end"] -= actual_steal
+                                left_time -= actual_steal
+                                stolen_left = actual_steal
+                                steal_amount -= actual_steal
+                        
+                        # Can steal from right?
+                        if steal_amount > 0.001 and right_idx < mt_len and final_timings[right_idx]["fixed"]:
+                            r_end = final_timings[right_idx]["end"]
+                            r_dur = r_end - right_time
+                            can_steal = max(0.0, r_dur - 0.1)
+                            
+                            actual_steal = min(can_steal, steal_amount)
+                            if actual_steal > 0:
+                                final_timings[right_idx]["start"] += actual_steal
+                                right_time += actual_steal
+                                steal_amount -= actual_steal
+
+            # Interpolate Gaps
+            for i in range(mt_len):
+                if not final_timings[i]["fixed"]:
+                    # Find left neighbor
+                    left_time = block_start
+                    for k in range(i - 1, -1, -1):
+                        if final_timings[k]["fixed"]:
+                            left_time = final_timings[k]["end"]
+                            break
+                    
+                    # Find right neighbor
+                    right_time = block_end
+                    next_fixed_idx = -1
+                    for k in range(i + 1, mt_len):
+                        if final_timings[k]["fixed"]:
+                            right_time = final_timings[k]["start"]
+                            next_fixed_idx = k
+                            break
+                    
+                    # Distribute space among consecutive gaps
+                    gap_count = 1
+                    for k in range(i + 1, next_fixed_idx if next_fixed_idx != -1 else mt_len):
+                        if not final_timings[k]["fixed"]:
+                            gap_count += 1
+                        else:
+                            break
+                    
+                    dur = max(0.0, right_time - left_time)
+                    slot = dur / gap_count
+                    
+                    # Apply to this gap segment
+                    gap_idx = 0 # current is 0th in this sequence
+                    # Actually just set current
+                    final_timings[i]["start"] = left_time
+                    final_timings[i]["end"] = left_time + slot
+                    final_timings[i]["fixed"] = True # Mark fixed so next one uses it as left neighbor
+
+            # Build line_words
             for index, token in enumerate(display_tokens):
-                start_idx = int(index * total / count)
-                end_idx = int((index + 1) * total / count) - 1
-                if start_idx >= total:
-                    start_idx = total - 1
-                if end_idx < start_idx:
-                    end_idx = start_idx
-                if end_idx >= total:
-                    end_idx = total - 1
-                start = float(block_words[start_idx].get("start", block_start))
-                end = float(block_words[end_idx].get("end", start))
-                line_words.append({"word": token, "start": start, "end": end})
-        else:
-            block_duration = max(0.1, block_end - block_start)
-            per_word = block_duration / len(display_tokens)
-            for offset, token in enumerate(display_tokens):
-                start = block_start + offset * per_word
-                end = start + per_word
-                line_words.append({"word": token, "start": start, "end": end})
+                t_dat = final_timings[index]
+                line_words.append({"word": token, "start": t_dat["start"], "end": t_dat["end"]})
+
         if line_words:
             line_words = _smooth_word_timings(line_words, block_start, block_end, max_duration=None)
             line_words[0]["_line_start"] = block_start
@@ -1264,7 +1503,19 @@ def apply_manual_breaks(
         if block_end <= block_start:
             continue
 
+        if len(segments) > 1:
+            print(f"DEBUG: apply_manual_breaks breakdown for block {index}")
+            print(f"DEBUG: Segments: {segments}")
+            print(f"DEBUG: Tokens per segment: {tokens_per_segment}")
+            print(f"DEBUG: Total tokens: {total_tokens}")
+            print(f"DEBUG: Len line_words: {len(line_words) if line_words else 0}")
+            print(f"DEBUG: Len line_words: {len(line_words) if line_words else 0}")
+            if line_words:
+                 words_debug = [{"w": w.get("word"), "s": w.get("start"), "e": w.get("end")} for w in line_words[:4]]
+                 print(f"DEBUG: First 4 line_words: {words_debug}")
+                 
         if line_words and total_tokens == len(line_words):
+
             cursor = 0
             for segment_text, tokens in zip(segments, tokens_per_segment):
                 if not tokens:
