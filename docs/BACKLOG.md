@@ -20,6 +20,9 @@
 - Health checks (`/health`, `/ready`).
 - Per-job logs (stderr captured on failure).
 - Safe storage policies (retention, pinned/locked rules).
+- Factory Reset with original state backups and re-transcription callback.
+- Improved word-based segmentation with silence detection (0.5s threshold).
+
 
 ## Near-term (Launch hardening)
 ### Infrastructure & Scaling

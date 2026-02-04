@@ -106,3 +106,9 @@ For long videos the full timeline becomes too dense to edit. A moving 20-second 
 - Local filesystem storage only.
 - Minimal UI polish until the core flow is stable.
 - No video preview or advanced editing widgets.
+
+## Why we respect silence thresholds in segmentation
+Strictly following "words per line" limits can cause blocks to span unnatural pauses. We force a split if a silence > 0.5s exists to ensure visual subtitles match the audio cadence.
+
+## Why we implemented "Self-Healing" reflow
+The style state can sometimes de-sync from the actual subtitle content (e.g., if a previous save failed). The self-healing check ensures that if the content violates a user's preset limit, we force a correction rather than trusting the cached style setting.

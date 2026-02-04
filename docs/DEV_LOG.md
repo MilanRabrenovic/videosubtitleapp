@@ -225,3 +225,11 @@
 - Fixed: `queuedPreviewJob` scoping error in `subtitles.js`.
 - WIP: Highlight box rendering alignment/visibility still inconsistent after multiple approaches; current ASS output shows WordBox tags but visual alignment remains off.
 - Next action: Stabilize highlight box rendering (ensure boxes align exactly to words and show with correct color/opacity), then verify on preview and export.
+
+## 2026-02-04
+- Implemented: Factory Reset button that restores the exact original transcription state using `{job_id}_original.json` backups.
+- Implemented: Legacy fallback for Factory Reset that automatically re-runs transcription for older jobs without backups.
+- Implemented: Robust subtitle segmentation logic that respects a 0.5s silence threshold, preventing "extended pills" that span large gaps.
+- Implemented: Self-healing reflow logic that forces re-segmentation if current blocks violate the selected "Words per Line" preset.
+- Fixed: Infinite reload loop in the reset flow by stripping query parameters after processing.
+- Next action: Review backlog for remaining high-priority items.
