@@ -1,5 +1,6 @@
 """App configuration and filesystem paths."""
 
+import os
 from pathlib import Path
 
 # Base directory is the project root (subtitle-app).
@@ -13,7 +14,9 @@ TEMPLATES_DIR = BASE_DIR / "app" / "templates"
 STATIC_DIR = BASE_DIR / "app" / "static"
 MAX_STORAGE_BYTES = 20 * 1024 * 1024 * 1024
 MAX_UPLOAD_BYTES = 500 * 1024 * 1024
-MAX_VIDEO_SECONDS = 15 * 60
+MAX_FONT_UPLOAD_BYTES = 50 * 1024 * 1024
+MAX_VIDEO_SECONDS = 60 * 60
+LONG_VIDEO_WARNING_SECONDS = 10 * 60
 ALLOWED_VIDEO_EXTENSIONS = {".mp4", ".mov", ".mkv", ".webm", ".m4v"}
 JOB_WORKER_COUNT = 1
 JOB_MAX_AGE_HOURS = 72
@@ -23,6 +26,20 @@ JOB_LOCK_TTL_MINUTES = 30
 JOB_RECENT_LIMIT = 8
 JOB_CLEANUP_BATCH = 5
 SESSION_COOKIE_NAME = "subtitle_session_id"
+AUTH_COOKIE_NAME = "subtitle_auth"
+AUTH_SESSION_DAYS = 30
+AUTH_DB_PATH = BASE_DIR / "data" / "auth.db"
+RATE_LIMIT_WINDOW_SEC = 60
+RATE_LIMIT_UPLOAD_PER_WINDOW = 5
+RATE_LIMIT_EXPORT_PER_WINDOW = 10
+RATE_LIMIT_EDIT_PER_WINDOW = 20
+REDIS_URL = os.getenv("REDIS_URL", "")
+JOB_QUEUE_NAME = "subtitle"
+JOB_TIMEOUT_TRANSCRIBE = 1800
+JOB_TIMEOUT_PREVIEW = 600
+JOB_TIMEOUT_EXPORT = 1800
+JOB_TIMEOUT_KARAOKE = 1800
+JOB_LOG_DIR = OUTPUTS_DIR / "job-logs"
 
 
 def ensure_directories() -> None:
@@ -31,3 +48,5 @@ def ensure_directories() -> None:
     OUTPUTS_DIR.mkdir(parents=True, exist_ok=True)
     FONTS_DIR.mkdir(parents=True, exist_ok=True)
     JOBS_DIR.mkdir(parents=True, exist_ok=True)
+    AUTH_DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+    JOB_LOG_DIR.mkdir(parents=True, exist_ok=True)

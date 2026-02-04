@@ -26,3 +26,17 @@ ffmpeg -filters | grep subtitles
 uvicorn app.main:app --reload
 ```
 Then open `http://127.0.0.1:8000`.
+
+## Optional: Redis queue (for parallel jobs)
+If you want multiple jobs to run in parallel, use Redis + RQ.
+
+```bash
+export REDIS_URL=redis://localhost:6379/0
+```
+
+Start a worker:
+```bash
+python -m app.worker
+```
+
+The app will still run without Redis; it falls back to the single in-process worker.

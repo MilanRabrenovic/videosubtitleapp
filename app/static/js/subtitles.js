@@ -8,19 +8,37 @@
   const exportStatus = document.getElementById("export-status");
   const exportSrtButton = document.querySelector("[data-export='srt']");
   const exportKaraokeButtons = document.querySelectorAll("[data-export='video-karaoke']");
+  const exportGreenButtons = document.querySelectorAll("[data-export='video-greenscreen']");
   const exportVideoStatus = document.getElementById("video-export-status");
   const previewVideo = document.getElementById("preview-video");
   const saveButton = document.getElementById("save-button");
   const exportForms = document.querySelectorAll("form[action^='/export/']");
   const fontUploadButton = document.getElementById("font-upload-button");
+  const fontUploadForm = document.getElementById("font-upload-form");
+  const fontDeleteForm = document.getElementById("font-delete-form");
   const pinSubmit = document.getElementById("pin-submit");
   const subtitleInputs = form ? form.querySelectorAll("input, select, textarea, button") : [];
   const jobStatus = document.getElementById("job-status");
   const previewJob = document.getElementById("preview-job");
   const editorJob = document.getElementById("editor-job");
+  const timelineReset = document.getElementById("timeline-reset");
+  const saveBar = document.getElementById("save-bar");
+  const saveBarButton = document.getElementById("save-bar-button");
+  const blockCount = document.getElementById("block-count");
+  const highlightMode = document.querySelector("[name=\"style_highlight_mode\"]");
+  const highlightOpacityField = document.querySelector(".highlight-opacity-field");
+  const highlightTextOpacityField = document.querySelector(".highlight-text-opacity-field");
+  const textOpacityField = document.querySelector(".text-opacity-field");
+  const focusedBlock = document.getElementById("focused-block");
+  const focusedLabel = document.getElementById("focused-block-label");
+  const focusedStart = document.getElementById("focused-start");
+  const focusedEnd = document.getElementById("focused-end");
+  const focusedText = document.getElementById("focused-text");
+  const focusedDelete = document.getElementById("focused-delete");
   const pinForm = document.getElementById("pin-form");
   const pinCheckbox = document.getElementById("pin-checkbox");
   const pinStatus = document.getElementById("pin-status");
+  const factoryResetButton = document.getElementById("factory-reset-button");
   const toast = document.getElementById("toast");
   const toastClasses = {
     info: "bg-slate-900/90 text-white border border-slate-700/60",
@@ -29,17 +47,35 @@
     warning: "bg-amber-50 text-amber-900 border border-amber-200",
   };
   const fontLicenseConfirm = document.getElementById("font-license-confirm");
+  const fontFileInput = document.querySelector("input[name='font_file']");
+  let fontQueued = false;
   const fontInput = document.getElementById("font-input");
   const fontValue = document.getElementById("font-value");
   const fontOptions = document.getElementById("font-options");
+  const longVideoWarning = document.getElementById("long-video-warning");
+  const waveformImage = document.getElementById("waveform-image");
+  const TIMELINE_WINDOW_SECONDS = 30;
+  const presetSelect = document.getElementById("preset-select");
+  const presetName = document.getElementById("preset-name");
+  const presetSave = document.getElementById("preset-save");
+  const presetDataEl = document.getElementById("preset-data");
   const timestampPattern = /^\d{2}:\d{2}:\d{2},\d{3}$/;
   let isDirty = false;
   let saveTimeoutId = null;
   let toastTimer = null;
+  let timelineBaseline = null;
+  let timelineDirty = false;
+  let timelineDirtyIndices = new Set();
+  let initialStyleState = null;
+  let suppressTimelineAutoScrollUntil = 0;
+  let suppressUnloadWarning = false;
 
   const setProcessingState = (isProcessing) => {
     if (saveButton) {
       saveButton.disabled = isProcessing;
+    }
+    if (saveBarButton) {
+      saveBarButton.disabled = isProcessing;
     }
     exportForms.forEach((formEl) => {
       const button = formEl.querySelector("button");
@@ -70,15 +106,29 @@
     });
   };
 
+  const updateToastOffset = () => {
+    if (!toast) {
+      return;
+    }
+    const baseOffset = 24;
+    if (saveBar && !saveBar.classList.contains("hidden")) {
+      const barHeight = saveBar.offsetHeight || 0;
+      toast.style.bottom = `${barHeight + baseOffset}px`;
+    } else {
+      toast.style.bottom = `${baseOffset}px`;
+    }
+  };
+
   const showToast = (message, type = "info", timeout = 2200) => {
     if (!toast) {
       return;
     }
     const base =
-      "pointer-events-none fixed bottom-6 left-1/2 z-50 w-[calc(100%-2rem)] max-w-xl -translate-x-1/2 rounded-xl px-4 py-3 text-center text-sm font-medium shadow-lg backdrop-blur";
+      "pointer-events-none fixed left-1/2 z-50 w-[calc(100%-2rem)] max-w-xl -translate-x-1/2 rounded-xl px-4 py-3 text-center text-sm font-medium shadow-lg backdrop-blur";
     toast.className = `${base} ${toastClasses[type] || toastClasses.info}`;
     toast.textContent = message;
     toast.classList.remove("hidden");
+    updateToastOffset();
     if (toastTimer) {
       clearTimeout(toastTimer);
     }
@@ -88,6 +138,71 @@
       }, timeout);
     }
   };
+
+  const hideToast = () => {
+    if (!toast) {
+      return;
+    }
+    if (toastTimer) {
+      clearTimeout(toastTimer);
+    }
+    toast.classList.add("hidden");
+  };
+
+  const formatDuration = (seconds) => {
+    if (!Number.isFinite(seconds) || seconds <= 0) {
+      return "";
+    }
+    const total = Math.round(seconds);
+    const mins = Math.floor(total / 60);
+    const hrs = Math.floor(mins / 60);
+    const mm = String(mins % 60).padStart(2, "0");
+    const ss = String(total % 60).padStart(2, "0");
+    if (hrs > 0) {
+      return `${hrs}:${mm}:${ss}`;
+    }
+    return `${mins}:${ss}`;
+  };
+
+  const normalizeTimeInput = (value) => {
+    const digits = value.replace(/\D/g, "").slice(0, 9);
+    if (!digits) {
+      return "";
+    }
+    const hh = digits.slice(0, 2);
+    const mm = digits.slice(2, 4);
+    const ss = digits.slice(4, 6);
+    const ms = digits.slice(6, 9);
+    let formatted = hh;
+    if (digits.length > 2) {
+      formatted += `:${mm}`;
+    }
+    if (digits.length > 4) {
+      formatted += `:${ss}`;
+    }
+    if (digits.length > 6) {
+      formatted += `,${ms}`;
+    }
+    return formatted;
+  };
+
+  const timeInputs = form ? form.querySelectorAll("[data-time-input]") : [];
+  timeInputs.forEach((input) => {
+    input.addEventListener("input", () => {
+      const normalized = normalizeTimeInput(input.value);
+      if (normalized !== input.value) {
+        input.value = normalized;
+      }
+      const parentBlock = input.closest(".subtitle-block");
+      if (parentBlock) {
+        markTimelineDirty(parentBlock.dataset.index);
+      } else if (focusedBlock && focusedBlock.dataset.index) {
+        markTimelineDirty(focusedBlock.dataset.index);
+      } else {
+        markTimelineDirty();
+      }
+    });
+  });
 
   const formatJobError = (job) => {
     if (!job || !job.error) {
@@ -161,7 +276,7 @@
     if (!jobId) {
       return;
     }
-    showToast("Rendering preview...", "info", 2400);
+    showToast("Rendering preview...", "info", 0);
     if (saveButton) {
       saveButton.disabled = true;
       saveButton.textContent = "Rendering preview...";
@@ -169,9 +284,10 @@
     pollJob(
       jobId,
       () => {
+        hideToast();
         if (previewVideo) {
           const source = previewVideo.querySelector("source");
-          if (source && source.src.includes("/outputs/")) {
+          if (source && source.src.includes("/media/outputs/")) {
             const cacheBuster = `v=${Date.now()}`;
             source.src = source.src.split("?")[0] + "?" + cacheBuster;
             previewVideo.load();
@@ -184,7 +300,9 @@
         }
       },
       (job) => {
+        hideToast();
         showToast(formatJobFailure(job, "Preview failed."), "error", 3200);
+        showErrorPanel(job);
         if (saveButton) {
           saveButton.disabled = false;
           saveButton.textContent = saveButton.dataset.originalText || "Save edits";
@@ -228,6 +346,9 @@
 
   const updateBlockDurations = () => {
     const blocks = subtitleList.querySelectorAll(".subtitle-block");
+    if (blockCount) {
+      blockCount.textContent = String(blocks.length);
+    }
     blocks.forEach((block) => {
       const holder = block.querySelector(".block-duration");
       if (!holder) {
@@ -246,103 +367,7 @@
     });
   };
 
-  const updatePlayhead = () => {
-    const timeline = document.getElementById("timeline");
-    const playhead = document.getElementById("timeline-playhead");
-    if (!timeline || !playhead || !previewVideo) {
-      return;
-    }
-    const duration = Number(timeline.dataset.duration || 0);
-    if (!duration) {
-      return;
-    }
-    const progress = Math.max(0, Math.min(1, previewVideo.currentTime / duration));
-    playhead.style.left = `${progress * 100}%`;
-  };
-
-  const renderTimeline = () => {
-    const timeline = document.getElementById("timeline");
-    const overlay = document.getElementById("timeline-overlay");
-    if (!timeline || !overlay) {
-      return;
-    }
-    const duration = Number(timeline.dataset.duration || 0);
-    if (!duration || Number.isNaN(duration)) {
-      return;
-    }
-    const timelineWidth = timeline.clientWidth;
-    overlay.innerHTML = "";
-    const blocks = subtitleList.querySelectorAll(".subtitle-block");
-    blocks.forEach((block) => {
-      const startValue = block.querySelector(".start").value.trim();
-      const endValue = block.querySelector(".end").value.trim();
-      const start = parseTimestamp(startValue);
-      const end = parseTimestamp(endValue);
-      if (start === null || end === null || end <= start) {
-        return;
-      }
-      const left = (start / duration) * 100;
-      const width = ((end - start) / duration) * 100;
-      const bar = document.createElement("div");
-      bar.className =
-        "timeline-block absolute top-3 h-4 rounded-sm border border-slate-300/40 bg-slate-200/35";
-      bar.style.left = `${left}%`;
-      bar.style.width = `${width}%`;
-      bar.dataset.index = block.dataset.index || "";
-      bar.innerHTML =
-        "<span class='handle-left absolute left-0 top-0 h-full w-px cursor-ew-resize bg-slate-500/60'></span>" +
-        "<span class='handle-right absolute right-0 top-0 h-full w-px cursor-ew-resize bg-slate-500/60'></span>";
-      overlay.appendChild(bar);
-
-      const onPointerDown = (event, mode) => {
-        event.preventDefault();
-        const startSeconds = parseTimestamp(block.querySelector(".start").value.trim()) || 0;
-        const endSeconds = parseTimestamp(block.querySelector(".end").value.trim()) || startSeconds + 0.1;
-        const length = endSeconds - startSeconds;
-        const startX = event.clientX;
-        const onMove = (moveEvent) => {
-          const delta = moveEvent.clientX - startX;
-          const deltaSeconds = (delta / timelineWidth) * duration;
-          let nextStart = startSeconds;
-          let nextEnd = endSeconds;
-          if (mode === "move") {
-            nextStart = Math.max(0, Math.min(duration - length, startSeconds + deltaSeconds));
-            nextEnd = nextStart + length;
-          } else if (mode === "start") {
-            nextStart = Math.max(0, Math.min(endSeconds - 0.05, startSeconds + deltaSeconds));
-          } else if (mode === "end") {
-            nextEnd = Math.min(duration, Math.max(startSeconds + 0.05, endSeconds + deltaSeconds));
-          }
-          block.querySelector(".start").value = formatTimestamp(nextStart);
-          block.querySelector(".end").value = formatTimestamp(nextEnd);
-          hiddenInput.value = JSON.stringify(collectSubtitles());
-          markDirty();
-          updateBlockDurations();
-          const newLeft = (nextStart / duration) * 100;
-          const newWidth = ((nextEnd - nextStart) / duration) * 100;
-          bar.style.left = `${newLeft}%`;
-          bar.style.width = `${newWidth}%`;
-        };
-        const onUp = () => {
-          document.removeEventListener("pointermove", onMove);
-          document.removeEventListener("pointerup", onUp);
-        };
-        document.addEventListener("pointermove", onMove);
-        document.addEventListener("pointerup", onUp);
-      };
-
-      bar.addEventListener("pointerdown", (event) => {
-        if (event.target.classList.contains("handle-left")) {
-          onPointerDown(event, "start");
-        } else if (event.target.classList.contains("handle-right")) {
-          onPointerDown(event, "end");
-        } else {
-          onPointerDown(event, "move");
-        }
-      });
-    });
-    updatePlayhead();
-  };
+  // Timeline logic moved to subtitles/timeline.js
 
   if (!form || !subtitleList || !hiddenInput) {
     return;
@@ -366,6 +391,7 @@
     fontInput.addEventListener("input", () => {
       fontValue.value = fontInput.value.trim();
       filterOptions();
+      markDirty();
     });
 
     options.forEach((option) => {
@@ -374,6 +400,7 @@
         fontInput.value = value;
         fontValue.value = value;
         fontOptions.hidden = true;
+        markDirty();
       });
     });
 
@@ -384,18 +411,19 @@
     });
   }
 
+  const updateColor = (key, value) => {
+    const dot = document.querySelector(`.color-dot[data-color-key="${key}"]`);
+    const hex = document.querySelector(`.color-hex[data-color-key="${key}"]`);
+    if (dot) {
+      dot.style.backgroundColor = value;
+    }
+    if (hex) {
+      hex.textContent = value;
+    }
+  };
+
   const colorInputs = document.querySelectorAll(".color-input");
   if (colorInputs.length) {
-    const updateColor = (key, value) => {
-      const dot = document.querySelector(`.color-dot[data-color-key="${key}"]`);
-      const hex = document.querySelector(`.color-hex[data-color-key="${key}"]`);
-      if (dot) {
-        dot.style.backgroundColor = value;
-      }
-      if (hex) {
-        hex.textContent = value;
-      }
-    };
     colorInputs.forEach((input) => {
       const key = input.dataset.colorKey;
       if (!key) {
@@ -419,10 +447,248 @@
 
   if (fontLicenseConfirm && fontUploadButton) {
     const toggleFontUpload = () => {
-      fontUploadButton.disabled = !fontLicenseConfirm.checked;
+      const hasFile = Boolean(fontFileInput && fontFileInput.files && fontFileInput.files.length);
+      fontUploadButton.disabled = !fontLicenseConfirm.checked || !hasFile || fontQueued;
     };
     fontLicenseConfirm.addEventListener("change", toggleFontUpload);
+    if (fontFileInput) {
+      fontFileInput.addEventListener("change", () => {
+        fontQueued = false;
+        toggleFontUpload();
+      });
+    }
     toggleFontUpload();
+  }
+
+  if (fontUploadForm) {
+    fontUploadForm.addEventListener("submit", () => {
+      suppressUnloadWarning = true;
+    });
+  }
+
+  if (fontDeleteForm) {
+    fontDeleteForm.addEventListener("submit", () => {
+      suppressUnloadWarning = true;
+    });
+  }
+
+  if (fontUploadButton) {
+    fontUploadButton.addEventListener("click", () => {
+      if (!fontFileInput || !fontFileInput.files || !fontFileInput.files.length) {
+        return;
+      }
+      if (fontLicenseConfirm && !fontLicenseConfirm.checked) {
+        return;
+      }
+      fontQueued = true;
+      if (fontUploadButton) {
+        fontUploadButton.disabled = true;
+      }
+      markDirty();
+    });
+  }
+
+  let queuedPreviewJob = false;
+  const presetMap = (() => {
+    if (!presetDataEl) {
+      return {};
+    }
+    try {
+      return JSON.parse(presetDataEl.textContent || "{}");
+    } catch (error) {
+      console.error(error);
+      return {};
+    }
+  })();
+
+  const setFieldValue = (selector, value) => {
+    const field = form.querySelector(selector);
+    if (!field || value === undefined || value === null) {
+      return;
+    }
+    if (field.type === "checkbox") {
+      field.checked = Boolean(value);
+      field.dispatchEvent(new Event("change", { bubbles: true }));
+    } else {
+      field.value = value;
+      field.dispatchEvent(new Event("input", { bubbles: true }));
+      field.dispatchEvent(new Event("change", { bubbles: true }));
+    }
+  };
+
+  const applyPresetStyle = (style, options = {}) => {
+    if (!style) {
+      return;
+    }
+    if (fontInput && fontValue && style.font_family) {
+      fontInput.value = style.font_family;
+      fontValue.value = style.font_family;
+      fontInput.dispatchEvent(new Event("input", { bubbles: true }));
+    }
+    setFieldValue("[name=\"style_font_weight\"]", style.font_weight);
+    setFieldValue("[name=\"style_font_style\"]", style.font_style);
+    setFieldValue("[name=\"style_font_size\"]", style.font_size);
+    setFieldValue("[name=\"style_text_color\"]", style.text_color);
+    setFieldValue("[name=\"style_text_opacity\"]", style.text_opacity);
+    setFieldValue("[name=\"style_highlight_color\"]", style.highlight_color);
+    setFieldValue("[name=\"style_highlight_mode\"]", style.highlight_mode);
+    setFieldValue("[name=\"style_highlight_opacity\"]", style.highlight_opacity);
+    setFieldValue("[name=\"style_highlight_text_opacity\"]", style.highlight_text_opacity);
+    setFieldValue("[name=\"style_outline_color\"]", style.outline_color);
+    setFieldValue("[name=\"style_outline_enabled\"]", style.outline_enabled);
+    setFieldValue("[name=\"style_outline_size\"]", style.outline_size);
+    setFieldValue("[name=\"style_background_color\"]", style.background_color);
+    setFieldValue("[name=\"style_background_enabled\"]", style.background_enabled);
+    setFieldValue("[name=\"style_background_opacity\"]", style.background_opacity);
+    setFieldValue("[name=\"style_background_padding\"]", style.background_padding);
+    setFieldValue("[name=\"style_background_blur\"]", style.background_blur);
+    setFieldValue("[name=\"style_line_height\"]", style.line_height);
+    setFieldValue("[name=\"style_position\"]", style.position);
+    setFieldValue("[name=\"style_margin_v\"]", style.margin_v);
+    setFieldValue("[name=\"style_max_words_per_line\"]", style.max_words_per_line);
+    if (style.text_color) updateColor("text", style.text_color);
+    if (style.highlight_color) updateColor("highlight", style.highlight_color);
+    if (style.outline_color) updateColor("outline", style.outline_color);
+    if (style.background_color) updateColor("background", style.background_color);
+    updateHighlightOpacityVisibility();
+    markDirty();
+    if (saveButton && options.autoSave !== false) {
+      saveButton.click();
+    }
+  };
+
+  const currentStylePayload = () => {
+    const getValue = (selector, fallback = null) => {
+      const field = form.querySelector(selector);
+      if (!field) {
+        return fallback;
+      }
+      if (field.type === "checkbox") {
+        return field.checked;
+      }
+      const value = field.value;
+      if (field.type === "number") {
+        const num = Number(value);
+        return Number.isNaN(num) ? fallback : num;
+      }
+      return value;
+    };
+    return {
+      font_family: fontInput ? fontInput.value.trim() : getValue("[name=\"style_font_family\"]"),
+      font_weight: getValue("[name=\"style_font_weight\"]"),
+      font_style: getValue("[name=\"style_font_style\"]"),
+      font_size: getValue("[name=\"style_font_size\"]"),
+      text_color: getValue("[name=\"style_text_color\"]"),
+      text_opacity: getValue("[name=\"style_text_opacity\"]"),
+      highlight_color: getValue("[name=\"style_highlight_color\"]"),
+      highlight_mode: getValue("[name=\"style_highlight_mode\"]"),
+      highlight_opacity: getValue("[name=\"style_highlight_opacity\"]"),
+      highlight_text_opacity: getValue("[name=\"style_highlight_text_opacity\"]"),
+      outline_color: getValue("[name=\"style_outline_color\"]"),
+      outline_enabled: getValue("[name=\"style_outline_enabled\"]"),
+      outline_size: getValue("[name=\"style_outline_size\"]"),
+      background_color: getValue("[name=\"style_background_color\"]"),
+      background_enabled: getValue("[name=\"style_background_enabled\"]"),
+      background_opacity: getValue("[name=\"style_background_opacity\"]"),
+      background_padding: getValue("[name=\"style_background_padding\"]"),
+      background_blur: getValue("[name=\"style_background_blur\"]"),
+      line_height: getValue("[name=\"style_line_height\"]"),
+      position: getValue("[name=\"style_position\"]"),
+      margin_v: getValue("[name=\"style_margin_v\"]"),
+      max_words_per_line: getValue("[name=\"style_max_words_per_line\"]"),
+    };
+  };
+
+  if (presetSelect) {
+    presetSelect.addEventListener("change", () => {
+      const presetId = presetSelect.value;
+      if (!presetId) {
+        return;
+      }
+      const preset = presetMap[presetId];
+      if (!preset) {
+        showToast("Preset not found.", "error", 2200);
+        return;
+      }
+      applyPresetStyle(preset.style || {}, { autoSave: false });
+    });
+  }
+
+  const updateHighlightOpacityVisibility = () => {
+    if (!highlightOpacityField || !highlightMode) {
+      return;
+    }
+    if (highlightMode.value === "background" || highlightMode.value === "background_cumulative") {
+      highlightOpacityField.classList.remove("hidden");
+    } else {
+      highlightOpacityField.classList.add("hidden");
+    }
+    if (highlightTextOpacityField) {
+      if (highlightMode.value === "text" || highlightMode.value === "text_cumulative") {
+        highlightTextOpacityField.classList.remove("hidden");
+      } else {
+        highlightTextOpacityField.classList.add("hidden");
+      }
+    }
+    if (textOpacityField) {
+      if (highlightMode.value === "text" || highlightMode.value === "text_cumulative") {
+        textOpacityField.classList.remove("hidden");
+      } else {
+        textOpacityField.classList.add("hidden");
+      }
+    }
+  };
+  if (highlightMode) {
+    highlightMode.addEventListener("change", updateHighlightOpacityVisibility);
+    updateHighlightOpacityVisibility();
+  }
+
+  if (presetSave) {
+    presetSave.addEventListener("click", async () => {
+      const name = presetName ? presetName.value.trim() : "";
+      if (!name) {
+        showToast("Name your preset before saving.", "warning", 2400);
+        return;
+      }
+      presetSave.disabled = true;
+      try {
+        const response = await fetch("/presets", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name, style: currentStylePayload() }),
+        });
+        if (!response.ok) {
+          throw new Error("Save failed");
+        }
+        const payload = await response.json();
+        const preset = payload.preset;
+        const id = `user:${preset.id}`;
+        presetMap[id] = { ...preset, id };
+        if (presetSelect) {
+          const option = document.createElement("option");
+          option.value = id;
+          option.textContent = preset.name;
+          presetSelect.appendChild(option);
+          presetSelect.value = id;
+        }
+        if (presetName) {
+          presetName.value = "";
+        }
+        showToast("Preset saved.", "success", 2200);
+      } catch (error) {
+        console.error(error);
+        showToast("Unable to save preset.", "error", 2400);
+      } finally {
+        presetSave.disabled = false;
+      }
+    });
+  }
+  if (presetName && presetSave) {
+    const togglePresetSave = () => {
+      presetSave.disabled = !presetName.value.trim();
+    };
+    presetName.addEventListener("input", togglePresetSave);
+    togglePresetSave();
   }
 
   const collectSubtitles = () => {
@@ -438,6 +704,27 @@
     });
   };
 
+  const captureTimelineBaseline = () => {
+    timelineBaseline = collectSubtitles();
+    timelineDirty = false;
+    timelineDirtyIndices = new Set();
+    if (timelineReset) {
+      timelineReset.classList.add("hidden");
+      timelineReset.disabled = true;
+    }
+  };
+
+  const markTimelineDirty = (index = null) => {
+    timelineDirty = true;
+    if (index !== null && index !== undefined && !Number.isNaN(Number(index))) {
+      timelineDirtyIndices.add(Number(index));
+    }
+    if (timelineReset) {
+      timelineReset.classList.remove("hidden");
+      timelineReset.disabled = false;
+    }
+  };
+
   const markDirty = () => {
     if (exportStatus) {
       exportStatus.style.display = "none";
@@ -449,13 +736,152 @@
       exportVideoStatus.style.display = "none";
     }
     isDirty = true;
+    if (saveBar) {
+      saveBar.classList.remove("hidden");
+      saveBar.classList.add("flex");
+    }
+    if (factoryResetButton) {
+      factoryResetButton.disabled = false;
+    }
+    updateToastOffset();
   };
 
-  subtitleList.addEventListener("input", () => {
+  const stylesMatchInitial = () => {
+    if (!initialStyleState) {
+      return false;
+    }
+    const current = currentStylePayload();
+    return JSON.stringify(current) === JSON.stringify(initialStyleState);
+  };
+
+  const subtitlesMatchBaseline = () => {
+    if (!timelineBaseline) {
+      return false;
+    }
+    const current = collectSubtitles();
+    return JSON.stringify(current) === JSON.stringify(timelineBaseline);
+  };
+
+  subtitleList.addEventListener("input", (event) => {
+    hiddenInput.value = JSON.stringify(collectSubtitles());
+    markDirty();
+    const target = event.target;
+    if (target && target.matches && target.matches("[data-time-input]")) {
+      const parentBlock = target.closest(".subtitle-block");
+      if (parentBlock) {
+        markTimelineDirty(parentBlock.dataset.index);
+      } else if (focusedBlock && focusedBlock.dataset.index) {
+        markTimelineDirty(focusedBlock.dataset.index);
+      } else {
+        markTimelineDirty();
+      }
+    }
+    updateBlockDurations();
+    SubtitleTimeline.render();
+    if (focusedBlock && focusedBlock.dataset.index) {
+      const index = Number(focusedBlock.dataset.index);
+      if (!Number.isNaN(index)) {
+        const target = subtitleList.querySelector(`.subtitle-block[data-index="${index}"]`);
+        if (target && focusedStart && focusedEnd && focusedText) {
+          focusedStart.value = target.querySelector(".start").value;
+          focusedEnd.value = target.querySelector(".end").value;
+          focusedText.value = target.querySelector(".text").value;
+        }
+      }
+    }
+  });
+
+  subtitleList.addEventListener("click", (event) => {
+    const button = event.target.closest(".delete-block");
+    if (!button) {
+      return;
+    }
+    const block = button.closest(".subtitle-block");
+    if (!block) {
+      return;
+    }
+    block.remove();
+    // If the deleted block was the one currently focused, hide the focus panel
+    if (focusedBlock && focusedBlock.dataset.index === block.dataset.index) {
+        focusedBlock.classList.add("hidden");
+        focusedBlock.dataset.index = "";
+    }
     hiddenInput.value = JSON.stringify(collectSubtitles());
     markDirty();
     updateBlockDurations();
-    renderTimeline();
+    SubtitleTimeline.render();
+  });
+
+  const syncFocusedField = (field, selector) => {
+    if (!focusedBlock || !field) {
+      return;
+    }
+    const index = Number(focusedBlock.dataset.index || "");
+    if (Number.isNaN(index)) {
+      return;
+    }
+    const target = subtitleList.querySelector(`.subtitle-block[data-index="${index}"] ${selector}`);
+    if (!target) {
+      return;
+    }
+    target.value = field.value;
+    hiddenInput.value = JSON.stringify(collectSubtitles());
+    markDirty();
+    updateBlockDurations();
+    SubtitleTimeline.render();
+  };
+
+  if (focusedStart) {
+    focusedStart.addEventListener("input", () => {
+      syncFocusedField(focusedStart, ".start");
+    });
+  }
+  if (focusedEnd) {
+    focusedEnd.addEventListener("input", () => {
+      syncFocusedField(focusedEnd, ".end");
+    });
+  }
+  if (focusedText) {
+    focusedText.addEventListener("input", () => {
+      syncFocusedField(focusedText, ".text");
+    });
+  }
+
+  if (focusedDelete) {
+    focusedDelete.addEventListener("click", () => {
+      if (!focusedBlock) {
+        return;
+      }
+      const index = Number(focusedBlock.dataset.index || "");
+      if (Number.isNaN(index)) {
+        return;
+      }
+      const target = subtitleList.querySelector(`.subtitle-block[data-index="${index}"]`);
+      if (!target) {
+        return;
+      }
+      target.remove();
+      focusedBlock.classList.add("hidden");
+      focusedBlock.dataset.index = "";
+      hiddenInput.value = JSON.stringify(collectSubtitles());
+      markDirty();
+      updateBlockDurations();
+      SubtitleTimeline.render();
+    });
+  }
+
+  const styleControls = form.querySelectorAll(
+    "input[name^='style_'], select[name^='style_']"
+  );
+  styleControls.forEach((control) => {
+    control.addEventListener("change", () => {
+      markDirty();
+    });
+    control.addEventListener("input", () => {
+      if (control.type !== "checkbox") {
+        markDirty();
+      }
+    });
   });
 
   form.addEventListener("submit", async (event) => {
@@ -472,10 +898,25 @@
     if (hasInvalidTimestamps()) {
       showToast("One or more timestamps look invalid (expected HH:MM:SS,mmm).", "warning", 3200);
     }
+    const viewport = document.getElementById("timeline-viewport");
+    const previousScroll = viewport ? viewport.scrollLeft : 0;
     try {
-      const response = await fetch(form.action, { method: "POST", body: new FormData(form) });
+      const formData = new FormData(form);
+      if (fontFileInput && fontFileInput.files && fontFileInput.files.length) {
+        formData.append("font_file", fontFileInput.files[0]);
+      }
+      if (fontLicenseConfirm && fontLicenseConfirm.checked) {
+        formData.append("font_license_confirm", "on");
+      }
+      const response = await fetch(form.action, { method: "POST", body: formData });
       if (!response.ok) {
-        throw new Error("Save failed");
+        let detail = "Save failed. Please try again.";
+        if (response.status === 413) {
+          detail = "Request too large. Try smaller changes.";
+        } else if (response.status === 429) {
+          detail = "Too many requests. Please wait a moment and try again.";
+        }
+        throw new Error(detail);
       }
       const html = await response.text();
       showToast("Subtitles saved.", "success");
@@ -485,7 +926,11 @@
       if (updatedList) {
         subtitleList.innerHTML = updatedList.innerHTML;
         updateBlockDurations();
-        renderTimeline();
+        SubtitleTimeline.render();
+        if (viewport) {
+          suppressTimelineAutoScrollUntil = Date.now() + 1500;
+          viewport.scrollLeft = previousScroll;
+        }
       }
       const updatedForm = doc.getElementById("subtitle-form");
       if (updatedForm && form) {
@@ -507,6 +952,9 @@
             field.value = updated.value;
           }
         });
+        if (fontInput && fontValue) {
+          fontInput.value = fontValue.value || "";
+        }
       }
       const updatedJobStatus = doc.getElementById("job-status");
       if (updatedJobStatus && jobStatus) {
@@ -514,7 +962,6 @@
         jobStatus.dataset.jobId = updatedJobStatus.dataset.jobId || "";
       }
       const updatedPreviewJob = doc.getElementById("preview-job");
-      let queuedPreviewJob = false;
       if (updatedPreviewJob && previewJob) {
         previewJob.dataset.jobId = updatedPreviewJob.dataset.jobId || "";
         if (previewJob.dataset.jobId) {
@@ -525,18 +972,24 @@
           startPreviewPolling(previewJob.dataset.jobId);
         }
       }
-      if (previewVideo) {
-        const source = previewVideo.querySelector("source");
-        if (source && source.src.includes("/outputs/")) {
-          const cacheBuster = `v=${Date.now()}`;
-          source.src = source.src.split("?")[0] + "?" + cacheBuster;
-          previewVideo.load();
-        }
-      }
+      // Preview reload happens when the preview job completes.
       isDirty = false;
+      if (saveBar) {
+        saveBar.classList.add("hidden");
+        saveBar.classList.remove("flex");
+      }
+      updateToastOffset();
+      captureTimelineBaseline();
+      initialStyleState = currentStylePayload();
+      
+      // Unfocus block on save
+      if (focusedBlock) {
+          focusedBlock.classList.add("hidden");
+          focusedBlock.dataset.index = "";
+      }
     } catch (error) {
       console.error(error);
-      showToast("Save failed. Please try again.", "error", 3200);
+      showToast(error.message || "Save failed. Please try again.", error.message?.includes("Too many") ? "warning" : "error", 3200);
     }
     if (saveButton && !queuedPreviewJob) {
       saveButton.disabled = false;
@@ -544,16 +997,68 @@
     }
   });
 
+  if (window.SubtitleTimeline) {
+    SubtitleTimeline.setHelpers({
+      subtitleList,
+      hiddenInput,
+      previewVideo,
+      waveformImage,
+      focusedBlock,
+      focusedLabel,
+      focusedStart,
+      focusedEnd,
+      focusedText,
+      TIMELINE_WINDOW_SECONDS,
+      parseTimestamp,
+      formatTimestamp,
+      collectSubtitles,
+      markDirty,
+      markTimelineDirty,
+      updateBlockDurations,
+      deleteBlock: (index) => {
+        const idx = Number(index);
+        if (Number.isNaN(idx)) return;
+        const block = subtitleList.querySelector(`.subtitle-block[data-index="${idx}"]`);
+        if (block) {
+          block.querySelector(".delete-block").click();
+        }
+      },
+      getSuppressTimelineAutoScrollUntil: () => suppressTimelineAutoScrollUntil,
+    });
+    SubtitleTimeline.init();
+  }
+
   // Initialize hidden input with current values.
   hiddenInput.value = JSON.stringify(collectSubtitles());
   isDirty = false;
   updateBlockDurations();
-  renderTimeline();
+  SubtitleTimeline.render();
+  captureTimelineBaseline();
+  initialStyleState = currentStylePayload();
+  if (saveBar) {
+    saveBar.classList.add("hidden");
+    saveBar.classList.remove("flex");
+  }
+  updateToastOffset();
+  if (longVideoWarning) {
+    const duration = Number(longVideoWarning.dataset.duration || 0);
+    const pretty = formatDuration(duration);
+    const suffix = pretty ? ` (${pretty})` : "";
+    showToast(`Long video${suffix}. Transcription may take a while.`, "warning", 5000);
+  }
+
+  window.addEventListener("beforeunload", (event) => {
+    if (!isDirty || suppressUnloadWarning) {
+      return;
+    }
+    event.preventDefault();
+    event.returnValue = "";
+  });
 
   if (previewVideo) {
     let rafId = null;
     const tick = () => {
-      updatePlayhead();
+      SubtitleTimeline.updatePlayhead();
       rafId = requestAnimationFrame(tick);
     };
     const startTick = () => {
@@ -572,22 +1077,83 @@
     previewVideo.addEventListener("play", startTick);
     previewVideo.addEventListener("pause", stopTick);
     previewVideo.addEventListener("ended", stopTick);
-    previewVideo.addEventListener("seeked", updatePlayhead);
-    previewVideo.addEventListener("loadedmetadata", updatePlayhead);
+    previewVideo.addEventListener("seeked", SubtitleTimeline.updatePlayhead);
+    previewVideo.addEventListener("loadedmetadata", SubtitleTimeline.updatePlayhead);
   }
 
-  const timeline = document.getElementById("timeline");
-  if (timeline && previewVideo) {
-    timeline.addEventListener("click", (event) => {
-      const rect = timeline.getBoundingClientRect();
-      const duration = Number(timeline.dataset.duration || 0);
-      if (!duration) {
+
+  if (timelineReset) {
+    timelineReset.addEventListener("click", () => {
+      if (!timelineBaseline || !timelineBaseline.length) {
         return;
       }
-      const x = Math.min(Math.max(event.clientX - rect.left, 0), rect.width);
-      const targetTime = (x / rect.width) * duration;
-      previewVideo.currentTime = targetTime;
-      updatePlayhead();
+      const blocks = subtitleList.querySelectorAll(".subtitle-block");
+      if (blocks.length !== timelineBaseline.length) {
+        captureTimelineBaseline();
+        return;
+      }
+      const indices = timelineDirtyIndices.size
+        ? Array.from(timelineDirtyIndices)
+        : Array.from(blocks).map((block) => Number(block.dataset.index));
+      indices.forEach((index) => {
+        if (Number.isNaN(index)) {
+          return;
+        }
+        const baseline = timelineBaseline[index];
+        if (!baseline) {
+          return;
+        }
+        const block = subtitleList.querySelector(`.subtitle-block[data-index="${index}"]`);
+        if (!block) {
+          return;
+        }
+        const startInput = block.querySelector(".start");
+        const endInput = block.querySelector(".end");
+        if (startInput) {
+          startInput.value = baseline.start;
+          startInput.dispatchEvent(new Event("input", { bubbles: true }));
+          startInput.dispatchEvent(new Event("change", { bubbles: true }));
+        }
+        if (endInput) {
+          endInput.value = baseline.end;
+          endInput.dispatchEvent(new Event("input", { bubbles: true }));
+          endInput.dispatchEvent(new Event("change", { bubbles: true }));
+        }
+      });
+      hiddenInput.value = JSON.stringify(collectSubtitles());
+      markDirty();
+      updateBlockDurations();
+      SubtitleTimeline.render();
+      if (focusedBlock && focusedBlock.dataset.index) {
+        const focusedIndex = Number(focusedBlock.dataset.index);
+        if (!Number.isNaN(focusedIndex)) {
+          const target = subtitleList.querySelector(`.subtitle-block[data-index="${focusedIndex}"]`);
+          if (target && focusedStart && focusedEnd) {
+            focusedStart.value = target.querySelector(".start").value;
+            focusedEnd.value = target.querySelector(".end").value;
+          }
+        }
+      }
+      timelineDirty = false;
+      timelineDirtyIndices = new Set();
+      timelineReset.classList.add("hidden");
+      timelineReset.disabled = true;
+      if (stylesMatchInitial() && subtitlesMatchBaseline()) {
+        isDirty = false;
+        if (saveBar) {
+          saveBar.classList.add("hidden");
+          saveBar.classList.remove("flex");
+        }
+        updateToastOffset();
+      }
+    });
+  }
+
+  if (saveBarButton && saveButton) {
+    saveBarButton.addEventListener("click", () => {
+      if (!saveButton.disabled) {
+        saveButton.click();
+      }
     });
   }
 
@@ -611,11 +1177,17 @@
       return;
     }
     button.disabled = true;
-    showToast(startText, "info", 2600);
+    showToast(startText, "info", 0);
     try {
       const response = await fetch(form.action, { method: "POST", body: new FormData(form) });
       if (!response.ok) {
-        throw new Error("Video export failed");
+        let detail = "Video export failed.";
+        if (response.status === 413) {
+          detail = "Export request too large. Please try again.";
+        } else if (response.status === 429) {
+          detail = "Too many export requests. Please wait and try again.";
+        }
+        throw new Error(detail);
       }
       const payload = await response.json();
       const jobId = payload.job_id;
@@ -625,6 +1197,7 @@
       pollJob(
         jobId,
         (job) => {
+          hideToast();
           const url = job.output && job.output.video_url ? job.output.video_url : null;
           const downloadName =
             job.output && job.output.download_name ? job.output.download_name : fallbackName;
@@ -643,13 +1216,20 @@
           button.disabled = false;
         },
         (job) => {
+          hideToast();
           showToast(formatJobFailure(job, "Video export failed."), "error", 3600);
+          showErrorPanel(job);
           button.disabled = false;
         }
       );
     } catch (error) {
       console.error(error);
-      showToast("Video export failed.", "error", 3600);
+      hideToast();
+      showToast(
+        error.message || "Video export failed.",
+        error.message?.includes("Too many") ? "warning" : "error",
+        3600
+      );
     }
   };
 
@@ -671,6 +1251,12 @@
     "karaoke.mp4",
     "Exporting video..."
   );
+  bindExportButtons(
+    exportGreenButtons,
+    exportVideoStatus,
+    "greenscreen.mp4",
+    "Exporting green screen..."
+  );
 
   if (jobStatus && jobStatus.dataset.jobId) {
     if (saveButton) {
@@ -684,10 +1270,12 @@
     pollJob(
       jobStatus.dataset.jobId,
       () => {
-        window.location.reload();
+        // Reload without query parameters to prevent infinite loop
+        window.location.href = window.location.pathname;
       },
       (job) => {
         showToast(formatJobFailure(job, "Processing failed."), "error", 3600);
+        showErrorPanel(job);
         setProcessingState(false);
         if (saveButton) {
           saveButton.disabled = false;
@@ -738,6 +1326,130 @@
       const formData = new FormData();
       formData.append("locked", "off");
       navigator.sendBeacon(`/jobs/${editorJobId}/touch`, formData);
+    });
+  }
+
+  const copyErrorButton = document.getElementById("copy-error-id");
+  const errorJobInput = document.getElementById("error-job-id");
+  if (copyErrorButton && errorJobInput) {
+    copyErrorButton.addEventListener("click", async () => {
+      try {
+        await navigator.clipboard.writeText(errorJobInput.value);
+        showToast("Error ID copied.", "success", 1600);
+      } catch (error) {
+        console.error(error);
+        showToast("Copy failed. Select the ID manually.", "warning", 2400);
+      }
+    });
+  }
+
+  const errorPanel = document.getElementById("error-panel");
+  const errorPanelMessage = document.getElementById("error-panel-message");
+  const errorPanelHint = document.getElementById("error-panel-hint");
+  const errorPanelId = document.getElementById("error-panel-id");
+  const copyErrorPanelId = document.getElementById("copy-error-panel-id");
+  const errorPanelRetry = document.getElementById("error-panel-retry");
+  const retryProcessing = document.getElementById("retry-processing");
+
+  const retryJob = async (jobId, button) => {
+    if (!jobId) {
+      return;
+    }
+    if (button) {
+      button.disabled = true;
+    }
+    try {
+      const response = await fetch(`/jobs/${jobId}/retry`, { method: "POST" });
+      if (!response.ok) {
+        throw new Error("Retry failed");
+      }
+      showToast("Retry started.", "info", 2400);
+      setProcessingState(true);
+      setTimeout(() => {
+        window.location.reload();
+      }, 600);
+    } catch (error) {
+      console.error(error);
+      showToast("Retry failed. Please try again.", "error", 2600);
+      if (button) {
+        button.disabled = false;
+      }
+    }
+  };
+
+  const showErrorPanel = (job) => {
+    if (!errorPanel || !job) {
+      return;
+    }
+    const message = job.error && job.error.message ? job.error.message : "Something went wrong.";
+    const hint = job.error && job.error.hint ? job.error.hint : "";
+    if (errorPanelMessage) {
+      const step = job.failed_step ? `Failed during ${job.failed_step}. ` : "";
+      errorPanelMessage.textContent = step + message;
+    }
+    if (errorPanelHint) {
+      errorPanelHint.textContent = hint;
+    }
+    if (errorPanelId) {
+      errorPanelId.value = job.job_id || "";
+    }
+    errorPanel.dataset.jobId = job.job_id || "";
+    errorPanel.classList.remove("hidden");
+  };
+
+  if (copyErrorPanelId && errorPanelId) {
+    copyErrorPanelId.addEventListener("click", async () => {
+      try {
+        await navigator.clipboard.writeText(errorPanelId.value);
+        showToast("Error ID copied.", "success", 1600);
+      } catch (error) {
+        console.error(error);
+        showToast("Copy failed. Select the ID manually.", "warning", 2400);
+      }
+    });
+  }
+
+  if (retryProcessing) {
+    retryProcessing.addEventListener("click", () => {
+      const jobId = retryProcessing.dataset.jobId;
+      retryJob(jobId, retryProcessing);
+    });
+  }
+
+  if (errorPanelRetry) {
+    errorPanelRetry.addEventListener("click", () => {
+      const jobId = errorPanel?.dataset.jobId;
+      retryJob(jobId, errorPanelRetry);
+    });
+  }
+
+  if (factoryResetButton) {
+    factoryResetButton.addEventListener("click", async () => {
+      const jobId = form.action.split("/").pop(); // /edit/{job_id}
+      if (!confirm("Are you sure you want to reset all changes? This will revert to the original transcription and cannot be undone.")) {
+        return;
+      }
+      factoryResetButton.disabled = true;
+      factoryResetButton.textContent = "Resetting...";
+      try {
+        const response = await fetch(`/edit/${jobId}/reset`, { 
+          method: "POST",
+          redirect: "follow"
+        });
+        // The server returns a redirect (303). If fetch followed it, response.url will be the new URL.
+        // Navigate there to get a clean page load.
+        if (response.ok || response.redirected) {
+          window.location.href = response.url || `/edit/${jobId}?reset=1`;
+        } else {
+          const err = await response.json().catch(() => ({}));
+          throw new Error(err.detail || "Reset failed");
+        }
+      } catch (error) {
+        console.error(error);
+        showToast(error.message, "error", 4000);
+        factoryResetButton.disabled = false;
+        factoryResetButton.textContent = "Reset to original";
+      }
     });
   }
 })();

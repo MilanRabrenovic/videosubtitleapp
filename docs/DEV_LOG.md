@@ -157,3 +157,71 @@
 - Implemented: Bottom-center toast system for all user messages (save/export/preview/pin/upload).
 - Implemented: Karaoke alignment improvements for hyphenated tokens and better word-duration fidelity.
 - Next action: Validate highlight timing on long words across more clips and refine alignment if needed.
+
+## 2026-01-23
+- Implemented: SQLite-backed auth (signup/login/logout) with secure session cookies and password hashing.
+- Implemented: Project ownership enforced by user_id across edit/export/playback/jobs routes.
+- Implemented: Protected media endpoints for uploads/outputs and removed direct static access.
+- Next action: Add rate limiting and proxy-level upload caps before public launch.
+
+## 2026-01-23
+- Implemented: In-app rate limiting for upload/edit/export endpoints with per-IP limits.
+- Implemented: Early request size checks for video and font uploads (reject large uploads before processing).
+- Next action: Add proxy-level limits (nginx/caddy) when deploying to production.
+
+## 2026-01-23
+- Implemented: Redis + RQ queue integration (optional) with job rehydration on startup.
+- Implemented: Single-process fallback still works when REDIS_URL is not set.
+- Next action: Add proxy-level limits and worker monitoring for production.
+
+## 2026-01-23
+- Implemented: Per-job timeouts for Redis workers (transcribe/preview/export) via RQ job_timeout.
+- Note: Local in-process worker cannot hard-kill long jobs; Redis workers enforce timeouts.
+- Next action: Add monitoring + job log capture for production support.
+
+## 2026-01-23
+- Implemented: Per-job log files stored in outputs/job-logs/{job_id}.log.
+- Implemented: Job JSON now records log_path for support/debugging.
+- Next action: Add a small admin/support endpoint or UI link to fetch logs safely.
+
+## 2026-01-23
+- Implemented: `/health` and `/ready` endpoints for basic readiness checks.
+- Ready check verifies storage directories and Redis connectivity (if enabled).
+- Next action: Add admin log viewer or support tooling for failed jobs.
+
+## 2026-01-23
+- Implemented: Manual retry for failed jobs (retry button in editor + error panel).
+- Implemented: Sticky “Unsaved changes” save bar at bottom of the viewport.
+- Implemented: Delete subtitle blocks with live block count updates.
+- Implemented: Long-video warning (10+ minutes) with inline banner and toast.
+- Implemented: Fixed-window timeline view (20s window) with waveform zoom + follow playhead.
+- Implemented: Back-to-upload button in editor header.
+- Updated: Video duration limit increased to 60 minutes.
+- Next action: Validate timeline window behavior on long videos and refine zoom math if needed.
+
+## 2026-01-24
+- Implemented: Scrollable timeline viewport with fixed 30s window and playhead-follow scroll.
+- Implemented: Waveform width scaling per duration with server-side generation updates.
+- Implemented: Focused subtitle editor under timeline (click pill to edit/delete).
+- Implemented: Presets system (built-in + user presets) with safe Google font (Montserrat).
+- Updated: Preset selection applies all style fields and auto-saves.
+- Incomplete: Timeline container overflow still breaks layout on some clips; short-video pills sometimes missing; word separators not rendering for long videos in some cases.
+- Next action: Fix timeline width containment + pill render consistency across short/long videos.
+
+## 2026-01-24
+- Implemented: Scrollable timeline viewport for long videos (30s window), auto-scroll follows playback, click-to-seek respects scroll.
+- Implemented: Focused block editor under the timeline (click a pill to edit), with delete from focused panel.
+- Implemented: Persistent preview toast (visible until preview finishes).
+- Implemented: Preset styles (5 built-ins) + per-account saved presets; preset apply updates all styling options and auto-saves.
+- Updated: Replaced risky TikTok font with safe Google Font (Montserrat) in presets.
+- Updated: Background opacity input accepts 0.01 steps (supports values like 0.55).
+- Next action: Finish timeline polish for long videos (verify pill separators, scroll containment, and waveform/pill sync on very long clips).
+
+## 2026-01-26
+- Implemented: Sup/sub overlays now inherit outline and highlight timing for text highlight modes.
+- Implemented: Font family changes now trigger the save bar.
+- Updated: Max font size increased to 160px.
+- Refactor: Added `_clamp01`, `_normalize_highlight_mode`, `_ass_text_tag`, `_ass_outline_tag` helpers to reduce repeated style logic.
+- Fixed: `queuedPreviewJob` scoping error in `subtitles.js`.
+- WIP: Highlight box rendering alignment/visibility still inconsistent after multiple approaches; current ASS output shows WordBox tags but visual alignment remains off.
+- Next action: Stabilize highlight box rendering (ensure boxes align exactly to words and show with correct color/opacity), then verify on preview and export.

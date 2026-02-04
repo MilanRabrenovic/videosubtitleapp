@@ -51,6 +51,15 @@ Transcription and exports can take minutes; background jobs prevent request time
 ## Why single-worker FIFO by default
 One worker keeps CPU usage predictable and avoids overload on small servers; concurrency can be increased later.
 
+## Why Redis + RQ for optional multi-worker
+RQ is lightweight, file-friendly, and integrates cleanly with our existing job JSON state. It enables parallel jobs without refactoring the core flow.
+
+## Why timeouts are enforced in Redis workers
+RQ can terminate long-running jobs safely; the in-process worker cannot hard-kill tasks without extra infrastructure.
+
+## Why per-job logs are stored locally
+Local log files keep support visibility without introducing external logging services.
+
 ## Why jobs are retained for a fixed window
 Job JSON files are kept for a limited time to balance reliability with storage limits.
 
@@ -81,17 +90,19 @@ We only track job processing steps and outcomes, not user behavior or content.
 ## Why no third-party services were added
 Local logging keeps the app self-contained and avoids external dependencies for v1.
 
-## Why session IDs were chosen instead of auth
-Session cookies provide lightweight isolation without collecting identity data.
+## Why we added SQLite auth
+SQLite gives us persistent users/sessions with minimal infrastructure and a clean path to upgrade later.
 
-## Why this is temporary
-Session-based ownership prevents accidental cross-user access but is not a substitute for authentication.
+## Why session IDs still exist
+Session IDs remain for legacy jobs and non-auth workflow glue, but ownership is now enforced by user_id.
 
 ## Why Tailwind CDN for styling
 Using Tailwind via CDN keeps styling fast to iterate without a build pipeline; it can be replaced later with a compiled setup.
 
+## Why we chose a fixed timeline window for long videos
+For long videos the full timeline becomes too dense to edit. A moving 20-second window keeps waveform and blocks readable while still following playback.
+
 ## Tradeoffs accepted for simplicity
-- No authentication or multi-user support.
 - Local filesystem storage only.
 - Minimal UI polish until the core flow is stable.
 - No video preview or advanced editing widgets.

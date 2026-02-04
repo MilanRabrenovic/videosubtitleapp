@@ -14,5 +14,5 @@
 
 ## Phase 3: Optional future ideas
 - Desktop app packaging.
-- Authentication and team workspaces.
+- Team workspaces and multi-user projects.
 - Cloud storage and background processing.

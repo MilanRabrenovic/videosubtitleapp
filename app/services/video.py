@@ -170,6 +170,58 @@ def burn_in_ass(video_path: Path, ass_path: Path, output_path: Path, fonts_dir: 
         raise JobError(payload, result.stderr.strip())
 
 
+def burn_in_ass_on_color(
+    video_path: Path,
+    ass_path: Path,
+    output_path: Path,
+    width: int,
+    height: int,
+    duration: float,
+    fonts_dir: Path | None = None,
+    color: str = "0x00FF00",
+) -> None:
+    """Render ASS subtitles over a solid-color background with original audio."""
+    filter_arg = f"ass=filename={_escape_filter_path(ass_path)}"
+    if fonts_dir:
+        filter_arg = f"{filter_arg}:fontsdir={_escape_filter_path(fonts_dir)}"
+    command = [
+        "ffmpeg",
+        "-y",
+        "-f",
+        "lavfi",
+        "-i",
+        f"color=c={color}:s={width}x{height}:d={duration}",
+        "-i",
+        str(video_path),
+        "-vf",
+        filter_arg,
+        "-map",
+        "0:v:0",
+        "-map",
+        "1:a:0?",
+        "-c:v",
+        "libx264",
+        "-pix_fmt",
+        "yuv420p",
+        "-c:a",
+        "copy",
+        "-shortest",
+        str(output_path),
+    ]
+    try:
+        result = subprocess.run(command, capture_output=True, text=True, timeout=300)
+    except subprocess.TimeoutExpired as exc:
+        payload = error_payload(
+            "TIMEOUT",
+            "Video export timed out during subtitle rendering.",
+            "Try a shorter video or reduce the output resolution.",
+        )
+        raise JobError(payload, str(exc)) from exc
+    if result.returncode != 0:
+        payload = _ffmpeg_error_payload(result.stderr)
+        raise JobError(payload, result.stderr.strip())
+
+
 def _ffmpeg_error_payload(stderr: str) -> dict:
     message = (stderr or "").lower()
     if "no such filter" in message or "subtitles" in message and "filter" in message:

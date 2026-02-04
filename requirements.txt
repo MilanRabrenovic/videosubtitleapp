@@ -4,5 +4,8 @@ jinja2
 python-multipart
 openai-whisper
 fonttools
+Pillow
 numba==0.59.1
 llvmlite==0.42.0
+redis
+rq

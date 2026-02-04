@@ -1,0 +1,12 @@
+
+ERROR: Traceback (most recent call last):
+  File "/Users/milanrabrenovic/local/278-addsubtitlestovideo/subtitle-app/app/services/editor.py", line 593, in save_subtitle_edits
+    return _save_subtitle_edits_impl(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/milanrabrenovic/local/278-addsubtitlestovideo/subtitle-app/app/services/editor.py", line 499, in _save_subtitle_edits_impl
+    from app.services.resync_helper import resync_words_to_blocks
+  File "/Users/milanrabrenovic/local/278-addsubtitlestovideo/subtitle-app/app/services/resync_helper.py", line 2, in <module>
+    def resync_words_to_blocks(words: List[Dict[str, Any]], blocks: List[Dict[str, Any]]) -> None:
+                                      ^^^^
+NameError: name 'List' is not defined
+
