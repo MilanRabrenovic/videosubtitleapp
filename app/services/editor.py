@@ -504,7 +504,20 @@ def _save_subtitle_edits_impl(
         # we generally want to respect the new constraint over old manual boundaries.
         max_words_changed = old_max_words != new_max_words
         
-        if max_words_changed and subtitles:
+        # Self-healing: Check if blocks currently violate the new limit.
+        # This handles cases where style was updated but reflow didn't happen (e.g. error or stuck state).
+        blocks_violate_limit = False
+        if new_max_words and isinstance(new_max_words, int) and new_max_words > 0:
+            for b in subtitles:
+                # Simple word count approximation
+                count = len(str(b.get("text", "")).strip().split())
+                # Use strict > to catch violations.
+                if count > new_max_words:
+                    blocks_violate_limit = True
+                    break
+        
+        if (max_words_changed or blocks_violate_limit) and subtitles:
+             print(f"DEBUG: Reflow triggered. Changed={max_words_changed}, Violates={blocks_violate_limit}")
              print("DEBUG: Max words changed, merging adjacent groups for reflow.")
              # Sort by start time
              subtitles.sort(key=lambda b: srt_timestamp_to_seconds(str(b.get("start", "00:00:00,000"))))

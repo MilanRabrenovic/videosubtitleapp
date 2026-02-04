@@ -38,6 +38,7 @@
   const pinForm = document.getElementById("pin-form");
   const pinCheckbox = document.getElementById("pin-checkbox");
   const pinStatus = document.getElementById("pin-status");
+  const factoryResetButton = document.getElementById("factory-reset-button");
   const toast = document.getElementById("toast");
   const toastClasses = {
     info: "bg-slate-900/90 text-white border border-slate-700/60",
@@ -739,6 +740,9 @@
       saveBar.classList.remove("hidden");
       saveBar.classList.add("flex");
     }
+    if (factoryResetButton) {
+      factoryResetButton.disabled = false;
+    }
     updateToastOffset();
   };
 
@@ -1266,7 +1270,8 @@
     pollJob(
       jobStatus.dataset.jobId,
       () => {
-        window.location.reload();
+        // Reload without query parameters to prevent infinite loop
+        window.location.href = window.location.pathname;
       },
       (job) => {
         showToast(formatJobFailure(job, "Processing failed."), "error", 3600);
@@ -1415,6 +1420,36 @@
     errorPanelRetry.addEventListener("click", () => {
       const jobId = errorPanel?.dataset.jobId;
       retryJob(jobId, errorPanelRetry);
+    });
+  }
+
+  if (factoryResetButton) {
+    factoryResetButton.addEventListener("click", async () => {
+      const jobId = form.action.split("/").pop(); // /edit/{job_id}
+      if (!confirm("Are you sure you want to reset all changes? This will revert to the original transcription and cannot be undone.")) {
+        return;
+      }
+      factoryResetButton.disabled = true;
+      factoryResetButton.textContent = "Resetting...";
+      try {
+        const response = await fetch(`/edit/${jobId}/reset`, { 
+          method: "POST",
+          redirect: "follow"
+        });
+        // The server returns a redirect (303). If fetch followed it, response.url will be the new URL.
+        // Navigate there to get a clean page load.
+        if (response.ok || response.redirected) {
+          window.location.href = response.url || `/edit/${jobId}?reset=1`;
+        } else {
+          const err = await response.json().catch(() => ({}));
+          throw new Error(err.detail || "Reset failed");
+        }
+      } catch (error) {
+        console.error(error);
+        showToast(error.message, "error", 4000);
+        factoryResetButton.disabled = false;
+        factoryResetButton.textContent = "Reset to original";
+      }
     });
   }
 })();

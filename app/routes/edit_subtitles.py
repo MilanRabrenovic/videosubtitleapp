@@ -11,8 +11,10 @@ from app.config import OUTPUTS_DIR, TEMPLATES_DIR, UPLOADS_DIR
 from app.services.jobs import create_job, last_failed_step, load_job, touch_job_access, update_job
 from app.services.cleanup import touch_job
 from app.services.editor import build_edit_context, handle_font_upload, save_subtitle_edits
-from app.services.fonts import available_local_fonts, delete_font_family, detect_font_info_from_path, google_font_choices, system_font_choices
-from app.services.subtitles import default_style, load_subtitle_job, normalize_style
+from app.services.fonts import available_local_fonts, delete_font_family, detect_font_info_from_path, google_font_choices, system_font_choices, resolve_font_file, find_system_font_variant
+from app.services.subtitles import default_style, load_subtitle_job, normalize_style, load_transcript_words, save_subtitle_job, load_original_job
+from app.services.video import get_video_dimensions
+from app.services.tasks import run_transcription_job
 
 router = APIRouter()
 
@@ -36,7 +38,7 @@ templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 
 
 @router.get("/edit/{job_id}")
-def edit_page(request: Request, job_id: str) -> Any:
+def edit_page(request: Request, job_id: str, processing_job_id: str = None) -> Any:
     """Render the subtitle editing UI."""
     user = _require_user(request)
     if not user:
@@ -47,6 +49,9 @@ def edit_page(request: Request, job_id: str) -> Any:
         context = build_edit_context(job_id, user["id"])
     except RuntimeError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+    # Override processing_job_id if passed via query param (e.g., after reset)
+    if processing_job_id:
+        context["processing_job_id"] = processing_job_id
     return templates.TemplateResponse(
         "edit.html",
         {"request": request, **context},
@@ -259,3 +264,93 @@ def delete_font(
             "job_pinned": job_pinned,
         },
     )
+@router.post("/edit/{job_id}/reset")
+def reset_job(request: Request, job_id: str) -> Any:
+    """Reset subtitles and style to the original transcription state."""
+    user = _require_user(request)
+    if not user:
+        return RedirectResponse(url="/login", status_code=303)
+    if not _ensure_owner(job_id, user["id"]):
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    job_data = load_subtitle_job(job_id)
+    if not job_data:
+        raise HTTPException(status_code=404, detail="Subtitle job not found")
+
+    words = load_transcript_words(job_id)
+    if not words:
+        raise HTTPException(status_code=400, detail="Original transcript not found. Cannot reset.")
+
+    # Try to load the exact original state first
+    original_data = load_original_job(job_id)
+    
+    if original_data:
+        # Restore EXACT original state
+        job_data = original_data.copy()
+        job_data["job_id"] = job_id
+        save_subtitle_job(job_id, job_data)
+    else:
+        # Fallback: Full Re-Transcription
+        # If we don't have the original state backup, we re-run the transcription logic
+        # to generate a fresh "original" state. This ensures a true Factory Reset.
+        
+        # We need to reconstruct the job payload expected by the task runner
+        video_filename = job_data.get("video_filename")
+        if not video_filename:
+             raise HTTPException(status_code=404, detail="Video file info missing")
+             
+        video_path = UPLOADS_DIR / video_filename
+        if not video_path.exists():
+             raise HTTPException(status_code=404, detail="Original video file not found")
+             
+        # Detect language if possible, or leave None to auto-detect again
+        # The previous attempt's language isn't strictly stored in top-level, 
+        # but let's assume auto-detect is fine for reset.
+        
+        job_payload = {
+            "job_id": job_id,
+            "type": "transcription",
+            "input": {
+                "video_path": str(video_path),
+                "options": {
+                    "language": None, # Force auto-detect or use None
+                    "video_filename": video_filename,
+                    "title": job_data.get("title")
+                }
+            }
+        }
+        
+        try:
+            # Run synchronously to ensure state is ready before reload
+            run_transcription_job(job_payload)
+            # Reload to ensure we return the latest data
+            job_data = load_subtitle_job(job_id)
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Reset failed: {str(e)}")
+
+    # Regenerate SRT file (required for preview rendering)
+    from app.services.subtitles import subtitles_to_srt
+    srt_path = OUTPUTS_DIR / f"{job_id}.srt"
+    srt_path.write_text(subtitles_to_srt(job_data.get("subtitles", [])), encoding="utf-8")
+
+    touch_job(job_id)
+    touch_job_access(job_id)
+
+    # Trigger preview render
+    preview_job_id = None
+    video_path = UPLOADS_DIR / job_data.get("video_filename", "")
+    if video_path.exists():
+        session_id = getattr(request.state, "session_id", None)
+        preview_job = create_job(
+            "preview",
+            {"video_path": str(video_path), "options": {"subtitle_job_id": job_id}},
+            owner_session_id=session_id,
+            owner_user_id=int(user["id"]),
+        )
+        preview_job_id = preview_job.get("job_id")
+
+    # Redirect to force a clean page load with all fresh data
+    redirect_url = f"/edit/{job_id}?reset=1"
+    if preview_job_id:
+        redirect_url += f"&processing_job_id={preview_job_id}"
+    return RedirectResponse(url=redirect_url, status_code=303)

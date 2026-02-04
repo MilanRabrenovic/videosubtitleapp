@@ -121,6 +121,9 @@ def run_transcription_job(job: Dict[str, Any]) -> Dict[str, Any]:
     ) or split_subtitles_by_words(job_data["subtitles"], job_data["style"]["max_words_per_line"])
 
     save_subtitle_job(job_id, job_data)
+    # Save a backup of the original state for factory reset
+    from app.services.subtitles import save_original_job
+    save_original_job(job_id, job_data)
     save_transcript_words(job_id, words)
     srt_path = OUTPUTS_DIR / f"{job_id}.srt"
     srt_path.write_text(subtitles_to_srt(job_data["subtitles"]), encoding="utf-8")

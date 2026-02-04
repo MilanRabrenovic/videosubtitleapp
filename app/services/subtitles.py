@@ -47,6 +47,25 @@ def load_transcript_words(job_id: str) -> Optional[List[Dict[str, Any]]]:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
+def original_job_path(job_id: str) -> Path:
+    """Return the JSON path for the original/factory job state."""
+    return OUTPUTS_DIR / f"{job_id}_original.json"
+
+
+def save_original_job(job_id: str, data: Dict[str, Any]) -> None:
+    """Persist the original job state to disk."""
+    path = original_job_path(job_id)
+    path.write_text(json.dumps(data, indent=2), encoding="utf-8")
+
+
+def load_original_job(job_id: str) -> Optional[Dict[str, Any]]:
+    """Load original job state from disk."""
+    path = original_job_path(job_id)
+    if not path.exists():
+        return None
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
 def default_style() -> Dict[str, Any]:
     """Return default subtitle styling values."""
     return {
@@ -289,7 +308,33 @@ def split_subtitles_by_word_timings(
         if not line_words:
             continue
         group_id = group_ids[index] if group_ids and index < len(group_ids) else None
-        chunks = [line_words[i : i + max_words] for i in range(0, len(line_words), max_words)]
+        
+        # Build chunks respecting max_words AND silence gaps
+        chunks = []
+        current_chunk = []
+        last_word_end = None
+        silence_threshold = 0.5
+
+        for word in line_words:
+            start = float(word.get("start", 0.0))
+            end = float(word.get("end", start))
+            
+            # Check for silence gap
+            is_gap = False
+            if last_word_end is not None:
+                if (start - last_word_end) > silence_threshold:
+                    is_gap = True
+            
+            if (len(current_chunk) >= max_words) or (is_gap and current_chunk):
+                chunks.append(current_chunk)
+                current_chunk = []
+            
+            current_chunk.append(word)
+            last_word_end = end
+            
+        if current_chunk:
+            chunks.append(current_chunk)
+
         for chunk_index, chunk in enumerate(chunks):
             if not chunk:
                 continue
