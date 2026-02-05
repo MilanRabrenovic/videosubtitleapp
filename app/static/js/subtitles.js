@@ -67,8 +67,33 @@
   let timelineDirty = false;
   let timelineDirtyIndices = new Set();
   let initialStyleState = null;
+  const originalFaviconEl = document.querySelector('link[rel*="icon"]');
+  const originalFaviconHref = originalFaviconEl ? originalFaviconEl.href : null;
   let suppressTimelineAutoScrollUntil = 0;
   let suppressUnloadWarning = false;
+
+  const setProcessingFavicon = (processing) => {
+    let link = document.querySelector('link[rel*="icon"]');
+    if (processing) {
+      if (!link) {
+        link = document.createElement('link');
+        link.rel = 'icon';
+        link.id = 'dynamic-favicon';
+        document.head.appendChild(link);
+      }
+      link.href = 'data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>⏳</text></svg>';
+    } else if (link) {
+      if (originalFaviconHref) {
+        link.href = originalFaviconHref;
+      } else {
+        // Set to transparent pixel to force-clear the icon, then remove
+        link.href = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
+        setTimeout(() => {
+          if (link.parentNode) link.remove();
+        }, 100);
+      }
+    }
+  };
 
   const setProcessingState = (isProcessing) => {
     if (saveButton) {
@@ -277,6 +302,7 @@
       return;
     }
     showToast("Rendering preview...", "info", 0);
+    setProcessingFavicon(true);
     if (saveButton) {
       saveButton.disabled = true;
       saveButton.textContent = "Rendering preview...";
@@ -298,6 +324,7 @@
           saveButton.disabled = false;
           saveButton.textContent = saveButton.dataset.originalText || "Save edits";
         }
+        setProcessingFavicon(false);
       },
       (job) => {
         hideToast();
@@ -307,6 +334,7 @@
           saveButton.disabled = false;
           saveButton.textContent = saveButton.dataset.originalText || "Save edits";
         }
+        setProcessingFavicon(false);
       }
     );
   };
@@ -890,11 +918,13 @@
       return;
     }
     hiddenInput.value = JSON.stringify(collectSubtitles());
+    queuedPreviewJob = false;
     if (saveButton) {
       saveButton.disabled = true;
       saveButton.dataset.originalText = saveButton.dataset.originalText || saveButton.textContent;
       saveButton.textContent = "Saving...";
     }
+    setProcessingFavicon(true);
     if (hasInvalidTimestamps()) {
       showToast("One or more timestamps look invalid (expected HH:MM:SS,mmm).", "warning", 3200);
     }
@@ -991,9 +1021,12 @@
       console.error(error);
       showToast(error.message || "Save failed. Please try again.", error.message?.includes("Too many") ? "warning" : "error", 3200);
     }
-    if (saveButton && !queuedPreviewJob) {
-      saveButton.disabled = false;
-      saveButton.textContent = saveButton.dataset.originalText || "Save edits";
+    if (!queuedPreviewJob) {
+      if (saveButton) {
+        saveButton.disabled = false;
+        saveButton.textContent = saveButton.dataset.originalText || "Save edits";
+      }
+      setProcessingFavicon(false);
     }
   });
 
@@ -1178,6 +1211,7 @@
     }
     button.disabled = true;
     showToast(startText, "info", 0);
+    setProcessingFavicon(true);
     try {
       const response = await fetch(form.action, { method: "POST", body: new FormData(form) });
       if (!response.ok) {
@@ -1214,12 +1248,14 @@
           link.remove();
           showToast("Video exported.", "success");
           button.disabled = false;
+          setProcessingFavicon(false);
         },
         (job) => {
           hideToast();
           showToast(formatJobFailure(job, "Video export failed."), "error", 3600);
           showErrorPanel(job);
           button.disabled = false;
+          setProcessingFavicon(false);
         }
       );
     } catch (error) {
@@ -1230,6 +1266,7 @@
         error.message?.includes("Too many") ? "warning" : "error",
         3600
       );
+      setProcessingFavicon(false);
     }
   };
 
@@ -1264,6 +1301,7 @@
       saveButton.textContent = "Processing...";
     }
     setProcessingState(true);
+    setProcessingFavicon(true);
     if (jobStatus.textContent.trim()) {
       showToast(jobStatus.textContent.trim(), "info", 0);
     }
@@ -1271,6 +1309,7 @@
       jobStatus.dataset.jobId,
       () => {
         // Reload without query parameters to prevent infinite loop
+        setProcessingFavicon(false);
         window.location.href = window.location.pathname;
       },
       (job) => {
@@ -1281,6 +1320,7 @@
           saveButton.disabled = false;
           saveButton.textContent = saveButton.dataset.originalText || "Save edits";
         }
+        setProcessingFavicon(false);
       }
     );
   } else if (jobStatus && jobStatus.textContent.trim()) {
@@ -1365,6 +1405,7 @@
       }
       showToast("Retry started.", "info", 2400);
       setProcessingState(true);
+      setProcessingFavicon(true);
       setTimeout(() => {
         window.location.reload();
       }, 600);

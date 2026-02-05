@@ -98,13 +98,20 @@ def validate_video_file(video_path: Path, max_bytes: int, max_seconds: int) -> N
 
 def generate_waveform(video_path: Path, output_path: Path, width: int = 1200, height: int = 200) -> None:
     """Generate a waveform image for the video's audio track."""
+    # Normalize visual amplitude so loud tracks don't overwhelm the waveform.
+    # dynaudnorm evens out loudness; linear scale preserves shape.
+    filter_chain = (
+        f"aformat=channel_layouts=mono,"
+        f"dynaudnorm=f=150:g=15:p=0.5,"
+        f"showwavespic=s={width}x{height}:colors=0x1f2937:scale=lin"
+    )
     command = [
         "ffmpeg",
         "-y",
         "-i",
         str(video_path),
         "-filter_complex",
-        f"showwavespic=s={width}x{height}:colors=0x1f2937",
+        filter_chain,
         "-frames:v",
         "1",
         str(output_path),
