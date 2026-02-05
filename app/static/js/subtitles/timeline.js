@@ -5,6 +5,9 @@
   let overlay = null;
   let viewport = null;
   let playhead = null;
+  let zoomControl = null;
+  let zoomLabel = null;
+  let zoomFactor = 1;
 
   const ensureElements = () => {
     if (!timeline) {
@@ -12,6 +15,8 @@
       overlay = document.getElementById("timeline-overlay");
       viewport = document.getElementById("timeline-viewport");
       playhead = document.getElementById("timeline-playhead");
+      zoomControl = document.getElementById("timeline-zoom");
+      zoomLabel = document.getElementById("timeline-zoom-value");
     }
   };
 
@@ -25,18 +30,30 @@
 
   const getWindowDuration = (duration) => {
     const fallback = helpers.TIMELINE_WINDOW_SECONDS || 30;
-    return Math.min(fallback, duration || 0);
+    const base = Math.min(fallback, duration || 0);
+    const zoomed = Math.max(2, base / (zoomFactor || 1));
+    return Math.min(zoomed, duration || 0);
+  };
+
+  const updateZoomLabel = () => {
+    if (!zoomLabel) {
+      return;
+    }
+    const display = Number.isFinite(zoomFactor) ? zoomFactor : 1;
+    zoomLabel.textContent = `${display}x`;
   };
 
   const totalWidthFor = (duration, windowDuration, viewportWidth) => {
     const waveformWidth = Number(timeline?.dataset.waveformWidth || 0);
+    const baseWindow = Math.min(helpers.TIMELINE_WINDOW_SECONDS || 30, duration || 0);
+    const baseWidth =
+      duration <= baseWindow
+        ? viewportWidth
+        : Math.max(viewportWidth, waveformWidth > 0 ? waveformWidth : viewportWidth * (duration / baseWindow));
     if (duration <= windowDuration) {
-      return viewportWidth;
+      return Math.max(viewportWidth, baseWidth);
     }
-    return Math.max(
-      viewportWidth,
-      waveformWidth > 0 ? waveformWidth : viewportWidth * (duration / windowDuration)
-    );
+    return Math.max(viewportWidth, baseWidth * (zoomFactor || 1));
   };
 
   const updateWaveformWindow = (totalWidth) => {
@@ -252,6 +269,16 @@
     ensureElements();
     if (!timeline || !overlay || !viewport) {
       return;
+    }
+    if (zoomControl) {
+      zoomFactor = Number(zoomControl.value || 1) || 1;
+      updateZoomLabel();
+      zoomControl.addEventListener("input", () => {
+        zoomFactor = Number(zoomControl.value || 1) || 1;
+        updateZoomLabel();
+        render();
+        updatePlayhead();
+      });
     }
     if (helpers.waveformImage) {
       helpers.waveformImage.addEventListener("load", () => {

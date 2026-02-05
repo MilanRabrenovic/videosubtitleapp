@@ -577,8 +577,23 @@
           </fieldset>
 
             <div class="rounded-xl border border-slate-200 bg-white p-4">
-              <div class="flex flex-wrap items-center justify-between gap-3">
+              <div class="flex flex-wrap items-center gap-3">
                 <p class="text-xs font-semibold uppercase tracking-[0.25em] text-slate-500">Timeline</p>
+                <div class="flex flex-1 justify-center">
+                  <div class="flex items-center gap-2 text-xs text-slate-500">
+                    <label for="timeline-zoom" class="font-semibold">Zoom</label>
+                    <input
+                      id="timeline-zoom"
+                      type="range"
+                      min="1"
+                      max="4"
+                      step="0.25"
+                      value="1"
+                      class="h-2 w-28 cursor-pointer accent-amber-500"
+                    />
+                    <span id="timeline-zoom-value" class="min-w-[32px] text-right">1x</span>
+                  </div>
+                </div>
                 <div class="flex items-center gap-3 text-xs text-slate-400">
                   {% if job.video_duration %}
                     <span>{{ "%.2f"|format(job.video_duration) }}s total</span>
@@ -604,14 +619,16 @@
                     data-waveform-width="{{ job.waveform_width or 0 }}"
                     class="relative min-w-full"
                   >
-                    <img
-                      id="waveform-image"
-                      src="/media/outputs/{{ job.job_id }}/{{ job.waveform_image or job.job_id ~ '_waveform.png' }}{% if waveform_token %}?v={{ waveform_token }}{% endif %}"
-                      alt="Waveform"
-                      class="block h-24 w-full object-cover opacity-100"
-                    />
-                    <div id="timeline-overlay" class="absolute inset-0 z-10"></div>
-                    <div id="timeline-playhead" class="absolute inset-y-0 left-0 z-20 w-px bg-amber-400/80"></div>
+                    <div id="timeline-track" class="relative h-20 overflow-hidden">
+                      <img
+                        id="waveform-image"
+                        src="/media/outputs/{{ job.job_id }}/{{ job.waveform_image or job.job_id ~ '_waveform.png' }}{% if waveform_token %}?v={{ waveform_token }}{% endif %}"
+                        alt="Waveform"
+                        class="block h-20 w-full object-cover object-center opacity-100"
+                      />
+                      <div id="timeline-overlay" class="absolute inset-0 z-10"></div>
+                      <div id="timeline-playhead" class="absolute inset-y-0 left-0 z-20 w-px bg-amber-400/80"></div>
+                    </div>
                   </div>
                 </div>
                 <p class="mt-2 text-xs text-slate-500">Drag blocks to move or resize.</p>
